@@ -61,8 +61,8 @@ static/ (vanilla JS SPA)  ──HTTP/SSE──▶  app/*_api.py (thin routes)
         planner · compiler · human gates    │  provider factory · JSON client
         (interrupt / Command resume)        │
                                             │
-                     app/main.py  media kernel (analysis · search · speech ·
-                     recognition · FFmpeg rendering · covers · QC) via DI seam
+        app/agent_tools/  33 media tool handlers (content · timeline ·
+        subtitle · cover · delivery) on top of the app/main.py kernel
 ```
 
 * **LangGraph state machine** drives plan → approval → step execution → replan. Plan approval, structured review confirmations, and background render/analysis operations are framework-level `interrupt()` pauses resumed by `Command(resume=...)`.

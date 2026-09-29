@@ -33,7 +33,8 @@ ChatClip 是单进程中文 AI 视频剪辑助手：FastAPI 服务同时承载 W
 
 | 路径 | 职责 |
 |---|---|
-| `app/main.py` | 媒体内核巨石模块：任务生命周期、分析/渲染调度、33 个媒体工具实现（`dispatch_agent_tool`） |
+| `app/main.py` | 媒体内核：任务生命周期、分析/渲染调度（媒体工具实现见 `app/agent_tools/`） |
+| `app/agent_tools/` | 33 个媒体工具处理器（context/content/timeline/subtitle/cover/delivery + registry），经 `dispatch_agent_tool` 薄路由调用 |
 | `app/agent/` | **Agent 编排域**（详见下节） |
 | `app/llm/` | **模型层**：provider 注册表与预设、LangChain 模型工厂、JSON/多模态客户端适配 |
 | `app/vision_settings.py` | 三角色配置存储（视觉/规划/Agent），泛型 `ModelRoleStore` |
@@ -78,7 +79,14 @@ ChatClip 是单进程中文 AI 视频剪辑助手：FastAPI 服务同时承载 W
    `_kick_plan` 续跑未完成计划。
 
 安全语义（保持不变）：export/delete 永不自动执行（`export_editing_draft`
-除外）；时间线必须先提案后确认；planHash 绑定审批；确认值与任务/步骤绑定。
+除外）；时间线必须先提案后确认；planHash 绑定审批（含工具目录指纹与提示词
+版本）；确认值与任务/步骤绑定（receipt 含出现代）。
+
+可靠性设施：后台操作登记 durable journal（CAS：planId+stepId+operationId+
+planRevision；迟到结果记 `late` 并阻断）；单计划 wall-clock deadline 与每
+工作区消息限流；Run 级 trace（模型指纹/token/时长/重规划/错误分类）；
+AgentStore 实体+事件同事务原子写；计划 API 携带 `statusView` 四态投影
+（planStatus/artifactStatus/qualityStatus/userActionStatus）。
 
 ## 模型层（app/llm）与推荐主线
 

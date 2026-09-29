@@ -453,6 +453,8 @@ class AgentPlatform:
                 except Exception:  # noqa: BLE001 - checkpoint may not exist
                     pass
             purged_plans += self.store.purge_workspace(workspace_id)
+            with self._execution_lock:
+                self._message_times.pop(workspace_id, None)
         return purged_plans
 
     def workspace_for_job(self, job_id: str) -> dict[str, Any] | None:

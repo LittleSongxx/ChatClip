@@ -61,8 +61,8 @@ static/（原生 JS 单页应用）──HTTP/SSE──▶  app/*_api.py（薄�
       规划器 · 编译器 · 人工门                │  Provider 工厂 · JSON 客户端
       （interrupt / Command 恢复）            │
                                               │
-                   app/main.py  媒体内核（分析 · 内容检索 · 语音 ·
-                   识别 · FFmpeg 渲染 · 封面 · 质检）经 DI 缝注入
+        app/agent_tools/  33 个媒体工具处理器（内容 · 时间线 ·
+        字幕 · 封面 · 交付），构建于 app/main.py 媒体内核之上
 ```
 
 * **LangGraph 状态机**驱动 计划 → 审批 → 步骤执行 → 重规划。计划审批、结构化审核确认、后台渲染/分析等待都是框架级 `interrupt()` 暂停点，由 `Command(resume=...)` 恢复。

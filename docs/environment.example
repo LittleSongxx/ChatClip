@@ -33,6 +33,10 @@ AGENT_MODEL=qwen3.8-max
 AGENT_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 AGENT_THINKING_TYPE=enabled
 AGENT_TIMEOUT_SECONDS=120
+# 单个计划自审批起的执行时限（秒）；超时计划按失败终结
+CHATCLIP_AGENT_PLAN_DEADLINE_SECONDS=3600
+# 每个工作区 10 分钟内最多发起的 Agent 消息数（限流）
+CHATCLIP_AGENT_MAX_MESSAGES_PER_10MIN=30
 
 # 可选：Anthropic 协议（三项同时填写时启用）
 ANTHROPIC_BASE_URL=
