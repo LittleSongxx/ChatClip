@@ -185,7 +185,7 @@ const html = `<!doctype html>
       <nav aria-label="Global navigation"><a href="https://github.com/pulls">Pull requests</a><a href="https://github.com/issues">Issues</a></nav>
     </header>
     <section class="repo-header">
-      <div class="repo-identity"><a href="https://github.com/GML-MMGroup">GML-MMGroup</a><span>/</span><a href="https://github.com/LittleSongxx/ChatClip">ChatClip</a><span class="visibility">Public</span></div>
+      <div class="repo-identity"><a href="https://github.com/LittleSongxx/ChatClip">ChatClip</a><span class="visibility">Public</span></div>
       <nav class="repo-nav" aria-label="Repository navigation"><a class="active" href="#">Code</a><a href="#">Issues</a><a href="#">Pull requests</a><a href="#">Actions</a><a href="#">Projects</a><a href="#">Security</a><a href="#">Insights</a></nav>
     </section>
     <main class="page">

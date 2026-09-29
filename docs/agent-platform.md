@@ -33,8 +33,7 @@ ChatClip 的 Agent 编排运行在 FastAPI 进程内的 LangGraph 状态机上�
 正式导出请求携带 `outputFilename` 与随输出返回的不透明 `outputRevision`。
 确认会冻结所选编辑及其字幕设置；相同导出请求返回同一持久 `operationId`。
 输出 `capabilities` 是 keep/download/edit 动作的权威来源。SQLite 是任务的
-权威存储（revision 检查 + 事务提交），JSON 仅为可重建备份。完整交付语义见
-[transactional delivery](transactional-delivery.md)。
+权威存储（revision 检查 + 事务提交），JSON 仅为可重建备份。正式导出请求携带 `outputFilename` 与随输出返回的不透明 `outputRevision`，幂等 `operationId` 语义保持不变。
 
 ## Execution contract
 
