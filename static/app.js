@@ -6,23 +6,23 @@ const $ = (selector) => {
   // 在只 eval 本文件的测试上下文中该库不可用，此时退化为等价的最小结构，
   // 保证渲染不中断（生产页面始终经由 index.html 加载 ui-states.js）。
   const ctEsc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const ctEmpty = (o) => (window.ClipTalkUIStates
-    ? window.ClipTalkUIStates.emptyStateHtml(o)
+  const ctEmpty = (o) => (window.ChatClipUIStates
+    ? window.ChatClipUIStates.emptyStateHtml(o)
     : `<div class="ct-empty${o && o.className ? ` ${o.className}` : ""}" role="status"><strong>${ctEsc(o && o.title)}</strong>${o && o.hint ? `<p>${ctEsc(o.hint)}</p>` : ""}</div>`);
   const ctPolling = (fn, ms) => {
-    const ui = window.ClipTalkUIStates;
+    const ui = window.ChatClipUIStates;
     if (ui && typeof ui.createPolling === "function") return ui.createPolling(fn, ms);
     const id = setInterval(fn, ms);
     return { interval: ms, refresh: fn, stop: () => clearInterval(id) };
   };
 // 统一提示出口：文案在 ui-copy.js 定义。只 eval 本文件的测试上下文里退化为等价字面量
 // （与上面 ctEmpty / ctPolling 同一套降级写法）。
-const ctHotEditDirty = (suffix) => (window.ClipTalkCopy?.hotEditDirty
-  ? window.ClipTalkCopy.hotEditDirty(suffix)
+const ctHotEditDirty = (suffix) => (window.ChatClipCopy?.hotEditDirty
+  ? window.ChatClipCopy.hotEditDirty(suffix)
   : `请先保存或取消当前片段设置${suffix ? `，${suffix}` : ""}`);
-const api = window.ClipTalkApi.request;
-const apiJson = window.ClipTalkApi.requestJson;
-const apiBlob = window.ClipTalkApi.requestBlob;
+const api = window.ChatClipApi.request;
+const apiJson = window.ChatClipApi.requestJson;
+const apiBlob = window.ChatClipApi.requestBlob;
 function ensureChatMessages() {
   let root = document.querySelector("#chatMessages");
   if (root) return root;
@@ -263,9 +263,9 @@ let currentJob = null;
 const JOB_REFRESH_SETTLE_MS = 6000;
 const JOB_REFRESH_RETRY_MS = 350;
 let pendingJobRefresh = null;
-window.ClipTalkCurrentJobId = () => String(currentJob?.id || "");
-window.ClipTalkCurrentJobSnapshot = () => currentJob;
-window.ClipTalkRefreshCurrentJob = (options = {}) => {
+window.ChatClipCurrentJobId = () => String(currentJob?.id || "");
+window.ChatClipCurrentJobSnapshot = () => currentJob;
+window.ChatClipRefreshCurrentJob = (options = {}) => {
   if (!currentJob) return;
   if (options?.retryUntilChanged) {
     pendingJobRefresh = {
@@ -276,7 +276,7 @@ window.ClipTalkRefreshCurrentJob = (options = {}) => {
   }
   pollJob();
 };
-window.ClipTalkSwitchWorkspaceJob = async (job) => {
+window.ChatClipSwitchWorkspaceJob = async (job) => {
   const targetId = String(job?.id || "");
   if (!targetId) return;
   const sourceId = String(currentJob?.id || "");
@@ -291,7 +291,7 @@ window.ClipTalkSwitchWorkspaceJob = async (job) => {
   const visibleId = String(currentJob?.id || "");
   if (visibleId && visibleId !== sourceId && visibleId !== targetId) return;
   if (!switchWorkspaceJob(latest)) return;
-  void window.ClipTalkAgentWorkspace?.resumeForJob?.(currentJob);
+  void window.ChatClipAgentWorkspace?.resumeForJob?.(currentJob);
   if (jobNeedsPolling(currentJob)) pollJob();
 };
 let currentOutput = null;
@@ -320,7 +320,7 @@ function syncOutputPreviewMode() {
   else delete document.body.dataset.outputPreviewMode;
   syncLegacyOutputPanelsForV4(outputActive);
   syncUnifiedWorkspaceView();
-  try { window.ClipTalkWorkspaceController?.syncMaterialsSummary?.(); }
+  try { window.ChatClipWorkspaceController?.syncMaterialsSummary?.(); }
   catch { /* summary sync is best-effort */ }
   return active;
 }
@@ -368,7 +368,7 @@ function observeFormalDelivery(job) {
     action.textContent = "下载或长期保留";
     action.onclick = () => {
       if (currentJob?.id !== job.id) return void showToast("任务已切换，请在原任务查看成片");
-      window.ClipTalkWorkspaceController?.openDeliveryResult?.(filename);
+      window.ChatClipWorkspaceController?.openDeliveryResult?.(filename);
     };
     document.querySelector(".toast-region .toast, #toastRegion .toast")?.append(action);
   }, 0);
@@ -380,8 +380,8 @@ function selectedJobOutput(job = currentJob) {
     || entries.filter(({ item, version }) => !currentOutputIsReviewSample(item, version)).at(-1)
     || entries.at(-1) || null;
 }
-window.ClipTalkSelectedJobOutput = selectedJobOutput;
-window.ClipTalkCurrentOutputSnapshot = () => ({
+window.ChatClipSelectedJobOutput = selectedJobOutput;
+window.ChatClipCurrentOutputSnapshot = () => ({
   mediaKind: viewerMediaKind,
   output: currentOutput,
   isReviewSample: currentOutputIsReviewSample(currentOutput),
@@ -411,7 +411,7 @@ function setCandidateRailOpen(open) {
   candidateRailOpen = Boolean(open);
   document.body.dataset.ctCandidateRailOpen = String(candidateRailOpen);
   if (candidateRailOpen) {
-    window.ClipTalkWorkspaceController?.openRail?.("materials");
+    window.ChatClipWorkspaceController?.openRail?.("materials");
   } else {
     const body = $("#railBody");
     const host = $("#chatStageHost");
@@ -459,7 +459,7 @@ let timelineAssetsJobId = null;
 let timelineAssetsLoadingJobId = null;
 let timelineAssets = null;
 let timelineAssetsRetryAt = 0;
-window.ClipTalkTimelineAssetsSnapshot = () => ({
+window.ChatClipTimelineAssetsSnapshot = () => ({
   jobId: timelineAssetsJobId,
   assets: timelineAssets,
 });
@@ -532,9 +532,9 @@ let selectedLlmMode = "reuse_vision";
 const studio = $(".studio");
 const timelineLayerStorageKey = "vlm-highlight-timeline-layers-v1";
 const currentJobStorageKey = "vlm-highlight-current-job-v1";
-const portraitVideoWidthStorageKey = "cliptalk-portrait-video-width-v2";
-const evidencePanelWidthStorageKey = "cliptalk-evidence-panel-width-v1";
-const secondaryEditorLayoutStorageKey = "cliptalk-secondary-editor-layout-v2";
+const portraitVideoWidthStorageKey = "chatclip-portrait-video-width-v2";
+const evidencePanelWidthStorageKey = "chatclip-evidence-panel-width-v1";
+const secondaryEditorLayoutStorageKey = "chatclip-secondary-editor-layout-v2";
 let reviewLayoutMediaIdentity = "";
 let sourceInspectionContext = null;
 
@@ -591,7 +591,7 @@ let activeChatController = null;
 // task restore request so resetWorkspace() cannot be undone by a late response.
 let homeNavigationRequested = false;
 window.alert = (message) => showToast(message);
-const workspaceStateMachine = window.ClipTalkWorkspaceState.create((next) => {
+const workspaceStateMachine = window.ChatClipWorkspaceState.create((next) => {
   document.body.dataset.workspaceState = next;
   if (next !== "completed" || !document.body.dataset.precisionEditing) {
     document.body.dataset.precisionEditing = "false";
@@ -618,8 +618,8 @@ function syncTaskCreationLayout() {
 }
 
 const ASSISTANT_WIDTH_KEYS = {
-  creation: "cliptalk-new-task-assistant-width:v1",
-  workspace: "cliptalk-workspace-assistant-width:v1",
+  creation: "chatclip-new-task-assistant-width:v1",
+  workspace: "chatclip-workspace-assistant-width:v1",
 };
 
 function assistantPanelWidthMode() {
@@ -750,7 +750,7 @@ function setupAssistantPanelResizer() {
 function assistantPanelStorageKey(job = currentJob) {
   // v2 resets the old stage-based collapsed preference after the split-glass
   // workspace redesign. Users can still collapse the assistant per task.
-  return `cliptalk-assistant-expanded:v2:${String(job?.id || "new-task")}`;
+  return `chatclip-assistant-expanded:v2:${String(job?.id || "new-task")}`;
 }
 
 function storedAssistantPanelPreference(job = currentJob) {
@@ -831,7 +831,7 @@ function syncUnifiedWorkspaceView() {
   } else if (phase === "events") {
     selectionPurpose = "include";
   }
-  unifiedWorkspaceView = window.ClipTalkWorkspaceState.deriveView({
+  unifiedWorkspaceView = window.ChatClipWorkspaceState.deriveView({
     workflow, phase, subphase,
     panel: timelineExpanded ? "timeline" : phase === "compose" ? "versions" : reviewLowerPanelMode,
     mediaKind: viewerMediaKind === "output" ? "output" : "source",
@@ -852,13 +852,13 @@ $("#assistantPanelToggle")?.addEventListener("click", () => {
   const opening = Boolean(studio?.classList.contains("assistant-collapsed"));
   setAssistantPanelExpanded(opening, { persist: true });
   if (opening && portraitDesktopWorkspaceActive()) {
-    window.ClipTalkWorkspaceController?.setRailExpanded?.(false, { persist: true, coordinate: false });
+    window.ChatClipWorkspaceController?.setRailExpanded?.(false, { persist: true, coordinate: false });
   }
   syncUnifiedWorkspaceView();
 });
 
-window.ClipTalkWorkspacePanels = {
-  ...(window.ClipTalkWorkspacePanels || {}),
+window.ChatClipWorkspacePanels = {
+  ...(window.ChatClipWorkspacePanels || {}),
   setAssistantExpanded: setAssistantPanelExpanded,
   storedAssistantPreference: storedAssistantPanelPreference,
   portraitDesktopActive: portraitDesktopWorkspaceActive,
@@ -870,7 +870,7 @@ function syncWorkspaceState(overrides = {}) {
     // Collapse the persistent history sidebar before any media/evidence panel
     // measures its available width. Waiting for the class observer's next
     // microtask made initial panel sizes depend on the previous page layout.
-    window.ClipTalkAppShell?.showView("workspace", { route: false });
+    window.ChatClipAppShell?.showView("workspace", { route: false });
   }
   const next = workspaceStateMachine.update({
     job: currentJob,
@@ -880,7 +880,7 @@ function syncWorkspaceState(overrides = {}) {
   });
   syncTaskCreationLayout();
   syncPortraitWorkspaceControls();
-  requestAnimationFrame(() => window.ClipTalkWorkspaceController?.syncPortraitPanels?.(next));
+  requestAnimationFrame(() => window.ChatClipWorkspaceController?.syncPortraitPanels?.(next));
   return next;
 }
 
@@ -1280,7 +1280,7 @@ async function reviewSubtitlesBeforeRender(outputs, subtitleStyle = "clean", { p
     $("#subtitleReviewError").textContent = "";
     mainVideo?.pause(); $("#secondaryEditorVideo")?.pause();
     subtitleReviewActiveCueId = subtitleReviewDraft.cues?.[0]?.id || null;
-    window.ClipTalkPrepareWorkspaceOverlay?.("subtitle");
+    window.ChatClipPrepareWorkspaceOverlay?.("subtitle");
     const review = $("#subtitleReview");
     review?.classList.remove("hidden");
     review?.setAttribute("aria-hidden", "false");
@@ -1465,7 +1465,7 @@ function createClientSessionId(prefix = "session") {
 
 function beginTaskCreationSession() {
   currentCreationSessionId = createClientSessionId("create");
-  window.ClipTalkAppShell?.syncCurrentJob?.(null);
+  window.ChatClipAppShell?.syncCurrentJob?.(null);
   return currentCreationSessionId;
 }
 
@@ -1699,7 +1699,7 @@ function setReviewLayout(layout, { source = "auto" } = {}) {
   syncReviewWorkbench();
   scheduleTimelineResizeRender(true);
   scheduleMediaFrameFit(true);
-  requestAnimationFrame(() => window.ClipTalkWorkspaceController?.syncPortraitPanels?.());
+  requestAnimationFrame(() => window.ChatClipWorkspaceController?.syncPortraitPanels?.());
   return normalized;
 }
 
@@ -1760,7 +1760,7 @@ async function updateCurrentProjectSettings(patch = {}) {
     body: settings,
   });
   if (!commitJobAction(job, actionToken)) throw new Error("当前任务已经切换，设置未应用到新任务");
-  window.ClipTalkWorkspaceController?.syncProjectControls?.();
+  window.ChatClipWorkspaceController?.syncProjectControls?.();
   return job;
 }
 
@@ -1779,15 +1779,15 @@ async function planCurrentOutputAspect(aspect, filename = currentOutput?.filenam
   const orientation = normalized === "9:16" ? "竖屏" : "横屏";
   if (!await requestActionConfirmation({ title: `生成${orientation}版（${normalized}）`, summary: `基于 ${identity}`, details: [method, "新版本单独保留，原版本保持不变"], confirmLabel: "生成修改方案" })) return false;
   if (!jobActionStillCurrent(actionToken) || !locateJobOutput(entry.output.filename)) return void showToast("任务或版本已变化，请重新选择后生成");
-  const submitted = await window.ClipTalkAgentWorkspace?.submitGoal?.(
+  const submitted = await window.ChatClipAgentWorkspace?.submitGoal?.(
     `基于当前任务的指定成片 ${identity} 生成 ${normalized} 画幅审核版本，${method}，不覆盖原成片。`,
     { visibleGoal: `基于 ${identity} 生成${orientation}版（${normalized}），保留原版本` },
   );
   return Boolean(submitted);
 }
 
-window.ClipTalkUpdateProjectSettings = updateCurrentProjectSettings;
-window.ClipTalkPlanOutputAspect = planCurrentOutputAspect;
+window.ChatClipUpdateProjectSettings = updateCurrentProjectSettings;
+window.ChatClipPlanOutputAspect = planCurrentOutputAspect;
 
 function setDirectorWorkspaceEmpty(visible) {
   if (visible) {
@@ -2245,7 +2245,7 @@ function openTimelinePrecisionDrawer(title, kind, trigger, node = null) {
   const drawer = $("#timelinePrecisionDrawer");
   const body = $("#timelinePrecisionDrawerBody");
   if (!drawer || !body) return false;
-  if (window.ClipTalkPrepareWorkspaceOverlay?.("timeline") === false) return false;
+  if (window.ChatClipPrepareWorkspaceOverlay?.("timeline") === false) return false;
   closeTimelinePrecisionDrawer();
   timelinePrecisionDrawerTrigger = trigger || document.activeElement;
   timelinePrecisionDrawerTrigger?.setAttribute?.("aria-expanded", "true");
@@ -2507,7 +2507,7 @@ function isPipelineRunningStatus(status) {
 }
 
 function executionForJob(job = currentJob) {
-  return window.ClipTalkWorkspaceState?.execution?.(job) || {
+  return window.ChatClipWorkspaceState?.execution?.(job) || {
     status: "waiting_user", operation: "none", active: false, outcome: "none",
     progress: {}, result: {}, capabilities: {},
   };
@@ -2673,13 +2673,13 @@ function analysisConsoleVisible(job) {
 }
 
 function agentOwnsTaskProgress(job = currentJob) {
-  const owner = window.ClipTalkAgentWorkspace?.progressOwner?.();
+  const owner = window.ChatClipAgentWorkspace?.progressOwner?.();
   return Boolean(owner && owner.jobId === job?.id
     && (!job?.agent?.planId || job.agent.planId === owner.planId)
     && !(["completed", "cancelled", "failed", "preview_ready"].includes(owner.status) && job?.agent?.workspaceStatus === "planning"));
 }
 
-window.ClipTalkAgentProgressFacts = (jobId, tool) => {
+window.ChatClipAgentProgressFacts = (jobId, tool) => {
   if (!currentJob || currentJob.id !== jobId) return {};
   const job = currentJob;
   const { stage, timing } = progressContract(job);
@@ -2700,7 +2700,7 @@ window.ClipTalkAgentProgressFacts = (jobId, tool) => {
 };
 
 function updateAgentExecutionProgress() {
-  window.ClipTalkAgentWorkspace?.updateExecutionProgress?.();
+  window.ChatClipAgentWorkspace?.updateExecutionProgress?.();
 }
 
 function setDirectorStage(stage = "conversation") {
@@ -2738,7 +2738,7 @@ function setDirectorStage(stage = "conversation") {
   renderDirectorContext(currentJob);
   syncStageNavigationPlacement();
   syncAssistantPanelForStage();
-  requestAnimationFrame(() => window.ClipTalkWorkspaceController?.syncPortraitPanels?.());
+  requestAnimationFrame(() => window.ChatClipWorkspaceController?.syncPortraitPanels?.());
   syncReviewWorkbench();
   syncUnifiedWorkspaceView();
 }
@@ -2815,7 +2815,7 @@ function isAgentInstructionDraft(job = currentJob) {
 
 function taskModePresentation(job = currentJob) {
   const workflowKey = workflowKindForJob(job);
-  const copy = window.ClipTalkCopy?.workflow(workflowKey);
+  const copy = window.ChatClipCopy?.workflow(workflowKey);
   const agentEntry = String(job?.request?.entryWorkflow || "") === "agent";
   return {
     key: workflowKey === "highlight" ? "highlight" : "content_extract",
@@ -2832,7 +2832,7 @@ function workflowAssistantLabel(_job = currentJob) {
 }
 
 function workflowVocabulary(job = currentJob) {
-  const copy = window.ClipTalkCopy?.workflow(workflowKindForJob(job));
+  const copy = window.ChatClipCopy?.workflow(workflowKindForJob(job));
   return {
     output: copy?.output || "成片",
     outputPlural: copy?.outputPlural || "成片版本",
@@ -2916,7 +2916,7 @@ function renderDirectorTaskSummary(job = currentJob) {
   const contentMode = presentation.key === "content_extract";
   const execution = executionForJob(job);
   const autoCompositionRunning = execution.active && ["auto_composition", "quality_review"].includes(execution.operation);
-  const unifiedPresentation = window.ClipTalkWorkspaceState?.derivePresentation?.(job);
+  const unifiedPresentation = window.ChatClipWorkspaceState?.derivePresentation?.(job);
   const stagedCapability = selectedDraftCapability(job);
   const status = isAgentInstructionDraft(job) ? (stagedCapability
     ? `已选择${stagedCapability.option.label} · 补充要求后生成方案`
@@ -3023,7 +3023,7 @@ function renderReviewStatus(job = currentJob) {
     : workflowKey === "speaker_edit"
       ? ({ audio_analysis: "准备声音", speech_recognition: "识别语音", voice_discovery: "区分说话人", voice_discovery_ready: "等待选择发言" }[String(job?.stage || "")])
       : "";
-  const unifiedPresentation = window.ClipTalkWorkspaceState?.derivePresentation?.(job);
+  const unifiedPresentation = window.ChatClipWorkspaceState?.derivePresentation?.(job);
   const contentReviewUnifiedLabel = job?.status === "awaiting_content_confirmation"
     ? `核对${vocabulary.candidatePlural}${contentReviewSelectedCount(job) ? ` · 已选 ${contentReviewSelectedCount(job)} 段` : ""}`
     : "";
@@ -3274,7 +3274,7 @@ function bindPortraitVideoResizer() {
 bindEvidencePanelResizer();
 bindPortraitVideoResizer();
 
-const reviewTimelineHeightStorageKey = "cliptalk-review-timeline-height-v1";
+const reviewTimelineHeightStorageKey = "chatclip-review-timeline-height-v1";
 
 function reviewTimelineHeightLimits() {
   const reviewView = $("#reviewView");
@@ -3810,7 +3810,7 @@ function requestMainVideoAutoplay() {
 }
 
 function formatTime(seconds) {
-  return window.ClipTalkWorkspaceState.formatTime(seconds);
+  return window.ChatClipWorkspaceState.formatTime(seconds);
 }
 
 function formatPreciseTimecode(seconds) {
@@ -6484,10 +6484,10 @@ function coverTimelineRequirement(job) {
   );
   const subject = String(
     job?.coverDraft?.subject || job?.brief?.coverSubject
-    || window.ClipTalkActiveCoverRequirement?.subject || subjectMatch?.[1] || "",
+    || window.ChatClipActiveCoverRequirement?.subject || subjectMatch?.[1] || "",
   ).replace(/^(?:出现|看到|看见|有|画面中|视频中)(?:的)?/, "").trim();
   const draftTime = job?.coverDraft?.requestedSourceTime;
-  const activeTime = window.ClipTalkActiveCoverRequirement?.sourceTime;
+  const activeTime = window.ChatClipActiveCoverRequirement?.sourceTime;
   const sourceTime = draftTime !== null && draftTime !== undefined && Number.isFinite(Number(draftTime))
     ? Number(draftTime)
     : activeTime !== null && activeTime !== undefined && Number.isFinite(Number(activeTime))
@@ -6610,9 +6610,9 @@ async function confirmMainCoverTimelineVariant(event) {
     if (
       String(agent.status || "") === "action_required"
       && String(agent.currentStepTool || "") === "review_cover_variants"
-      && typeof window.ClipTalkConfirmCoverTimelineSelection === "function"
+      && typeof window.ChatClipConfirmCoverTimelineSelection === "function"
     ) {
-      await window.ClipTalkConfirmCoverTimelineSelection({ variantId, contentHash });
+      await window.ChatClipConfirmCoverTimelineSelection({ variantId, contentHash });
       if (!jobActionStillCurrent(actionToken)) return;
       showToast("封面图片已保存；视频片头是否更新，请在新样片中确认。", "success");
     } else {
@@ -6661,7 +6661,7 @@ async function exportMainCoverTimeline(event) {
 }
 
 function reviseMainCoverRequirement() {
-  if (window.ClipTalkEditCoverRequirement?.()) return true;
+  if (window.ChatClipEditCoverRequirement?.()) return true;
   const latestGoal = [...(currentJob?.messages || [])].reverse().find((message) => message?.role === "user")?.text || "";
   window.setChatInputDraft?.(latestGoal);
   $("#chatInput")?.focus();
@@ -6672,7 +6672,7 @@ async function retryMainCoverCandidates(event) {
   const actionToken = captureJobAction();
   const button = event.currentTarget;
   if (button.disabled) return;
-  if (typeof window.ClipTalkRetryCoverCandidates !== "function") {
+  if (typeof window.ChatClipRetryCoverCandidates !== "function") {
     showToast("当前封面计划无法直接重建，请修改封面要求后重新生成", "error");
     reviseMainCoverRequirement();
     return;
@@ -6683,7 +6683,7 @@ async function retryMainCoverCandidates(event) {
   const notice = $("#coverReviewError");
   if (notice) { notice.hidden = true; notice.textContent = ""; }
   try {
-    await window.ClipTalkRetryCoverCandidates();
+    await window.ChatClipRetryCoverCandidates();
     if (!jobActionStillCurrent(actionToken)) return;
     showToast("正在按原封面要求重新提取候选", "success");
   } catch (error) {
@@ -6839,7 +6839,7 @@ function renderTimelineCoverTrack(job = currentJob) {
   if (draftState) draftState.textContent = isCurrent ? "当前封面" : validVariantCount ? "待确认" : "没有有效候选";
 }
 
-window.addEventListener("cliptalk:cover-requirement", () => {
+window.addEventListener("chatclip:cover-requirement", () => {
   if (currentJob) renderTimelineCoverTrack(currentJob);
 });
 
@@ -7529,7 +7529,7 @@ function updateTimeline() {
   syncPrecisionTimelineToolbar();
 }
 
-window.ClipTalkOpenCoverTimeline = () => {
+window.ChatClipOpenCoverTimeline = () => {
   if (!currentJob || currentJob.coverDraft?.jobId !== currentJob.id
     || !(currentJob.coverDraft?.variants || []).some(item => item?.variantId && item?.previewUrl)) {
     showToast("封面候选尚未准备完成");
@@ -7605,7 +7605,7 @@ function activateModalFocus(modal, { initialFocus = null, additionalActive = [],
   const returnFocusTarget = returnTarget?.closest("#sidebarHistoryDrawer")
     ? document.querySelector("#sidebarHistoryToggle")
     : returnTarget;
-  window.ClipTalkAppShell?.closeHistoryDrawer?.();
+  window.ChatClipAppShell?.closeHistoryDrawer?.();
   const activeRoots = new Set([modal, ...additionalActive.filter(Boolean)]);
   // Include the global rail explicitly. Compatibility layouts can briefly
   // nest it inside the workspace while a modal is opening.
@@ -7667,7 +7667,7 @@ function openCoverImagePreview(url, title = "封面大图预览", meta = "") {
   const modal = $("#coverImagePreview");
   const image = $("#coverImagePreviewImage");
   if (!modal || !image || !url) return false;
-  window.ClipTalkPrepareWorkspaceOverlay?.("cover");
+  window.ChatClipPrepareWorkspaceOverlay?.("cover");
   closeCoverImagePreview();
   image.src = url;
   image.alt = `${title}的大图预览`;
@@ -7802,7 +7802,7 @@ function requestActionConfirmation({ title, summary, details = [], warning = "",
     $("#actionConfirmTitle").textContent = title;
     $("#actionConfirmSummary").textContent = summary;
     $("#actionConfirmDetails").innerHTML = details.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-    const exportOptions = exportSnapshot ? window.ClipTalkDelivery.mountOptions($("#actionConfirmDetails"), exportSnapshot) : null;
+    const exportOptions = exportSnapshot ? window.ChatClipDelivery.mountOptions($("#actionConfirmDetails"), exportSnapshot) : null;
     $("#actionConfirmWarning").textContent = warning;
     const orderWrap = $("#actionConfirmOrderWrap");
     const orderSelect = $("#actionConfirmOrder");
@@ -7938,7 +7938,7 @@ function displayStatusForJob(job = currentJob) {
     }[String(job.agentHandoffWorkflowKind || "")] || "同源新任务";
     return { text: `我已转到${workflowLabel}任务 · 当前任务结果已保留`, running: false, className: "agent-handed-off" };
   }
-  const unifiedPresentation = window.ClipTalkWorkspaceState?.derivePresentation?.(job);
+  const unifiedPresentation = window.ChatClipWorkspaceState?.derivePresentation?.(job);
   if (unifiedPresentation) {
     const preservedResult = ["failed", "cancelled"].includes(unifiedPresentation.key)
       ? jobResultSummary(job) : "";
@@ -8309,7 +8309,7 @@ function ensureAutoCompositionDock() {
 }
 
 function streamAutoComposition(job) {
-  const cs = window.ClipTalkChatStream;
+  const cs = window.ChatClipChatStream;
   if (!cs || cs.legacyDockEnabled()) return false;
   const id = `compose:${String(job?.id || "")}`;
   if (!autoCompositionDockShouldShow(job)) {
@@ -8361,7 +8361,7 @@ function renderAutoCompositionDock(job = currentJob) {
 }
 
 function updateAutoCompositionProgress(job = currentJob) {
-  const progressStream = window.ClipTalkChatStream;
+  const progressStream = window.ChatClipChatStream;
   const streamCard = (progressStream && !progressStream.legacyDockEnabled())
     ? progressStream.cardElement(`compose:${String(job?.id || "")}`)
     : null;
@@ -8660,8 +8660,8 @@ const BRIEF_CAPABILITY_GROUPS = Object.freeze({
     summary: "选择成片组织方式；默认沿用现有高光流程。",
     options: [
       { id: "highlight-auto", label: "自动高光", detail: "通看素材并生成可审核的高光视频", workflow: "highlight", badge: "当前", recommendation: "通看全部素材，选出精彩且信息完整的片段，按节奏生成一版可审核高光视频。" },
-      { id: "shortform", label: "短视频钩子", detail: "优先安排有吸引力的开场", skill: "cliptalk-shortform-hook-director", placeholder: "例如：剪成 60 秒短视频，前三秒突出产品亮点", recommendation: "剪成一条 60 秒短视频，前三秒突出核心亮点，随后用紧凑节奏展开主要内容。" },
-      { id: "interview", label: "访谈精华", detail: "按主题组织问答并保留完整观点", skill: "cliptalk-interview-editor", placeholder: "例如：剪成 3 分钟访谈精华，按主题组织回答并添加字幕", recommendation: "剪成一版访谈精华，按主题组织问答，保留完整观点并添加清晰字幕。" },
+      { id: "shortform", label: "短视频钩子", detail: "优先安排有吸引力的开场", skill: "chatclip-shortform-hook-director", placeholder: "例如：剪成 60 秒短视频，前三秒突出产品亮点", recommendation: "剪成一条 60 秒短视频，前三秒突出核心亮点，随后用紧凑节奏展开主要内容。" },
+      { id: "interview", label: "访谈精华", detail: "按主题组织问答并保留完整观点", skill: "chatclip-interview-editor", placeholder: "例如：剪成 3 分钟访谈精华，按主题组织回答并添加字幕", recommendation: "剪成一版访谈精华，按主题组织问答，保留完整观点并添加清晰字幕。" },
     ],
   },
   content_search: {
@@ -8669,7 +8669,7 @@ const BRIEF_CAPABILITY_GROUPS = Object.freeze({
     summary: "按具体目标查找证据；默认沿用现有内容检索流程。",
     options: [
       { id: "content-single", label: "指定内容", detail: "查找动作、物品、对白或屏幕文字", workflow: "content_search", badge: "当前", recommendation: "找出视频中介绍产品价格的片段，并按出现顺序整理。" },
-      { id: "content-multi", label: "多主题组合", detail: "每类内容分别查找，缺失时明确提示", skill: "cliptalk-multi-topic-assembler", placeholder: "例如：分别找出外观、内饰和驾驶画面，每类至少保留一段", recommendation: "分别找出产品外观、细节和使用场景，每类至少保留一段；找不到时明确说明。" },
+      { id: "content-multi", label: "多主题组合", detail: "每类内容分别查找，缺失时明确提示", skill: "chatclip-multi-topic-assembler", placeholder: "例如：分别找出外观、内饰和驾驶画面，每类至少保留一段", recommendation: "分别找出产品外观、细节和使用场景，每类至少保留一段；找不到时明确说明。" },
     ],
   },
   person_edit: {
@@ -8677,7 +8677,7 @@ const BRIEF_CAPABILITY_GROUPS = Object.freeze({
     summary: "先建立人物卡，再选择保留、排除或多人同框。",
     options: [
       { id: "person-discover", label: "识别后选择人物", detail: "进入人物卡核对并选择出镜片段", workflow: "person_edit", badge: "当前", recommendation: "识别视频中的主要人物，整理每个人的代表画面，让我核对后选择需要保留的人物。" },
-      { id: "person-directed", label: "直接描述人物要求", detail: "按姓名、外观或人物关系组织画面", skill: "cliptalk-person-editor", placeholder: "例如：只保留雷军出镜的画面，删除其他人物单独出镜片段", recommendation: "只保留目标人物清晰出镜的画面，删除其他人物单独出镜和主体不明确的片段。" },
+      { id: "person-directed", label: "直接描述人物要求", detail: "按姓名、外观或人物关系组织画面", skill: "chatclip-person-editor", placeholder: "例如：只保留雷军出镜的画面，删除其他人物单独出镜片段", recommendation: "只保留目标人物清晰出镜的画面，删除其他人物单独出镜和主体不明确的片段。" },
     ],
   },
   speaker_edit: {
@@ -8685,46 +8685,46 @@ const BRIEF_CAPABILITY_GROUPS = Object.freeze({
     summary: "先区分声音，再选择保留发言或整理问答。",
     options: [
       { id: "speaker-discover", label: "识别后选择说话人", detail: "试听声音卡后选择对应发言", workflow: "speaker_edit", badge: "当前", recommendation: "识别视频中的说话人，整理每个人的代表发言，让我试听后选择需要保留的声音。" },
-      { id: "speaker-directed", label: "直接描述发言要求", detail: "保留或删除指定说话人的内容", skill: "cliptalk-speaker-editor", placeholder: "例如：只保留主持人的提问和嘉宾的完整回答", recommendation: "保留主持人的提问和嘉宾的完整回答，删除无关对话、重复表达和过长停顿。" },
+      { id: "speaker-directed", label: "直接描述发言要求", detail: "保留或删除指定说话人的内容", skill: "chatclip-speaker-editor", placeholder: "例如：只保留主持人的提问和嘉宾的完整回答", recommendation: "保留主持人的提问和嘉宾的完整回答，删除无关对话、重复表达和过长停顿。" },
     ],
   },
   revision: {
     title: "剪辑调整",
     summary: "调整已有视频或审核样片的结构、节奏和镜头。",
     options: [
-      { id: "revision-edit", label: "删减与重排", detail: "缩短、删除、恢复或调整片段顺序", skill: "cliptalk-revision-editor", requiresResult: true, recommendation: "检查当前样片，删除重复或无效画面，调整片段顺序和节奏，同时保留主要信息。" },
-      { id: "revision-diagnose", label: "检查剪辑问题", detail: "诊断画面、状态、字幕或导出异常", skill: "cliptalk-edit-diagnostics", requiresResult: true, recommendation: "检查当前样片的画面、字幕、播放状态和导出结果，列出问题片段并给出修复建议。" },
+      { id: "revision-edit", label: "删减与重排", detail: "缩短、删除、恢复或调整片段顺序", skill: "chatclip-revision-editor", requiresResult: true, recommendation: "检查当前样片，删除重复或无效画面，调整片段顺序和节奏，同时保留主要信息。" },
+      { id: "revision-diagnose", label: "检查剪辑问题", detail: "诊断画面、状态、字幕或导出异常", skill: "chatclip-edit-diagnostics", requiresResult: true, recommendation: "检查当前样片的画面、字幕、播放状态和导出结果，列出问题片段并给出修复建议。" },
     ],
   },
   format: {
     title: "版式适配",
     summary: "先完成内容剪辑，再对审核样片进行字幕和画幅处理。",
     options: [
-      { id: "subtitle-edit", label: "添加或修改字幕", detail: "调整文字、时间和字幕轨道", skill: "cliptalk-subtitle-editor", requiresResult: true, recommendation: "为当前样片校对字幕文字和时间，修正错字、断句与不同步的字幕。" },
-      { id: "subtitle-layout", label: "字幕排版", detail: "设置位置、安全边距、换行和双语顺序", skill: "cliptalk-caption-layout-director", requiresResult: true, recommendation: "优化当前样片的字幕位置、字号、换行和安全边距，确保横竖屏下都清晰易读。" },
-      { id: "reframe-smart", label: "完整画面适配", detail: "使用虚化补边适配横屏、竖屏或方形", skill: "cliptalk-smart-reframe", requiresResult: true, recommendation: "将当前样片适配为竖屏 9:16，完整保留原画面，并使用自然的虚化背景补齐空白区域。" },
-      { id: "reframe-dynamic", label: "动态画幅重构", detail: "按镜头主体和安全区动态调整构图", skill: "cliptalk-dynamic-reframe-director", requiresResult: true, recommendation: "将当前样片重构为竖屏 9:16，逐镜头跟随主要人物或产品，并避开字幕安全区。" },
+      { id: "subtitle-edit", label: "添加或修改字幕", detail: "调整文字、时间和字幕轨道", skill: "chatclip-subtitle-editor", requiresResult: true, recommendation: "为当前样片校对字幕文字和时间，修正错字、断句与不同步的字幕。" },
+      { id: "subtitle-layout", label: "字幕排版", detail: "设置位置、安全边距、换行和双语顺序", skill: "chatclip-caption-layout-director", requiresResult: true, recommendation: "优化当前样片的字幕位置、字号、换行和安全边距，确保横竖屏下都清晰易读。" },
+      { id: "reframe-smart", label: "完整画面适配", detail: "使用虚化补边适配横屏、竖屏或方形", skill: "chatclip-smart-reframe", requiresResult: true, recommendation: "将当前样片适配为竖屏 9:16，完整保留原画面，并使用自然的虚化背景补齐空白区域。" },
+      { id: "reframe-dynamic", label: "动态画幅重构", detail: "按镜头主体和安全区动态调整构图", skill: "chatclip-dynamic-reframe-director", requiresResult: true, recommendation: "将当前样片重构为竖屏 9:16，逐镜头跟随主要人物或产品，并避开字幕安全区。" },
     ],
   },
   package: {
     title: "视觉包装",
     summary: "为已有视频或审核样片补充封面、片头和图文元素。",
     options: [
-      { id: "cover", label: "生成视频封面", detail: "从素材证据生成三种可选封面", skill: "cliptalk-cover-director", placeholder: "例如：为视频生成封面，标题写“新品实测”", recommendation: "从视频中选择主体清晰的画面制作封面，标题突出核心主题，并生成三种可选方案。" },
-      { id: "motion", label: "制作动态图文", detail: "生成标题卡、动画片头或说明画面", skill: "cliptalk-local-motion-renderer", placeholder: "例如：制作一个两秒标题片头，文字为“产品实测”", recommendation: "为当前视频制作一段简洁的动态图文片头，突出核心主题，并保持与原视频风格一致。" },
-      { id: "cover-intro", label: "封面加入片头", detail: "确认封面后将其合入视频开头", skill: "cliptalk-cover-intro-composer", requiresResult: true, recommendation: "将已确认的封面作为视频片头，停留 1 秒后自然过渡到正片，并保持原视频时序。" },
-      { id: "graphics", label: "标题与图文包装", detail: "添加标签、参数、价格、水印或提示文字", skill: "cliptalk-graphics-packager", requiresResult: true, recommendation: "为当前样片添加简洁的标题和重点信息卡，统一字体、颜色与位置，避免遮挡主体和字幕。" },
-      { id: "broll", label: "添加补充画面", detail: "保留主音频并加入相关切换画面", skill: "cliptalk-broll-overlay-editor", requiresResult: true, recommendation: "保留当前主音频，在相关内容处加入匹配的补充画面，并保证切换自然、语义一致。" },
-      { id: "audio", label: "优化人声与音频", detail: "响度、降噪、淡入淡出和人声优先混音", skill: "cliptalk-audio-polish-mixer", requiresResult: true, recommendation: "优化当前样片的人声清晰度和整体响度，降低背景噪声，并为开头和结尾添加自然淡入淡出。" },
+      { id: "cover", label: "生成视频封面", detail: "从素材证据生成三种可选封面", skill: "chatclip-cover-director", placeholder: "例如：为视频生成封面，标题写“新品实测”", recommendation: "从视频中选择主体清晰的画面制作封面，标题突出核心主题，并生成三种可选方案。" },
+      { id: "motion", label: "制作动态图文", detail: "生成标题卡、动画片头或说明画面", skill: "chatclip-local-motion-renderer", placeholder: "例如：制作一个两秒标题片头，文字为“产品实测”", recommendation: "为当前视频制作一段简洁的动态图文片头，突出核心主题，并保持与原视频风格一致。" },
+      { id: "cover-intro", label: "封面加入片头", detail: "确认封面后将其合入视频开头", skill: "chatclip-cover-intro-composer", requiresResult: true, recommendation: "将已确认的封面作为视频片头，停留 1 秒后自然过渡到正片，并保持原视频时序。" },
+      { id: "graphics", label: "标题与图文包装", detail: "添加标签、参数、价格、水印或提示文字", skill: "chatclip-graphics-packager", requiresResult: true, recommendation: "为当前样片添加简洁的标题和重点信息卡，统一字体、颜色与位置，避免遮挡主体和字幕。" },
+      { id: "broll", label: "添加补充画面", detail: "保留主音频并加入相关切换画面", skill: "chatclip-broll-overlay-editor", requiresResult: true, recommendation: "保留当前主音频，在相关内容处加入匹配的补充画面，并保证切换自然、语义一致。" },
+      { id: "audio", label: "优化人声与音频", detail: "响度、降噪、淡入淡出和人声优先混音", skill: "chatclip-audio-polish-mixer", requiresResult: true, recommendation: "优化当前样片的人声清晰度和整体响度，降低背景噪声，并为开头和结尾添加自然淡入淡出。" },
     ],
   },
   delivery: {
     title: "导出交付",
     summary: "先确认审核样片或成片，之后才能进行交付。",
     options: [
-      { id: "delivery-platform", label: "按平台导出", detail: "根据发布平台生成最终文件和质量报告", skill: "cliptalk-platform-delivery-exporter", requiresResult: true, recommendation: "按常用短视频平台规格导出当前成片，并在导出前检查分辨率、画幅、字幕和音量。" },
-      { id: "delivery-draft", label: "导出剪辑草稿", detail: "生成可交给外部剪辑工具的本地草稿包", skill: "cliptalk-local-draft-exporter", requiresResult: true, recommendation: "将当前时间线导出为可继续编辑的剪辑草稿包，保留片段顺序、字幕和素材引用。" },
-      { id: "delivery-qc", label: "成片质量检查", detail: "检查黑帧、静帧、静音和音视频流异常", skill: "cliptalk-delivery-qc", requiresResult: true, recommendation: "全面检查当前成片中的黑帧、静帧、静音、字幕遮挡和音视频异常，并定位问题时间段。" },
+      { id: "delivery-platform", label: "按平台导出", detail: "根据发布平台生成最终文件和质量报告", skill: "chatclip-platform-delivery-exporter", requiresResult: true, recommendation: "按常用短视频平台规格导出当前成片，并在导出前检查分辨率、画幅、字幕和音量。" },
+      { id: "delivery-draft", label: "导出剪辑草稿", detail: "生成可交给外部剪辑工具的本地草稿包", skill: "chatclip-local-draft-exporter", requiresResult: true, recommendation: "将当前时间线导出为可继续编辑的剪辑草稿包，保留片段顺序、字幕和素材引用。" },
+      { id: "delivery-qc", label: "成片质量检查", detail: "检查黑帧、静帧、静音和音视频流异常", skill: "chatclip-delivery-qc", requiresResult: true, recommendation: "全面检查当前成片中的黑帧、静帧、静音、字幕遮挡和音视频异常，并定位问题时间段。" },
     ],
   },
 });
@@ -8736,7 +8736,7 @@ function selectedDraftCapability(job = currentJob) {
   return option ? { category: pendingCapabilityCategory, group, option } : null;
 }
 
-window.ClipTalkDraftCapabilitySnapshot = () => {
+window.ChatClipDraftCapabilitySnapshot = () => {
   const selected = selectedDraftCapability(currentJob);
   return selected ? {
     active: true,
@@ -8800,7 +8800,7 @@ async function classifyBriefWorkflow(instruction) {
 function showBriefCard(file) {
   pendingCreateIntentMode = "auto";
   pendingCreateWorkflowKind = "";
-  const conversation = replaceConversationContent(window.ClipTalkTaskCreation.briefMarkup(file.name));
+  const conversation = replaceConversationContent(window.ChatClipTaskCreation.briefMarkup(file.name));
   const portal = $("#taskSetupPortal");
   const setupView = $("#taskSetupView");
   const briefCard = conversation.querySelector(".brief-card");
@@ -8814,7 +8814,7 @@ function showBriefCard(file) {
   // The setup card and mode picker are intentionally re-parented into two
   // columns. Query the document so both halves remain one accessible control.
   const briefRoot = document;
-  const skillLoadPromise = Promise.resolve(window.ClipTalkAgentWorkspace?.loadSkills());
+  const skillLoadPromise = Promise.resolve(window.ChatClipAgentWorkspace?.loadSkills());
   const agentGoalInput = briefRoot.querySelector("#briefAgentGoal");
   const agentSkillSelect = briefRoot.querySelector("#briefAgentSkillSelect");
   const setTopCapability = (category) => {
@@ -8970,7 +8970,7 @@ function showBriefCard(file) {
   });
   briefRoot.querySelector("[data-start-agent]")?.addEventListener("click", submitAgent);
   briefRoot.querySelector("[data-open-agent-registry]")?.addEventListener("click", () => {
-    window.ClipTalkAgentWorkspace?.openRegistry();
+    window.ChatClipAgentWorkspace?.openRegistry();
   });
   agentGoalInput?.addEventListener("focus", () => {
     if (pendingCreateWorkflowKind) activateAgentPath();
@@ -9067,10 +9067,10 @@ function showBriefCard(file) {
 }
 // Kept as a compatibility fallback for embedded clients that still open the
 // legacy creation card explicitly; the default upload path now uses a draft.
-window.ClipTalkLegacyBriefCard = showBriefCard;
+window.ChatClipLegacyBriefCard = showBriefCard;
 async function prepareResumableUpload(file, onProgress, { creationSessionId = currentCreationSessionId } = {}) {
   const sessionPart = String(creationSessionId || "legacy");
-  const storageKey = `cliptalk-upload:${sessionPart}:${file.name}:${file.size}:${file.lastModified}`;
+  const storageKey = `chatclip-upload:${sessionPart}:${file.name}:${file.size}:${file.lastModified}`;
   let upload = null;
   const remembered = localStorage.getItem(storageKey);
   if (remembered) {
@@ -9144,7 +9144,7 @@ async function createAgentJobFromBrief({ goal = "", skillId = "", executionMode 
           setBriefCreationStatus("上传中", `正在上传视频 ${Math.round(fraction * 100)}%`);
         })
       : null;
-    const form = window.ClipTalkTaskCreation.buildForm({
+    const form = window.ChatClipTaskCreation.buildForm({
       file, uploadSessionId: resumable?.id || "", instruction: normalizedGoal,
       taskMode: "content_extract", sourceScope: briefOptions.sourceScope,
       entryWorkflow: "agent", workflowKind: "content_search",
@@ -9155,7 +9155,7 @@ async function createAgentJobFromBrief({ goal = "", skillId = "", executionMode 
     if (createGeneration !== workspaceGeneration || !homeNavigationRequested) return;
     homeNavigationRequested = false;
     renderJob(job);
-    await window.ClipTalkAgentWorkspace?.submitGoal(normalizedGoal, {
+    await window.ChatClipAgentWorkspace?.submitGoal(normalizedGoal, {
       skillId: String(skillId || ""), executionMode: String(executionMode || "autonomous_review"),
     });
   } catch (error) {
@@ -9265,7 +9265,7 @@ async function createJobFromBrief({ allowDefaultHighlight = false, instructionOv
           setBriefCreationStatus("上传中", `正在上传视频 ${Math.round(fraction * 100)}%`);
         })
       : null;
-    const form = window.ClipTalkTaskCreation.buildForm({
+    const form = window.ChatClipTaskCreation.buildForm({
       file, uploadSessionId: resumable?.id || "", instruction: contentInstruction, taskMode,
       sourceScope: briefOptions.sourceScope, workflowKind: pendingCreateWorkflowKind,
       targetSeconds: useHighlightSettings ? highlightTargetSeconds : "",
@@ -9343,7 +9343,7 @@ async function createVoiceDiscoveryJobFromUpload({ autoStart = false } = {}) {
           setVoiceProfileStatus(`正在上传视频 ${percent}%；完成后再开始识别。`);
         })
       : null;
-    const form = window.ClipTalkTaskCreation.buildForm({
+    const form = window.ChatClipTaskCreation.buildForm({
       file,
       uploadSessionId: resumable?.id || "",
       instruction: "识别本视频中的说话人",
@@ -9410,7 +9410,7 @@ async function createPersonDiscoveryJobFromUpload() {
     const resumable = file.size >= 16 * 1024 * 1024
       ? await prepareResumableUpload(file, (fraction) => setBriefCreationStatus("上传中", `正在上传视频 ${Math.round(fraction * 100)}%`))
       : null;
-    const form = window.ClipTalkTaskCreation.buildForm({
+    const form = window.ChatClipTaskCreation.buildForm({
       file, uploadSessionId: resumable?.id || "",
       instruction: "提取所选画面人物的所有出镜片段",
       taskMode: "content_extract", sourceScope: briefOptions.sourceScope,
@@ -10465,7 +10465,7 @@ function conversationMessageMarkup(message, assistantRoleLabel) {
   const planTag = message.planLabel ? `<em class="message-origin" title="${escapeHtml(message.planGoal || "")}">${escapeHtml(message.planLabel)}</em>` : "";
   const metaClass = originTag || repeatLabel || planTag ? "message-meta" : "message-role-only";
   const confirmationHandled = agentOwnsTaskProgress()
-    && window.ClipTalkAgentWorkspace.progressOwner().status !== "awaiting_confirmation";
+    && window.ChatClipAgentWorkspace.progressOwner().status !== "awaiting_confirmation";
   const technicalRecord = /同源分析数据|Agent 将自动|媒体完整性检查|安全时间线草案/.test(displayText)
     || (confirmationHandled && /^已整理本次要求[，,。].*核对后开始执行/.test(displayText));
   const historicalRecord = role === "assistant" && message.kind !== "warning" && (
@@ -10754,7 +10754,7 @@ function contentReviewState(job = currentJob, root = null, selectedIds = null) {
   const ids = selectedIds || (root ? [...root.querySelectorAll("[data-content-match]:checked")].map(input => input.value)
     : search.reviewDraft?.selectedMatchIds || search.defaultSelectedIds || []);
   const matches = (search.candidates || []).filter(match => ids.includes(String(match.id)) && match.reviewStatus !== "rejected");
-  const context = window.ClipTalkAgentWorkspace?.contentReviewContext?.();
+  const context = window.ChatClipAgentWorkspace?.contentReviewContext?.();
   const agent = context?.jobId === job?.id && context.searchId === search.id && (!job?.agent?.planId || job.agent.planId === context.planId);
   const pending = matches.filter(match => !contentRangeVerified(match, search));
   const busy = root?.dataset.draftSaving === "true" || root?.dataset.selectionBusy === "true" || root?.dataset.submitting === "true" || Boolean(context?.busy);
@@ -10797,7 +10797,7 @@ function contentSearchRootsForSelection(root) {
   return [...document.querySelectorAll(".content-search-review")].filter(other => other.dataset.contentSearchId === root.dataset.contentSearchId);
 }
 
-window.ClipTalkContentReviewState = contentReviewState;
+window.ChatClipContentReviewState = contentReviewState;
 
 function syncContentSearchSelectionSummary(root, job = currentJob) {
   if (!root) return;
@@ -10862,7 +10862,7 @@ function syncContentSearchSelectionSummary(root, job = currentJob) {
 }
 
 function syncContentReviewNavigation() {
-  const context = window.ClipTalkAgentWorkspace?.contentReviewContext?.();
+  const context = window.ChatClipAgentWorkspace?.contentReviewContext?.();
   const sticky = document.querySelector('#csActionBar [data-cs-action="primary"]');
   if (!context || context.jobId !== currentJob?.id) {
     if (sticky?.dataset.contentReviewHidden) { sticky.hidden = false; delete sticky.dataset.contentReviewHidden; }
@@ -10890,7 +10890,7 @@ function openContentReviewNext(preferredRoot = null) {
   if (!openContentBoundaryInspector(match, { root, focus: true })) showToast("核对区尚未准备完成，请稍后重试。", "error");
 }
 
-window.ClipTalkSyncContentReview = () => {
+window.ChatClipSyncContentReview = () => {
   document.querySelectorAll(".content-search-review[data-content-search-id]").forEach(root => {
     if (currentJob) syncContentSearchSelectionSummary(root, contentSearchJobForRoot(root, currentJob));
   });
@@ -11053,12 +11053,12 @@ function collectChatUiContext() {
   return result;
 }
 
-window.ClipTalkCollectAssistantContext = () => ({
+window.ChatClipCollectAssistantContext = () => ({
   ...collectChatUiContext(), jobId: currentJob?.id,
   timeDomain: viewerMediaKind === "output" ? "preview" : "source",
 });
-window.ClipTalkRenderAssistantHistory = () => { if (currentJob) renderConversation(currentJob); };
-window.ClipTalkOpenContentEvidence = () => openContentReviewNext();
+window.ChatClipRenderAssistantHistory = () => { if (currentJob) renderConversation(currentJob); };
+window.ChatClipOpenContentEvidence = () => openContentReviewNext();
 
 const legacyWorkflowChoices = [
   {
@@ -11543,7 +11543,7 @@ function renderConversation(job) {
   // innerHTML would otherwise detach it and the next poll could no longer
   // find #jobStatus.
   const preservedAnalysisConsole = document.getElementById("jobStatus");
-  const messages = visibleConversationMessages(window.ClipTalkAgentWorkspace?.conversationMessages?.(job) || job.messages || [], job);
+  const messages = visibleConversationMessages(window.ChatClipAgentWorkspace?.conversationMessages?.(job) || job.messages || [], job);
   const currentMessages = messages.filter((message) => !message.inherited && !isAutoCompositionActivityMessage(message, job));
   const currentUserInstructions = new Set(currentMessages
     .filter((message) => message.role === "user")
@@ -11832,7 +11832,7 @@ function renderConversation(job) {
   if (preservedAnalysisConsole && preservedAnalysisConsole.parentElement !== messagesEl) {
     messagesEl.append(preservedAnalysisConsole);
   }
-  const streamHost = window.ClipTalkChatStream?.hostElement?.();
+  const streamHost = window.ChatClipChatStream?.hostElement?.();
   if (streamHost && streamHost.parentElement !== messagesEl) messagesEl.append(streamHost);
   // This progress surface is rebuilt from streamed job state. Mount its
   // activity loader synchronously instead of waiting for a DOM observer.
@@ -12452,7 +12452,7 @@ function renderEvidencePlaceholder({ time, title, reason } = {}) {
 
 function showSource({ autoplay = true, preserveMappedTime = false, seekTime = null } = {}) {
   if (!currentJob) return;
-  if (autoplay || seekTime !== null) window.ClipTalkWorkspaceController?.revealPreview?.();
+  if (autoplay || seekTime !== null) window.ChatClipWorkspaceController?.revealPreview?.();
   const explicitSourceTime = seekTime === null || seekTime === undefined || seekTime === "" ? NaN : Number(seekTime);
   const mappedSourceTime = preserveMappedTime && ["output", "event"].includes(viewerMediaKind)
     ? timelineAbsoluteTime()
@@ -12797,13 +12797,13 @@ async function exportAgentReviewPreview(item = {}) {
 
 // Agent plan surfaces use the same reviewed export flow as the result rail.
 // Keeping one entry point prevents a second set of quality-confirmation rules.
-window.ClipTalkExportAgentReviewPreview = exportAgentReviewPreview;
+window.ChatClipExportAgentReviewPreview = exportAgentReviewPreview;
 
 function bindAgentReviewPreviewActions(root, previews) {
   root?.querySelectorAll("[data-agent-review-preview]").forEach((button) => {
     button.addEventListener("click", () => {
       const item = previews[Number(button.dataset.agentReviewPreview || 0)] || {};
-      window.ClipTalkOpenAgentPreview?.(item)
+      window.ChatClipOpenAgentPreview?.(item)
         ?.catch?.((error) => showToast(error.message || "审核样片暂时无法打开"));
     });
   });
@@ -12912,8 +12912,8 @@ function orderedJobOutputs(job = currentJob) {
   });
 }
 
-window.ClipTalkOrderedJobOutputs = (job = currentJob) => orderedJobOutputs(job);
-window.ClipTalkVersionAction = async (filename, action) => {
+window.ChatClipOrderedJobOutputs = (job = currentJob) => orderedJobOutputs(job);
+window.ChatClipVersionAction = async (filename, action) => {
   const entry = locateJobOutput(filename);
   if (!entry) return showToast("该版本已不可用，请重新选择版本");
   if (action === "preview") return selectOutput(filename, true);
@@ -12922,7 +12922,7 @@ window.ClipTalkVersionAction = async (filename, action) => {
     if (!agentPreview) return openSecondaryEditor(entry.version?.id, entry.output.filename);
     const session = sourceEditSessionForOutput(entry.output);
     if (!session?.id) return showToast("该样片缺少可编辑的时间线，请重新生成样片");
-    return window.ClipTalkOpenAgentTimeline?.({ sessionId: session.id, reviewPendingProposal: true });
+    return window.ChatClipOpenAgentTimeline?.({ sessionId: session.id, reviewPendingProposal: true });
   }
   if (action === "keep") return saveCurrentOutputToLibrary(entry.output);
   if (action === "export") {
@@ -13051,7 +13051,7 @@ function syncCurrentOutputEditAction(job = currentJob) {
     button.textContent = "返回版本编辑";
     button.title = "返回生成当前审核预览的 Agent 精剪时间线";
     button.setAttribute("aria-label", "返回生成当前审核预览的 Agent 精剪时间线");
-    button.onclick = () => window.ClipTalkOpenAgentTimeline({ sessionId: button.dataset.secondaryEditSession })
+    button.onclick = () => window.ChatClipOpenAgentTimeline({ sessionId: button.dataset.secondaryEditSession })
       .catch((error) => showToast(error.message));
     return;
   }
@@ -13571,7 +13571,7 @@ async function saveCurrentOutputToLibrary(output = currentOutput) {
       { method: "POST", headers: { "Content-Type": "application/json" }, body: { kept: true } },
     );
     if (!commitJobAction(job, actionToken)) return { ok: true, jobId: actionToken.jobId, stale: true };
-    try { await window.ClipTalkAppShell?.loadLibrary?.({ force: true }); }
+    try { await window.ChatClipAppShell?.loadLibrary?.({ force: true }); }
     catch { /* The independent copy was saved; list refresh can be retried. */ }
     if (jobActionStillCurrent(actionToken)) showToast("已长期保留；删除原工程也不会影响这份成片。", "success");
     return { ok: true, jobId: actionToken.jobId, filename: output.filename };
@@ -13637,7 +13637,7 @@ function selectOutput(filename, autoplay = false, seekTime = null) {
   if (!currentJob) return;
   const located = locateJobOutput(filename);
   if (!located) return;
-  if (autoplay || seekTime !== null) window.ClipTalkWorkspaceController?.revealPreview?.();
+  if (autoplay || seekTime !== null) window.ChatClipWorkspaceController?.revealPreview?.();
   sourceInspectionContext = null;
   $("#returnInspectedVersion")?.classList.add("hidden");
   const { output, version } = located;
@@ -13739,11 +13739,11 @@ function selectOutput(filename, autoplay = false, seekTime = null) {
     packageDownload.download = `${String(output.downloadFilename || output.filename).replace(/\.[^.]+$/, "")}_发布包.zip`;
   }
   if (coverIntro) coverIntro.onclick = () => createCoverIntroOutput(version, output);
-  if (adjustCover) adjustCover.onclick = () => window.ClipTalkOpenCoverTimeline?.();
+  if (adjustCover) adjustCover.onclick = () => window.ChatClipOpenCoverTimeline?.();
   const finalize = $("#finalizePreviewButton");
   finalize?.classList.toggle("hidden", !previewOnly);
   if (finalize) {
-    finalize.onclick = () => window.ClipTalkVersionAction(output.filename, "export");
+    finalize.onclick = () => window.ChatClipVersionAction(output.filename, "export");
     finalize.textContent = "导出成片";
     finalize.title = "生成当前样片的成片版本";
     finalize.setAttribute("aria-label", "生成当前样片的成片版本");
@@ -13865,8 +13865,8 @@ async function finalizePreviewVersion(version, output = null) {
   output = output || (version.outputs?.length === 1 ? version.outputs[0] : null);
   if (!output?.filename) return void showToast("请选择要导出的具体文件");
   const actionToken = captureJobAction();
-  let snapshot = window.ClipTalkDelivery.capture(currentJob, version, output);
-  const stillCurrent = () => jobActionStillCurrent(actionToken) && window.ClipTalkDelivery.isCurrent(snapshot, currentJob);
+  let snapshot = window.ChatClipDelivery.capture(currentJob, version, output);
+  const stillCurrent = () => jobActionStillCurrent(actionToken) && window.ChatClipDelivery.isCurrent(snapshot, currentJob);
   // Show every reported warning before accepting the export risk.
   const risky = outputVersionQuality(version, output) !== "passed";
   const reports = [output?.qualityReport, version?.qualityReport, output?.reviewReport, version?.reviewReport].filter(Boolean);
@@ -13908,7 +13908,7 @@ async function finalizePreviewVersion(version, output = null) {
   actionBusy = true;
   try {
     const { job } = await apiJson(`/api/jobs/${encodeURIComponent(snapshot.jobId)}/output-versions/${encodeURIComponent(snapshot.versionId)}/finalize`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: window.ClipTalkDelivery.requestBody(snapshot, subtitleDraftId, risky, subtitleSnapshot),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: window.ChatClipDelivery.requestBody(snapshot, subtitleDraftId, risky, subtitleSnapshot),
     });
     if (!commitJobAction(job, actionToken)) return;
     showToast("成片已开始生成，完成后可下载 MP4", "success");
@@ -14657,7 +14657,7 @@ function beginTimelineRange(event) {
 }
 
 function seekSourceTime(second) {
-  window.ClipTalkWorkspaceController?.revealPreview?.();
+  window.ChatClipWorkspaceController?.revealPreview?.();
   beginSourceInspection();
   const value = Math.max(0, Math.min(Number(currentJob?.videoInfo?.duration) || timelineDurationValue(), Number(second) || 0));
   const seek = () => {
@@ -14674,7 +14674,7 @@ function seekSourceTime(second) {
   if (currentCandidate) candidatePreviewEnd = value <= Number(currentCandidate.end) ? Number(currentCandidate.end) : null;
 }
 
-window.ClipTalkSeekSourceTime = (second) => seekSourceTime(second);
+window.ChatClipSeekSourceTime = (second) => seekSourceTime(second);
 
 function contentMatchThumbnailStyle(match, height = 36) {
   const sprite = timelineAssets?.sprite;
@@ -14762,7 +14762,7 @@ function showCandidateDrawerSurface(trigger = null) {
   const drawer = $("#candidateDrawer");
   const backdrop = $("#drawerBackdrop");
   if (!drawer) return;
-  if (window.ClipTalkPrepareWorkspaceOverlay?.("candidate") === false) return;
+  if (window.ChatClipPrepareWorkspaceOverlay?.("candidate") === false) return;
   window.clearTimeout(candidateDrawerCloseTimer);
   candidateDrawerCloseTimer = null;
   candidateDrawerReturnFocus = trigger || (document.activeElement instanceof window.HTMLElement ? document.activeElement : $("#openCandidateDrawer"));
@@ -15403,7 +15403,7 @@ function renderReviewRail(job) {
     renderCandidateRail(job);
     return;
   }
-  const unifiedPresentation = window.ClipTalkWorkspaceState?.derivePresentation?.(job);
+  const unifiedPresentation = window.ChatClipWorkspaceState?.derivePresentation?.(job);
   if (unifiedPresentation?.key === "waiting_instruction") {
     setRailTitle(unifiedPresentation.railTitle);
     body.innerHTML = `<div class="rail-empty rail-state-action"><strong>${escapeHtml(unifiedPresentation.headline)}</strong><p>${escapeHtml(unifiedPresentation.detail)}</p><small class="rail-summary">请在左侧对话框输入剪辑要求，或选择一种快速剪辑方式。</small></div>`;
@@ -15429,7 +15429,7 @@ function renderReviewRail(job) {
     setRailTitle(unifiedPresentation.railTitle);
     body.innerHTML = `<div class="rail-empty rail-state-action"><strong>${escapeHtml(unifiedPresentation.headline)}</strong><p>${escapeHtml(unifiedPresentation.detail)}</p><button type="button" class="primary" data-open-agent-activity>查看失败步骤</button><button type="button" data-revise-failed>修改要求后重试</button></div>`;
     body.querySelector("[data-open-agent-activity]")?.addEventListener("click", () => {
-      window.ClipTalkAgentWorkspace?.openDetails?.({ jobId: job.id, section: "failure" });
+      window.ChatClipAgentWorkspace?.openDetails?.({ jobId: job.id, section: "failure" });
     });
     body.querySelector("[data-revise-failed]")?.addEventListener("click", () => chatInput?.focus());
     $("#railOutput")?.classList.add("hidden");
@@ -15498,7 +15498,7 @@ function renderReviewRail(job) {
         : "";
     body.innerHTML = previewMarkup || `<div class="rail-empty rail-state-action">${planStatus === "planning" ? '<span class="empty-thinking-orb" data-thinking-orb data-orb-state="composing" data-orb-size="64" data-orb-theme="light" data-orb-label="正在生成 Agent 计划"></span>' : ""}<strong>${escapeHtml(copy.title)}</strong><p>${escapeHtml(copy.detail)}</p>${planAction}</div>`;
     body.querySelector("[data-focus-agent-plan]")?.addEventListener("click", () => {
-      window.ClipTalkAgentWorkspace?.openDetails?.({ jobId: job.id, section: "confirmation" });
+      window.ChatClipAgentWorkspace?.openDetails?.({ jobId: job.id, section: "confirmation" });
     });
     bindAgentReviewPreviewActions(body, agentReviewPreviews);
     if (planStatus === "planning") syncThinkingOrbs(body);
@@ -15738,7 +15738,7 @@ function renderOutputs(job) {
       selectOutput(button.dataset.autoOutput, true);
     }));
     strip.querySelectorAll("[data-secondary-edit-version]:not(:disabled)").forEach((button) => button.addEventListener("click", () => {
-      window.ClipTalkVersionAction(button.dataset.secondaryEditOutput, "edit").catch((error) => showToast(error.message));
+      window.ChatClipVersionAction(button.dataset.secondaryEditOutput, "edit").catch((error) => showToast(error.message));
     }));
     strip.querySelectorAll(".clip-version-actions").forEach((actions, index) => {
       const { item, version } = entries[index];
@@ -15749,7 +15749,7 @@ function renderOutputs(job) {
       button.disabled = preview ? item.capabilities?.canExport === false : Boolean(item.kept) || item.capabilities?.canKeep === false;
       button.addEventListener("click", async () => {
         button.disabled = true;
-        try { await window.ClipTalkVersionAction(item.filename, preview ? "export" : "keep"); }
+        try { await window.ChatClipVersionAction(item.filename, preview ? "export" : "keep"); }
         catch (error) { showToast(error.message); }
         finally { if (button.isConnected) button.disabled = Boolean(!preview && item.kept); }
       });
@@ -15791,7 +15791,7 @@ function renderOutputs(job) {
   const sample = entries.filter(({ item, version }) => currentOutputIsReviewSample(item, version)
     && (!item.planId || item.planId === job.agent?.planId)).sort((a, b) =>
     Number(Boolean(b.item.planId && b.item.planId === job.agent?.planId)) - Number(Boolean(a.item.planId && a.item.planId === job.agent?.planId))
-    || (window.ClipTalkAgentWorkspace?.previewPriority?.(b.item) || 0) - (window.ClipTalkAgentWorkspace?.previewPriority?.(a.item) || 0)
+    || (window.ChatClipAgentWorkspace?.previewPriority?.(b.item) || 0) - (window.ChatClipAgentWorkspace?.previewPriority?.(a.item) || 0)
     || String(b.item.createdAt || "").localeCompare(String(a.item.createdAt || ""))
     || Number(b.item.revision || 0) - Number(a.item.revision || 0)
     || Number(Boolean(b.item.socialReframe)) - Number(Boolean(a.item.socialReframe)))[0]?.item;
@@ -15860,7 +15860,7 @@ function renderJob(job) {
   // the home screen (for example, task A finishes after task B was opened).
   if (!restoringHistory && currentJob && String(currentJob.id) !== String(job.id)) return;
   observeFormalDelivery(job);
-  window.ClipTalkAppShell?.syncCurrentJob(job);
+  window.ChatClipAppShell?.syncCurrentJob(job);
   rememberCurrentJob(job);
   const previousId = currentJob?.id;
   const previousStatus = String(currentJob?.status || "");
@@ -15873,7 +15873,7 @@ function renderJob(job) {
   if (previousId === job?.id && currentJobRevision === revision) {
     currentJob = job;
     renderJobError(job.error || "", "job");
-    void window.ClipTalkAgentWorkspace?.resumeForJob?.(job);
+    void window.ChatClipAgentWorkspace?.resumeForJob?.(job);
     const nextVoiceDiscoveryStatus = String(job?.voiceDiscovery?.status || "not_started");
     if (nextVoiceDiscoveryStatus !== previousVoiceDiscoveryStatus
       && ["ready", "failed"].includes(nextVoiceDiscoveryStatus)
@@ -15927,7 +15927,7 @@ function renderJob(job) {
   const activeContentCandidateId = String(currentCandidate?.id || "");
   const activeContentSearchId = String(currentContentPreviewSearchId || currentJob?.contentSearchSession?.activeSearchId || currentJob?.contentSearch?.id || "");
   currentJob = job;
-  void window.ClipTalkAgentWorkspace?.resumeForJob?.(job);
+  void window.ChatClipAgentWorkspace?.resumeForJob?.(job);
   const nextPersonSearchId = String(job?.contentSearch?.id || "");
   const nextPersonCandidateCount = Number(job?.contentSearch?.candidates?.length || 0);
   const personReviewJustArrived = previousId === job.id
@@ -16465,7 +16465,7 @@ async function loadContentMatchEvidence(match) {
   }
 }
 
-window.ClipTalkLoadSelectedEvidence = async () => {
+window.ChatClipLoadSelectedEvidence = async () => {
   if (!currentJob) return false;
   if (String(currentJob.taskMode || "") === "content_extract" && currentCandidate) {
     const list = $("#clipEvidence");
@@ -16573,7 +16573,7 @@ function previewContentEvidence(match, { autoplay = false, searchId = "" } = {})
   if (editingDifferentMatch) closeContentBoundaryTimelineEdit({ restorePreview: false });
   previewContentMatch(match, { autoplay, loadEvidence: true, searchId });
   setContentDetailPanelMode("evidence");
-  window.ClipTalkWorkspaceController?.openEvidence?.({ load: false });
+  window.ChatClipWorkspaceController?.openEvidence?.({ load: false });
 }
 
 function contentBoundaryFrameRate(job = currentJob) {
@@ -16717,7 +16717,7 @@ function openContentBoundaryInspector(match, { root: preferredRoot = null, focus
   panel.classList.add("candidate-mode");
   showContentDetailModeSwitch();
   setContentDetailPanelMode("edit", { focus });
-  window.ClipTalkWorkspaceController?.openEvidence?.({ load: false });
+  window.ChatClipWorkspaceController?.openEvidence?.({ load: false });
   syncEvidencePlacement();
   scheduleMediaFrameFit(true);
   if (focus) window.requestAnimationFrame(() => {
@@ -16901,7 +16901,7 @@ async function saveContentBoundary(scopedJob, match, editor, operation = "save")
         editor.querySelectorAll("button").forEach(button => { button.disabled = false; });
         syncContentBoundaryEditor(editor, scopedJob, match, { preview: false });
       }
-      window.ClipTalkSyncContentReview?.();
+      window.ChatClipSyncContentReview?.();
     }
   }
 }
@@ -17430,7 +17430,7 @@ async function confirmContentSearch(root, reviewJob = currentJob) {
       // Agent continuation consumes the persisted review state immediately.
       if (!await saveContentReviewDraft(root, reviewJob)) return;
       if (!jobActionStillCurrent(token) || String(currentJob?.contentSearch?.id || "") !== searchId || !root.isConnected) return;
-      await window.ClipTalkAgentWorkspace.continueContentReview(state.context);
+      await window.ChatClipAgentWorkspace.continueContentReview(state.context);
     } else {
       // Ordinary generation owns its own confirmation and persists the final
       // ordering afterwards. Saving here as well delayed the dialog and could
@@ -17890,8 +17890,8 @@ async function sendChat(text, contentOptions = null) {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      if (window.ClipTalkApi?.createResponseError) {
-        throw window.ClipTalkApi.createResponseError(
+      if (window.ChatClipApi?.createResponseError) {
+        throw window.ChatClipApi.createResponseError(
           body,
           response.status,
           response.headers.get("X-Request-ID") || "",
@@ -18174,7 +18174,7 @@ async function deleteHistoryJob(jobId, relatedJobIds = []) {
       deleted += 1;
     }
     if (ids.includes(String(currentJob?.id || ""))) resetWorkspace();
-    window.ClipTalkAppShell?.refreshCatalog();
+    window.ChatClipAppShell?.refreshCatalog();
   } catch (error) {
     showToast(deleted
       ? `已删除 ${deleted}/${records.length} 条记录；其余记录仍保留。${error.message}`
@@ -18288,7 +18288,7 @@ function persistReviewExclusions() {
   reviewExclusionsPersistTimer = setTimeout(async () => {
     if (!jobActionStillCurrent(actionToken)) return;
     try {
-      const { job } = await window.ClipTalkReviewActions.persistExclusions({ jobId, indices });
+      const { job } = await window.ChatClipReviewActions.persistExclusions({ jobId, indices });
       if (!jobActionStillCurrent(actionToken)) return;
       locallyExcludedCandidates = new Set((job.reviewExcludedCandidates || []).map((index) => Number(index)));
       commitJobAction(job, actionToken);
@@ -18559,8 +18559,8 @@ async function loadHomeTaskThumbnail(image, { forceRetry = false } = {}) {
 }
 
 async function loadHomeTasks() {
-  if (window.ClipTalkAppShell?.loadHomeTasks) {
-    return window.ClipTalkAppShell.loadHomeTasks();
+  if (window.ChatClipAppShell?.loadHomeTasks) {
+    return window.ChatClipAppShell.loadHomeTasks();
   }
   const grid = $("#homeTaskGrid");
   if (!grid) return;
@@ -18636,7 +18636,7 @@ function resetWorkspace(showHome = true, clearSavedJob = showHome) {
   renderQuickWorkflowPicker(null);
   pendingWorkflowOptions = { scope: "all", targetSeconds: "", expectedSpeakerCount: 0, variantCount: 3 };
   quickWorkflowValidation = "";
-  window.ClipTalkAgentWorkspace?.reset?.();
+  window.ChatClipAgentWorkspace?.reset?.();
   closeVoiceProfiles();
   closePersonProfiles();
   homeNavigationRequested = Boolean(showHome);
@@ -18644,11 +18644,11 @@ function resetWorkspace(showHome = true, clearSavedJob = showHome) {
   if (showHome) {
     studio?.classList.add("home-mode");
     $("#homeView")?.classList.remove("hidden");
-    window.ClipTalkAppShell?.showView("home", { route: false });
+    window.ChatClipAppShell?.showView("home", { route: false });
   } else {
     studio?.classList.remove("home-mode");
     $("#homeView")?.classList.add("hidden");
-    window.ClipTalkAppShell?.showView("workspace", { route: false });
+    window.ChatClipAppShell?.showView("workspace", { route: false });
   }
   // Clear the conversation before optional media/timeline cleanup. This
   // makes a new task visually empty even when an older task lacks a legacy
@@ -18657,7 +18657,7 @@ function resetWorkspace(showHome = true, clearSavedJob = showHome) {
   stopSourcePreviewPolling();
   currentJob = null;
   initialOutputJobId = null;
-  window.ClipTalkAppShell?.syncCurrentJob?.(null);
+  window.ChatClipAppShell?.syncCurrentJob?.(null);
   timelineChatSelections = [];
   eventGroupSelectionOrder = [];
   ignoredChatContextKeys = new Set();
@@ -18862,7 +18862,7 @@ async function bootstrapAgentDraftFromUpload(file) {
       if (resumable) localStorage.removeItem(resumable.storageKey);
       return;
     }
-    const form = window.ClipTalkTaskCreation.buildForm({
+    const form = window.ChatClipTaskCreation.buildForm({
       file, uploadSessionId: resumable?.id || "", instruction: "", taskMode: "highlight",
       sourceScope: { kind: "all" }, entryWorkflow: "agent", workflowKind: "highlight",
       agentDraft: true, draftSessionId: sessionId,
@@ -18882,7 +18882,7 @@ async function bootstrapAgentDraftFromUpload(file) {
       chatInput.dispatchEvent(new Event("input", { bubbles: true }));
     }
     $("#uploadView")?.classList.add("hidden");
-    window.ClipTalkWorkspaceController?.revealPreview?.();
+    window.ChatClipWorkspaceController?.revealPreview?.();
     return job;
   } catch (error) {
     if (!creationTokenStillCurrent(creationToken)) return;
@@ -18973,13 +18973,13 @@ async function submitComposer() {
   );
   if (currentJob && (agentWorkspace || (!pendingWorkflowSwitch && !chatInput?.dataset.timelineCompose)) && !await requireSetupCapability("agent")) return;
   if (currentJob && pendingWorkflowSwitch) createSameSourceWorkflow(pendingWorkflowSwitch, chatInput?.value.trim() || "");
-  else if (currentJob && agentWorkspace && window.ClipTalkAgentWorkspace?.submitGoal) {
+  else if (currentJob && agentWorkspace && window.ChatClipAgentWorkspace?.submitGoal) {
     const selectedCapability = selectedDraftCapability(currentJob);
-    window.ClipTalkAgentWorkspace.submitGoal(chatInput?.value.trim() || "", selectedCapability?.option?.skill
+    window.ChatClipAgentWorkspace.submitGoal(chatInput?.value.trim() || "", selectedCapability?.option?.skill
       ? { skillId: selectedCapability.option.skill }
       : {});
   }
-  else if (currentJob && window.ClipTalkAgentWorkspace?.submitGoal && !chatInput?.dataset.timelineCompose) window.ClipTalkAgentWorkspace.submitGoal(draftText);
+  else if (currentJob && window.ChatClipAgentWorkspace?.submitGoal && !chatInput?.dataset.timelineCompose) window.ChatClipAgentWorkspace.submitGoal(draftText);
   else if (currentJob) sendChat();
 }
 
@@ -19126,7 +19126,7 @@ document.addEventListener("click", async (event) => {
     if (skillButton.disabled) return;
     const skillId = skillButton.dataset.draftCapabilitySkill || "";
     const optionId = skillButton.dataset.draftCapabilityOption || "";
-    await window.ClipTalkAgentWorkspace?.loadSkills?.();
+    await window.ChatClipAgentWorkspace?.loadSkills?.();
     const skillSelect = $("#agentSkillSelect");
     if (!skillSelect || ![...skillSelect.options].some((option) => option.value === skillId)) {
       showToast("这项能力当前不可用，请在设置中检查 Skill 状态。", "error");
@@ -19545,7 +19545,7 @@ $("#portraitPrecisionToggle")?.addEventListener("click", () => {
   }
 });
 $("#portraitWorkbenchOpenProperties")?.addEventListener("click", () => {
-  window.ClipTalkWorkspaceController?.setRailExpanded?.(true, { persist: true });
+  window.ChatClipWorkspaceController?.setRailExpanded?.(true, { persist: true });
   document.querySelector('#ctV4RailTabs [data-ct-v4-rail="properties"]')?.click();
   requestAnimationFrame(() => $("#ctV4PropertiesPanel")?.focus?.({ preventScroll: true }));
 });
@@ -19681,7 +19681,7 @@ function scheduleTimelineResizeRender(force = false) {
     renderTimelineMediaAssets(force);
   });
 }
-window.addEventListener("cliptalk:themechange", (event) => {
+window.addEventListener("chatclip:themechange", (event) => {
   const theme = event.detail?.theme === "light" ? "light" : "dark";
   const progress = $("#inlineAnalysisProgress");
   if (progress) {
@@ -19825,7 +19825,7 @@ function updateSettingsSaveState(role, dirty) {
   }
   if (discard) discard.disabled = busy || !changed;
   if (save) save.disabled = busy || !changed;
-  window.ClipTalkAgentSettings?.renderEffectiveAgent();
+  window.ChatClipAgentSettings?.renderEffectiveAgent();
 }
 
 function markSettingsDirty(role) {
@@ -20319,8 +20319,8 @@ function openSettings() {
   $("#settingsPanel")?.classList.remove("hidden");
   $("#settingsBackdrop")?.classList.add("hidden");
   document.body.classList.add("settings-open");
-  if (window.ClipTalkAppShell?.showView) {
-    window.ClipTalkAppShell.showView("settings", { route: false });
+  if (window.ChatClipAppShell?.showView) {
+    window.ChatClipAppShell.showView("settings", { route: false });
   } else {
     loadVisionSettings();
     loadLlmSettings();
@@ -20332,7 +20332,7 @@ let setupReadinessRequest = null;
 
 function renderSetupReadiness(state) {
   setupReadinessState = state;
-  window.ClipTalkSetupStatus = state;
+  window.ChatClipSetupStatus = state;
   const root = $("#setupReadiness");
   if (!root) return;
   const title = $("#setupReadinessTitle");
@@ -20348,7 +20348,7 @@ function renderSetupReadiness(state) {
         <b>${escapeHtml(item.title || "待检查")}</b><small>${escapeHtml(item.detail || "")}</small>
       </button>
     </li>`).join("");
-  window.dispatchEvent(new window.CustomEvent("cliptalk:setup-status"));
+  window.dispatchEvent(new window.CustomEvent("chatclip:setup-status"));
 }
 
 function loadSetupReadiness(options = {}) {
@@ -20363,15 +20363,15 @@ async function checkSetupReadiness({ autoOpen = false } = {}) {
       throw new Error("部署状态响应无效");
     }
     renderSetupReadiness(state);
-    if (autoOpen && !state.complete && !sessionStorage.getItem("cliptalk-setup-readiness-shown")) {
-      sessionStorage.setItem("cliptalk-setup-readiness-shown", "1");
+    if (autoOpen && !state.complete && !sessionStorage.getItem("chatclip-setup-readiness-shown")) {
+      sessionStorage.setItem("chatclip-setup-readiness-shown", "1");
       openSettings();
     }
     return state;
   } catch (error) {
     setupReadinessState = null;
-    window.ClipTalkSetupStatus = null;
-    window.ClipTalkAgentSettings?.renderEffectiveAgent();
+    window.ChatClipSetupStatus = null;
+    window.ChatClipAgentSettings?.renderEffectiveAgent();
     const title = $("#setupReadinessTitle");
     if (title) title.textContent = error.status === 404 ? "服务需更新" : "能力检查失败";
     if ($("#setupReadinessSummary")) $("#setupReadinessSummary").textContent = error.status === 404
@@ -20408,7 +20408,7 @@ function closeSettings() {
   $("#settingsPanel")?.classList.add("hidden");
   $("#settingsBackdrop")?.classList.add("hidden");
   document.body.classList.remove("settings-open");
-  window.ClipTalkAppShell?.returnFromPage();
+  window.ChatClipAppShell?.returnFromPage();
 }
 
 function currentPersonCatalog(job = currentJob) {
@@ -22021,7 +22021,7 @@ $("#setupReadinessSteps")?.addEventListener("click", (event) => {
     if (runtime) requestAnimationFrame(() => { runtime.open = true; runtime.scrollIntoView({ block: "nearest" }); });
   }
 });
-$("#probeEffectiveAgent")?.addEventListener("click", () => window.ClipTalkAgentSettings?.probeEffectiveAgent());
+$("#probeEffectiveAgent")?.addEventListener("click", () => window.ChatClipAgentSettings?.probeEffectiveAgent());
 
 async function loadHealth() {
   if (document.hidden) return;
@@ -24601,7 +24601,7 @@ function setSecondaryEditorShellIsolation(open) {
   const editor = $("#secondaryEditor");
   const background = [$("#appSidebar"), $("#ctV4Topbar"), $("#workspace"), $("#libraryView"), $("#settingsPanel")].filter(Boolean);
   if (open) {
-    window.ClipTalkPrepareWorkspaceOverlay?.("secondaryEditor");
+    window.ChatClipPrepareWorkspaceOverlay?.("secondaryEditor");
     secondaryEditorShellIsolation.clear();
     background.forEach((node) => {
       secondaryEditorShellIsolation.set(node, { inert: node.inert, ariaHidden: node.getAttribute("aria-hidden") });
@@ -24656,7 +24656,7 @@ async function openSecondaryEditor(versionId, outputFilename, sourceDraft = null
   }
 }
 
-window.ClipTalkOpenAgentTimeline = async ({ sessionId = "", instruction = "", variantCount = 1, reviewPendingProposal = false } = {}) => {
+window.ChatClipOpenAgentTimeline = async ({ sessionId = "", instruction = "", variantCount = 1, reviewPendingProposal = false } = {}) => {
   if (!currentJob?.id || secondaryEditBusy) return false;
   const jobId = String(currentJob.id);
   let job = currentJob;
@@ -24711,8 +24711,8 @@ window.ClipTalkOpenAgentTimeline = async ({ sessionId = "", instruction = "", va
   }
 };
 
-window.ClipTalkOpenAgentReview = async ({ sessionId = "" } = {}) => {
-  const opened = await window.ClipTalkOpenAgentTimeline({ sessionId, reviewPendingProposal: true });
+window.ChatClipOpenAgentReview = async ({ sessionId = "" } = {}) => {
+  const opened = await window.ChatClipOpenAgentTimeline({ sessionId, reviewPendingProposal: true });
   if (!opened || !secondaryEditSession) return false;
   if (!playSecondaryEditorReviewPreview({ autoplay: true })) {
     throw new Error("请先确认修改并生成最新审核样片");
@@ -24722,7 +24722,7 @@ window.ClipTalkOpenAgentReview = async ({ sessionId = "" } = {}) => {
   return true;
 };
 
-window.ClipTalkOpenAgentSubtitleReview = async ({ sessionId = "" } = {}) => {
+window.ChatClipOpenAgentSubtitleReview = async ({ sessionId = "" } = {}) => {
   if (!currentJob?.id) return false;
   const targetSessionId = String(sessionId || currentJob.activeEditSessionId || "");
   const session = (currentJob.editSessions || []).find(
@@ -24761,12 +24761,12 @@ window.ClipTalkOpenAgentSubtitleReview = async ({ sessionId = "" } = {}) => {
   );
   if (!jobActionStillCurrent(actionToken)) return false;
   syncSecondaryEditorSessionToJob(payload.session);
-  window.ClipTalkRefreshCurrentJob?.();
+  window.ChatClipRefreshCurrentJob?.();
   showToast("字幕文字与断句已保存；将继续生成带字幕审核样片。", "success");
   return true;
 };
 
-window.ClipTalkOpenAgentPreview = async ({
+window.ChatClipOpenAgentPreview = async ({
   id = "", filename = "", previewUrl = "", videoUrl = "", title = "审核样片",
   width = 0, height = 0, duration = 0, aspect = "", sessionId = "", revision = 0,
   sourceEditSessionId = "", outputKind = "", segments = [], clipCount = null,
@@ -24860,7 +24860,7 @@ window.ClipTalkOpenAgentPreview = async ({
   renderOutputs(currentJob);
   selectOutput(safeFilename, autoplay);
   renderOutputPreviewSelector(currentJob);
-  window.ClipTalkWorkspaceController?.syncMaterialsSummary?.();
+  window.ChatClipWorkspaceController?.syncMaterialsSummary?.();
   if (!silent) showToast(`已打开${aspect ? ` ${aspect}` : ""}预览视频`, "success");
   return true;
 };
@@ -24871,13 +24871,13 @@ document.addEventListener("pointerdown", event => {
 document.addEventListener("change", event => {
   if (event.target.id === "videoViewSelect") manualMediaSelectionJobId = String(currentJob?.id || "");
 }, true);
-window.ClipTalkOfferAgentPreview = preview => {
+window.ChatClipOfferAgentPreview = preview => {
   const jobId = String(currentJob?.id || "");
   const route = new URLSearchParams(location.hash.replace(/^#/, ""));
   if (!jobId || agentPreviewOfferedJobId === jobId || manualMediaSelectionJobId === jobId
     || currentOutput || (route.get("job") === jobId && route.get("output"))) return false;
   agentPreviewOfferedJobId = jobId;
-  return window.ClipTalkOpenAgentPreview({ ...preview, autoplay: false, silent: true });
+  return window.ChatClipOpenAgentPreview({ ...preview, autoplay: false, silent: true });
 };
 
 function closeSecondaryEditor() {
@@ -24941,14 +24941,14 @@ function closeSecondaryEditor() {
   document.removeEventListener("pointercancel", finishSecondaryEditorInspectorResize);
 }
 
-window.ClipTalkActivateModalFocus = activateModalFocus;
-window.ClipTalkCloseCandidateDrawer = closeCandidateDrawer;
-window.ClipTalkPrepareWorkspaceOverlay = (kind = "") => {
+window.ChatClipActivateModalFocus = activateModalFocus;
+window.ChatClipCloseCandidateDrawer = closeCandidateDrawer;
+window.ChatClipPrepareWorkspaceOverlay = (kind = "") => {
   const secondaryOpen = secondaryEditorOpen();
   if (secondaryOpen && !["secondaryEditor", "subtitle", "cover"].includes(kind)) return false;
   if (kind !== "candidate") closeCandidateDrawer({ restoreFocus: false });
   if (kind !== "timeline") closeTimelinePrecisionDrawer();
-  if (kind !== "agentPlan") window.ClipTalkCloseAgentPlanDrawer?.({ restoreFocus: false });
+  if (kind !== "agentPlan") window.ChatClipCloseAgentPlanDrawer?.({ restoreFocus: false });
   if (kind !== "cover") closeCoverImagePreview();
   if (kind !== "subtitle" && !$("#subtitleReview")?.classList.contains("hidden")) closeSubtitleReview(null);
   return true;

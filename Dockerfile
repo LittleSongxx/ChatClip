@@ -6,15 +6,15 @@ RUN npm ci --ignore-scripts --omit=dev
 
 FROM python:3.10-slim-bookworm
 
-ARG CLIPTALK_INSTALL_PROFILE=cpu
+ARG CHATCLIP_INSTALL_PROFILE=cpu
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    CLIPTALK_INSTALL_PROFILE=${CLIPTALK_INSTALL_PROFILE} \
-    HIGHLIGHT_HOST=0.0.0.0 \
-    HIGHLIGHT_PORT=5180 \
-    HIGHLIGHT_DATA_ROOT=/app/data \
+    CHATCLIP_INSTALL_PROFILE=${CHATCLIP_INSTALL_PROFILE} \
+    CHATCLIP_HOST=0.0.0.0 \
+    CHATCLIP_PORT=5180 \
+    CHATCLIP_DATA_ROOT=/app/data \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
@@ -32,12 +32,12 @@ RUN node node_modules/playwright/cli.js install-deps chromium \
 
 COPY requirements-cpu.txt requirements-gpu.txt ./
 RUN python -m pip install --upgrade pip \
-    && if [ "$CLIPTALK_INSTALL_PROFILE" = "cpu" ]; then \
+    && if [ "$CHATCLIP_INSTALL_PROFILE" = "cpu" ]; then \
          python -m pip install -r requirements-cpu.txt; \
-       elif [ "$CLIPTALK_INSTALL_PROFILE" = "gpu" ]; then \
+       elif [ "$CHATCLIP_INSTALL_PROFILE" = "gpu" ]; then \
          python -m pip install -r requirements-gpu.txt; \
        else \
-         echo "Unsupported CLIPTALK_INSTALL_PROFILE=$CLIPTALK_INSTALL_PROFILE" >&2; exit 2; \
+         echo "Unsupported CHATCLIP_INSTALL_PROFILE=$CHATCLIP_INSTALL_PROFILE" >&2; exit 2; \
        fi
 
 # Keep the large TalkNet installation layer independent from frequently edited
@@ -48,11 +48,11 @@ COPY tools/setup.py tools/install_talknet.py tools/talknet_worker.py tools/requi
 
 # Model assets live outside /app/data so a new or existing data volume cannot
 # hide the default installation. Nothing is downloaded when the page opens.
-RUN python tools/install_talknet.py --profile "$CLIPTALK_INSTALL_PROFILE" --data-root /opt/cliptalk-models
-ENV HIGHLIGHT_TALKNET_PYTHON=/opt/cliptalk-models/models/talknet/venv/bin/python \
-    HIGHLIGHT_TALKNET_REPOSITORY=/opt/cliptalk-models/models/talknet/repository \
-    HIGHLIGHT_TALKNET_CHECKPOINT=/opt/cliptalk-models/models/talknet/pretrain_TalkSet.model \
-    HIGHLIGHT_TALKNET_DEVICE=auto
+RUN python tools/install_talknet.py --profile "$CHATCLIP_INSTALL_PROFILE" --data-root /opt/chatclip-models
+ENV CHATCLIP_TALKNET_PYTHON=/opt/chatclip-models/models/talknet/venv/bin/python \
+    CHATCLIP_TALKNET_REPOSITORY=/opt/chatclip-models/models/talknet/repository \
+    CHATCLIP_TALKNET_CHECKPOINT=/opt/chatclip-models/models/talknet/pretrain_TalkSet.model \
+    CHATCLIP_TALKNET_DEVICE=auto
 
 COPY app ./app
 COPY static ./static
@@ -68,11 +68,11 @@ COPY tools/render_html_motion.mjs ./tools/render_html_motion.mjs
 # startup with a missing symbol.
 RUN python -c "from app.dialogue import restore_complete_response_ranges; assert callable(restore_complete_response_ranges)"
 
-RUN useradd --create-home --uid 10001 cliptalk \
+RUN useradd --create-home --uid 10001 chatclip \
     && mkdir -p /app/data \
-    && chown -R cliptalk:cliptalk /app
+    && chown -R chatclip:chatclip /app
 
-USER cliptalk
+USER chatclip
 VOLUME ["/app/data"]
 EXPOSE 5180
 

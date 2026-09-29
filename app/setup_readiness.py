@@ -92,7 +92,7 @@ def build_setup_status(
     runtime_ready: bool | None = None,
 ) -> dict[str, Any]:
     runtime_ready = bool(health.get("ffmpeg") and health.get("ffprobe")) if runtime_ready is None else runtime_ready
-    vision_ready = bool(health.get("visionConfigured") or health.get("arkConfigured"))
+    vision_ready = bool(health.get("visionConfigured"))
     planner_ready = bool(health.get("llmConfigured"))
     agent_configured = all(str(agent_model.get(key) or "").strip() for key in ("apiKey", "model", "baseUrl"))
     talknet = ((health.get("localCapabilities") or {}).get("talknet") or {})

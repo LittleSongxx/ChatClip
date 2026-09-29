@@ -1,68 +1,47 @@
 services:
-  cliptalk:
+  chatclip:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        CLIPTALK_INSTALL_PROFILE: ${CLIPTALK_INSTALL_PROFILE:-cpu}
+        CHATCLIP_INSTALL_PROFILE: ${CHATCLIP_INSTALL_PROFILE:-cpu}
     ports:
-      - "${CLIPTALK_BIND_ADDRESS:-127.0.0.1}:${HIGHLIGHT_PORT:-5180}:5180"
+      - "${CHATCLIP_BIND_ADDRESS:-127.0.0.1}:${CHATCLIP_PORT:-5180}:5180"
     environment:
-      HIGHLIGHT_HOST: 0.0.0.0
-      HIGHLIGHT_PORT: 5180
-      HIGHLIGHT_DATA_ROOT: /app/data
-      CLIPTALK_PUBLISHED_BIND_ADDRESS: ${CLIPTALK_BIND_ADDRESS:-127.0.0.1}
-      HIGHLIGHT_ACCESS_TOKEN: ${HIGHLIGHT_ACCESS_TOKEN:-}
+      CHATCLIP_HOST: 0.0.0.0
+      CHATCLIP_PORT: 5180
+      CHATCLIP_DATA_ROOT: /app/data
+      CHATCLIP_BIND_ADDRESS: ${CHATCLIP_BIND_ADDRESS:-127.0.0.1}
+      CHATCLIP_ACCESS_TOKEN: ${CHATCLIP_ACCESS_TOKEN:-}
       # Uvicorn must listen across the container network. The published bind
       # address above is checked separately and refuses unsafe remote exposure.
-      HIGHLIGHT_ALLOW_UNAUTHENTICATED_REMOTE: "true"
-      HIGHLIGHT_MAX_WORKERS: ${HIGHLIGHT_MAX_WORKERS:-1}
-      HIGHLIGHT_MAX_UPLOAD_BYTES: ${HIGHLIGHT_MAX_UPLOAD_BYTES:-8589934592}
-      HIGHLIGHT_MAX_STORAGE_BYTES: ${HIGHLIGHT_MAX_STORAGE_BYTES:-53687091200}
-      HIGHLIGHT_RETENTION_DAYS: ${HIGHLIGHT_RETENTION_DAYS:-0}
-      HIGHLIGHT_ALLOW_PRIVATE_MODEL_ENDPOINTS: ${HIGHLIGHT_ALLOW_PRIVATE_MODEL_ENDPOINTS:-false}
-      HIGHLIGHT_ACTIVE_SPEAKER_MODE: ${HIGHLIGHT_ACTIVE_SPEAKER_MODE:-primary}
-      HIGHLIGHT_TALKNET_DEVICE: auto
-      VISION_PROVIDER: ${VISION_PROVIDER:-ark}
+      CHATCLIP_ALLOW_UNAUTHENTICATED_REMOTE: "true"
+      CHATCLIP_MAX_WORKERS: ${CHATCLIP_MAX_WORKERS:-1}
+      CHATCLIP_MAX_UPLOAD_BYTES: ${CHATCLIP_MAX_UPLOAD_BYTES:-8589934592}
+      CHATCLIP_MAX_STORAGE_BYTES: ${CHATCLIP_MAX_STORAGE_BYTES:-53687091200}
+      CHATCLIP_RETENTION_DAYS: ${CHATCLIP_RETENTION_DAYS:-0}
+      CHATCLIP_ALLOW_PRIVATE_MODEL_ENDPOINTS: ${CHATCLIP_ALLOW_PRIVATE_MODEL_ENDPOINTS:-false}
+      CHATCLIP_ACTIVE_SPEAKER_MODE: ${CHATCLIP_ACTIVE_SPEAKER_MODE:-primary}
+      CHATCLIP_TALKNET_DEVICE: auto
+      # 推荐模型主线：视觉 qwen3-vl-max（百炼）、规划 deepseek-flash（DeepSeek）、
+      # Agent qwen3.8-max（百炼）。留空密钥时保持未配置状态，可在页面设置中填写。
+      VISION_PROVIDER: ${VISION_PROVIDER:-bailian}
       VISION_API_KEY: ${VISION_API_KEY:-}
-      VISION_MODEL: ${VISION_MODEL:-}
+      VISION_MODEL: ${VISION_MODEL:-qwen3-vl-max}
       VISION_BASE_URL: ${VISION_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       AGENT_API_KEY: ${AGENT_API_KEY:-}
-      AGENT_MODEL: ${AGENT_MODEL:-}
+      AGENT_MODEL: ${AGENT_MODEL:-qwen3.8-max}
       AGENT_BASE_URL: ${AGENT_BASE_URL:-}
-      ARK_API_KEY: ${ARK_API_KEY:-}
-      ARK_MODEL: ${ARK_MODEL:-}
-      ARK_BASE_URL: ${ARK_BASE_URL:-https://ark.cn-beijing.volces.com/api/v3}
       ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
-      CLIPTALK_AGENT_SERVICE_URL: http://agent:5190
-      # When empty, both services atomically share an auto-generated token from
-      # the cliptalk-data volume.
-      CLIPTALK_AGENT_SERVICE_TOKEN: ${CLIPTALK_AGENT_SERVICE_TOKEN:-}
     volumes:
-      - cliptalk-data:/app/data
-    depends_on:
-      agent:
-        condition: service_healthy
+      - chatclip-data:/app/data
     shm_size: "1gb"
     restart: unless-stopped
 
-  agent:
-    build:
-      context: ./agent-service
-      dockerfile: Dockerfile
-    environment:
-      CLIPTALK_AGENT_HOST: 0.0.0.0
-      CLIPTALK_AGENT_PORT: 5190
-      CLIPTALK_AGENT_SERVICE_TOKEN: ${CLIPTALK_AGENT_SERVICE_TOKEN:-}
-      HIGHLIGHT_DATA_ROOT: /app/data
-    volumes:
-      - cliptalk-data:/app/data
-    restart: unless-stopped
-
 volumes:
-  cliptalk-data:
+  chatclip-data:

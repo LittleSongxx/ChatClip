@@ -10,8 +10,8 @@
   }
 
   function resolvedCurrentJobId() {
-    if (typeof window.ClipTalkCurrentJobId === "function") {
-      return String(window.ClipTalkCurrentJobId() || "");
+    if (typeof window.ChatClipCurrentJobId === "function") {
+      return String(window.ChatClipCurrentJobId() || "");
     }
     return currentJobId();
   }
@@ -328,7 +328,7 @@
   }
 
   window.addEventListener("resize", sync, { passive: true });
-  window.addEventListener("cliptalk:themechange", sync);
-  window.ClipTalkTimelinePresentation = Object.freeze({ sync });
+  window.addEventListener("chatclip:themechange", sync);
+  window.ChatClipTimelinePresentation = Object.freeze({ sync });
   sync();
 })();

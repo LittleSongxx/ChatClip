@@ -46,7 +46,7 @@ def test_environment_example_covers_runtime_settings() -> None:
     names = environment_names_from_example(ROOT / ".env.example")
     names.update(environment_names_from_example(ROOT / "docs/environment.example"))
     assert environment_names_from_python(ROOT / "app" / "config.py") <= names
-    assert {"HIGHLIGHT_LOG_FILE", "CONTENT_SEARCH_DIALOGUE_V2"} <= names
+    assert {"CONTENT_SEARCH_DIALOGUE_V2"} <= names
 
 
 def test_doctor_report_never_exposes_secret_values(monkeypatch) -> None:

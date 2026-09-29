@@ -1,5 +1,5 @@
 /*
- * ClipTalk workspace component styles
+ * ChatClip workspace component styles
  * Structural source: a_clean_modern_dark_and_beige_ui_mockup_of_a_vide.png
  * Reusable timeline, conversation and review components. The workbench layout
  * itself is owned by workbench.css.
@@ -164,7 +164,7 @@
    column keeps the remaining width for task context and messages. */
 
 /*
- * ClipTalk canonical workbench
+ * ChatClip canonical workbench
  * Layout reference: 7857f94e-9d3f-4be1-8f39-4d3295682701.png
  * This is the single final presentation layer for the primary workbench.
  * Existing IDs, media state and editing actions remain owned by app.js.
@@ -3740,7 +3740,7 @@ html body.ct-workbench-v4[data-shell-mode="workspace"][data-workspace-state] mai
 }
 
 /* Reference-style app rail -------------------------------------------------
-   Match the provided ClipTalk reference: one compact vertical rail with
+   Match the provided ChatClip reference: one compact vertical rail with
    New task, Tasks, Outputs and Settings. Keep existing IDs and click handlers. */
 :root {
   --ct-reference-rail: 84px;

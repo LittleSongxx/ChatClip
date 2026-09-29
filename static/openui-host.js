@@ -1,19 +1,19 @@
-/* ClipTalk × OpenUI：宿主侧桥接层
+/* ChatClip × OpenUI：宿主侧桥接层
  *
  * 职责：
- *   1. 提供 window.ClipTalkOpenUI，默认关闭 —— 关闭时页面行为与接入前完全一致
+ *   1. 提供 window.ChatClipOpenUI，默认关闭 —— 关闭时页面行为与接入前完全一致
  *   2. 懒加载 iframe 沙箱：未开启时绝不请求 3.6MB 的 bundle
  *   3. 把宿主结构化数据转译后送进沙箱，并把沙箱高度/主题同步回来
  *
- * 开启方式：URL 加 ?openui=1，或在控制台执行 ClipTalkOpenUI.enable()
+ * 开启方式：URL 加 ?openui=1，或在控制台执行 ChatClipOpenUI.enable()
  */
 (function (global) {
   "use strict";
 
-  var CHANNEL = "cliptalk-openui";
+  var CHANNEL = "chatclip-openui";
   var SANDBOX_URL = "/static/openui-sandbox.html?v=20260917-openui-1";
 
-  // 从 cliptalk-tokens.css 同步给沙箱的变量（保持视觉一致）
+  // 从 chatclip-tokens.css 同步给沙箱的变量（保持视觉一致）
   var THEME_TOKENS = [
     "--ct-canvas",
     "--ct-panel",
@@ -74,7 +74,7 @@
     mount.textContent = "";
     var frame = document.createElement("iframe");
     frame.src = SANDBOX_URL;
-    frame.title = "ClipTalk 活动记录";
+    frame.title = "ChatClip 活动记录";
     frame.setAttribute("scrolling", "no");
     frame.style.cssText = "width:100%;border:0;display:block;min-height:64px;color-scheme:normal;";
     mount.appendChild(frame);
@@ -127,7 +127,7 @@
     renderActivity: function (mount, items) {
       if (!state.enabled) return false;
       try {
-        var adapter = global.ClipTalkOpenUIAdapter;
+        var adapter = global.ChatClipOpenUIAdapter;
         if (!adapter) return false;
         if (!ensureFrame(mount)) return false;
         sendCode(adapter.activityToOpenUILang(items));
@@ -147,8 +147,8 @@
 
   state.enabled = urlFlag();
   if (state.enabled && global.console) {
-    global.console.info("[ClipTalk] OpenUI 渲染已开启（?openui=1）；执行 ClipTalkOpenUI.disable() 可关闭");
+    global.console.info("[ChatClip] OpenUI 渲染已开启（?openui=1）；执行 ChatClipOpenUI.disable() 可关闭");
   }
 
-  global.ClipTalkOpenUI = api;
+  global.ChatClipOpenUI = api;
 })(window);

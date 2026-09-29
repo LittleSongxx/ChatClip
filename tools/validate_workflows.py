@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a real video through ClipTalk's four public editing workflows.
+"""Run a real video through ChatClip's four public editing workflows.
 
 The command is intentionally dataset-free: callers provide one source video and
 workflow instructions. It creates normal, retained jobs and records enough
@@ -117,7 +117,7 @@ class WorkflowClient:
     def __init__(self, base_url: str, token: str, request_timeout: float) -> None:
         headers = {"Accept": "application/json"}
         if token:
-            headers["X-Highlight-Token"] = token
+            headers["X-ChatClip-Token"] = token
         self.base_url = base_url.rstrip("/")
         self.client = httpx.Client(
             base_url=self.base_url,
@@ -1064,7 +1064,7 @@ class WorkflowRunner:
 def local_default_token(base_url: str, settings: Settings) -> str:
     host = (urlsplit(base_url).hostname or "").lower()
     if host in {"127.0.0.1", "localhost", "::1"}:
-        return os.environ.get("HIGHLIGHT_ACCESS_TOKEN", "").strip() or settings.access_token
+        return os.environ.get("CHATCLIP_ACCESS_TOKEN", "").strip() or settings.access_token
     return ""
 
 
@@ -1074,8 +1074,8 @@ def parser_for(settings: Settings) -> argparse.ArgumentParser:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--video", required=True, type=Path, help="待验证的真实视频；脚本不内置测试集")
-    parser.add_argument("--base-url", default=f"http://127.0.0.1:{settings.port}", help="已启动的 ClipTalk 服务地址")
-    parser.add_argument("--token", default="", help="访问令牌；本机地址默认读取 HIGHLIGHT_ACCESS_TOKEN")
+    parser.add_argument("--base-url", default=f"http://127.0.0.1:{settings.port}", help="已启动的 ChatClip 服务地址")
+    parser.add_argument("--token", default="", help="访问令牌；本机地址默认读取 CHATCLIP_ACCESS_TOKEN")
     parser.add_argument("--highlight-instruction", default="生成一条包含关键动作、情绪变化和完整结果的高光")
     parser.add_argument("--search-query", default="查找视频中有明确对白或关键动作的片段")
     parser.add_argument("--person-instruction", default="提取所选画面人物的所有出镜片段")
@@ -1169,7 +1169,7 @@ def summarize(report: dict[str, Any], output_path: Path) -> None:
     all_issues.extend(report.get("preflightIssues") or [])
     all_issues.extend((report.get("conversation") or {}).get("issues") or [])
     counts = {severity: sum(value.get("severity") == severity for value in all_issues) for severity in SEVERITY_ORDER}
-    print("\nClipTalk 四模式工作流验证结果")
+    print("\nChatClip 四模式工作流验证结果")
     for flow in report.get("flows") or []:
         icon = "✓" if flow.get("passed") else "×"
         state = (flow.get("finalState") or {}).get("status") or "未创建"

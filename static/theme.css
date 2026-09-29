@@ -1,5 +1,5 @@
 /* Shared shell and component presentation.
-   Palette aliases are defined once below and resolve to cliptalk-tokens.css.
+   Palette aliases are defined once below and resolve to chatclip-tokens.css.
    workbench.css owns current workstation layout; secondary-editor-focus.css
    owns precision editing. Do not append another root palette or theme pass. */
 

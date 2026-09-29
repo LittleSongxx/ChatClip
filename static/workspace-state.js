@@ -187,7 +187,7 @@
     return `${hours ? `${String(hours).padStart(2, "0")}:` : ""}${String(minutes).padStart(2, "0")}:${rest}`;
   }
 
-  global.ClipTalkWorkspaceState = Object.freeze({
+  global.ChatClipWorkspaceState = Object.freeze({
     STATES, PRESENTATION_STATES, WORKFLOWS, PHASES, PANELS, MEDIA_KINDS, SELECTION_PURPOSES,
     derive, derivePresentation, deriveView, execution, create, logicalTasks, formatTime,
   });

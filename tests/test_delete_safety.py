@@ -19,7 +19,7 @@ def _request(session: str = "browser-session") -> Request:
         "type": "http",
         "method": "DELETE",
         "path": "/api/jobs/test",
-        "headers": [(b"x-cliptalk-session", session.encode()), (b"user-agent", b"pytest")],
+        "headers": [(b"x-chatclip-session", session.encode()), (b"user-agent", b"pytest")],
         "client": ("127.0.0.1", 1234),
         "state": {},
     }

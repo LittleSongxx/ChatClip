@@ -170,9 +170,9 @@ async function startStubServer({ holdFirstJob = false, omitAgentDraftFlag = fals
     if (url.pathname === "/api/agent/skills" && request.method === "GET") {
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ skills: [
-        { id: "cliptalk-cover-director", name: "cliptalk-cover-director", status: "enabled" },
-        { id: "cliptalk-local-motion-renderer", name: "cliptalk-local-motion-renderer", status: "enabled" },
-        { id: "cliptalk-shortform-hook-director", name: "cliptalk-shortform-hook-director", status: "enabled" },
+        { id: "chatclip-cover-director", name: "chatclip-cover-director", status: "enabled" },
+        { id: "chatclip-local-motion-renderer", name: "chatclip-local-motion-renderer", status: "enabled" },
+        { id: "chatclip-shortform-hook-director", name: "chatclip-shortform-hook-director", status: "enabled" },
       ] }));
       return;
     }
@@ -251,7 +251,7 @@ async function startStubServer({ holdFirstJob = false, omitAgentDraftFlag = fals
 
 async function withPage(callback, options = {}) {
   const stub = await startStubServer(options);
-  const temp = await mkdtemp(join(tmpdir(), "cliptalk-task-isolation-"));
+  const temp = await mkdtemp(join(tmpdir(), "chatclip-task-isolation-"));
   const video = join(temp, "same-video.mp4");
   await writeFile(video, Buffer.alloc(17 * 1024 * 1024));
   const browser = await chromium.launch({ headless: true });
@@ -259,7 +259,7 @@ async function withPage(callback, options = {}) {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   try {
-    await page.addInitScript(() => sessionStorage.setItem("cliptalk_access_token", "browser-test-token"));
+    await page.addInitScript(() => sessionStorage.setItem("chatclip_access_token", "browser-test-token"));
     await page.goto(stub.url, { waitUntil: "domcontentloaded" });
     await page.locator("[data-home-create]").first().click();
     await callback({ page, stub, video, errors });
@@ -295,7 +295,7 @@ test("draft requirements and cancelled selection never start editing; drop uploa
       transfer.items.add(new File(['video'], 'dropped.mp4', { type: 'video/mp4' }));
       document.querySelector('#dropZone').dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: transfer }));
     });
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     assert.equal(stub.jobPosts.length, 1);
     assert.equal(stub.agentMessages.length, 0);
     assert.equal(await page.locator('#chatInput').inputValue(), '提取高光');
@@ -321,7 +321,7 @@ test("upload failure keeps the instruction and retry only creates a draft", asyn
       document.querySelector('#uploadRetry').click();
       document.querySelector('#uploadRetry').click();
     });
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     assert.equal(stub.jobPosts.length, 1);
     assert.equal(stub.agentMessages.length, 0);
   });
@@ -332,7 +332,7 @@ test("upload can prepare preview without an AI model and only AI submission need
     await page.route('**/api/setup/status', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ complete: false, canCreateTask: false, canUseAgent: false, steps: [] }) }));
     await page.evaluate(() => refreshSetupReadiness());
     await uploadSource(page, video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     assert.equal(stub.jobPosts.length, 1);
     assert.equal(stub.agentMessages.length, 0);
     await page.locator('#sendButton').click();
@@ -344,7 +344,7 @@ test("upload can prepare preview without an AI model and only AI submission need
 test("preview-first entry restores desktop split and compact view switching in both themes", async () => {
   await withPage(async ({ page }) => {
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       for (const [width, height] of [[1912, 948], [1366, 768], [1024, 768], [390, 844], [640, 400]]) {
         await page.setViewportSize({ width, height });
         await page.waitForTimeout(120);
@@ -370,7 +370,7 @@ test("preview-first entry restores desktop split and compact view switching in b
 test("new-task guidance sits above the bottom composer and upload preserves its anchor", async () => {
   await withPage(async ({ page, video, stub }) => {
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       for (const [width, height] of [[1912, 948], [1366, 768], [390, 844], [640, 400]]) {
         await page.setViewportSize({ width, height });
         if (width < 1280) await page.locator('button[data-ct-compact-view="assistant"]').click();
@@ -390,7 +390,7 @@ test("new-task guidance sits above the bottom composer and upload preserves its 
     await page.locator('[data-empty-prompt="提取高光"]').click();
     const before = await page.locator('#chatForm .chat-input-shell').boundingBox();
     await page.setInputFiles('#videoInput', video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     const after = await page.locator('#chatForm .chat-input-shell').boundingBox();
     assert.ok(Math.abs(before.y + before.height - after.y - after.height) <= 2, `input anchor moved: ${JSON.stringify({ before, after })}`);
     assert.ok(Math.abs(before.y - after.y) <= 2, 'input height stays consistent across upload');
@@ -460,10 +460,10 @@ test("uploaded source plays, pauses and seeks before any editing requirement is 
 test("same source file creates a new task with a fresh upload session", async () => {
   await withPage(async ({ page, stub, video }) => {
     await uploadSource(page, video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.evaluate(() => window.openNewTaskFromHome?.());
     await uploadSource(page, video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_second");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_second");
     assert.equal(stub.jobPosts.length, 2);
     assert.equal(stub.uploadCreates.length, 2);
     assert.notEqual(stub.jobPosts[0].uploadSessionId, stub.jobPosts[1].uploadSessionId);
@@ -476,7 +476,7 @@ test("same source file creates a new task with a fresh upload session", async ()
 test("new task clears stale Agent plan UI from the previous task", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.evaluate(() => {
       const dock = document.querySelector("#agentPlanDock");
       dock.classList.remove("hidden");
@@ -505,7 +505,7 @@ test("new task clears stale Agent plan UI from the previous task", async () => {
       const dock = document.querySelector("#agentPlanDock");
       const drawer = document.querySelector("#agentPlanDrawer");
       return {
-        currentJobId: window.ClipTalkCurrentJobId?.() || "",
+        currentJobId: window.ChatClipCurrentJobId?.() || "",
         dockHidden: dock.classList.contains("hidden"),
         dockText: dock.textContent.trim(),
         planActive: document.querySelector(".chat-panel")?.classList.contains("agent-plan-active"),
@@ -546,7 +546,7 @@ test("upload keeps the latest typed requirement and never submits it automatical
     await waitUntil(() => stub.jobPosts.length === 1, 'upload did not create a task');
     await page.locator('#chatInput').fill('上传期间修改的要求');
     stub.releaseFirstJob();
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     assert.equal(await page.locator('#chatInput').inputValue(), '上传期间修改的要求');
     assert.equal(stub.agentMessages.length, 0);
     await page.locator('#sendButton').click();
@@ -562,7 +562,7 @@ test("upload keeps the latest typed requirement and never submits it automatical
 test("a submitted requirement shows planning progress when the first status poll races the backend", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.locator("#chatInput").fill("保留完整人物发言并整理为一分钟短片");
     await page.keyboard.press("Enter");
 
@@ -582,10 +582,10 @@ test("late upload response from an older creation session cannot replace the new
     assert.equal(await page.locator('#uploadProgress').getAttribute('value'), '100');
     await page.locator("#sidebarNewTask").click();
     await uploadSource(page, video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_second");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_second");
     stub.releaseFirstJob();
     await page.waitForTimeout(200);
-    assert.equal(await page.evaluate(() => window.ClipTalkCurrentJobId?.()), "job_second");
+    assert.equal(await page.evaluate(() => window.ChatClipCurrentJobId?.()), "job_second");
     assert.equal(stub.jobPosts.length, 2);
     assert.notEqual(stub.jobPosts[0].uploadSessionId, stub.jobPosts[1].uploadSessionId);
   }, { holdFirstJob: true });
@@ -594,7 +594,7 @@ test("late upload response from an older creation session cannot replace the new
 test("agent draft keeps automatic routing compact and opens grouped capabilities in a drawer", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
     const agentControl = await page.locator("#agentSkillMenuButton").evaluate((button) => ({
       visible: getComputedStyle(button).display !== "none",
@@ -664,7 +664,7 @@ test("example text and execution mode survive upload without starting AI", async
     await page.locator('#agentExecutionMode').selectOption('stepwise_review');
     await page.keyboard.press('Escape');
     await page.setInputFiles('#videoInput', video);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'job_first');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'job_first');
     assert.equal(stub.agentMessages.length, 0);
     assert.equal(await page.locator('#chatInput').inputValue(), '按描述找片段');
     assert.equal(await page.locator('#chatForm').evaluate(n => n === window.preUploadComposer), true);
@@ -679,10 +679,10 @@ test("light theme keeps the Skill advanced menu readable", async () => {
   await withPage(async ({ page, video }) => {
     await page.evaluate(() => {
       document.documentElement.dataset.theme = "light";
-      localStorage.setItem("cliptalk_theme", "light");
+      localStorage.setItem("chatclip_theme", "light");
     });
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.locator("#agentSkillMenuButton").click();
     await page.locator("#agentSkillMenu").waitFor({ state: "visible" });
 
@@ -727,7 +727,7 @@ test("light theme keeps the Skill advanced menu readable", async () => {
 test("interface typography uses local headings and readable body sizes without viewport overflow", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.evaluate(() => document.fonts.load('700 20px "VP Interface Heading"', "剪辑助手"));
     for (const theme of ["light", "dark"]) {
       for (const [width, height] of [[1920, 1080], [1366, 768], [390, 844]]) {
@@ -762,7 +762,7 @@ test("interface typography uses local headings and readable body sizes without v
 test("execution settings stay readable and on screen, reflect mode and support keyboard dismissal", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     const trigger = page.locator("#agentSkillMenuButton");
     const menu = page.locator("#agentSkillMenu");
     for (const theme of ["light", "dark"]) {
@@ -805,7 +805,7 @@ test("execution settings stay readable and on screen, reflect mode and support k
 test("awaiting instruction jobs expose composer suggestions even without an agentDraft flag", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.waitForFunction(() => /^试试：“.+”$/.test(document.querySelector("#composerSuggestion")?.textContent || ""));
     assert.equal(await page.locator("#quickWorkflowPicker").isVisible(), false);
     assert.match(await page.locator("#composerSuggestion").textContent(), /试试：“.+”/);
@@ -816,7 +816,7 @@ test("awaiting instruction jobs expose composer suggestions even without an agen
 test("agent draft input submits to the default Agent when no quick workflow is selected", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     assert.match(String(await page.locator("#chatInput").getAttribute("placeholder") || ""), /描述你想怎么剪/);
 
     await page.locator("#chatInput").fill("帮我找出所有汽车画面并合成竖屏视频");
@@ -832,13 +832,13 @@ test("agent draft input submits to the default Agent when no quick workflow is s
 test("grouped capability selection sets a Skill and automatic mode clears it", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
     await page.locator("#assistantActionDock [data-open-capability-drawer]").first().click();
     await page.locator('#quickWorkflowPicker [data-capability-category-switch="package"]').click();
-    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="cliptalk-cover-director"]').click();
-    await page.waitForFunction(() => document.querySelector("#agentSkillSelect")?.value === "cliptalk-cover-director");
-    assert.equal(await page.locator("#agentSkillSelect").inputValue(), "cliptalk-cover-director");
+    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="chatclip-cover-director"]').click();
+    await page.waitForFunction(() => document.querySelector("#agentSkillSelect")?.value === "chatclip-cover-director");
+    assert.equal(await page.locator("#agentSkillSelect").inputValue(), "chatclip-cover-director");
     assert.equal(await page.locator("#quickWorkflowPicker").isVisible(), false);
     assert.match(await page.locator("#assistantActionDock").textContent(), /视觉包装.*生成视频封面.*生成封面方案/s);
     assert.match(await page.locator("#directorTaskSummary").textContent(), /已选择生成视频封面.*补充要求后生成方案/s);
@@ -859,7 +859,7 @@ test("grouped capability selection sets a Skill and automatic mode clears it", a
     await page.locator("#chatInput").fill("");
     await page.locator("#assistantActionDock [data-open-capability-drawer]").first().click();
     await page.locator('#quickWorkflowPicker [data-capability-category-switch="package"]').click();
-    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="cliptalk-local-motion-renderer"]').click();
+    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="chatclip-local-motion-renderer"]').click();
     await page.waitForFunction(() => document.querySelector("#chatInput")?.value.includes("动态图文片头"));
     assert.equal(await page.locator("#chatInput").inputValue(), "为当前视频制作一段简洁的动态图文片头，突出核心主题，并保持与原视频风格一致。");
     assert.match(await page.locator("#assistantActionDock").textContent(), /视觉包装.*制作动态图文.*生成标题卡、动画片头或说明画面/s);
@@ -878,7 +878,7 @@ test("grouped capability selection sets a Skill and automatic mode clears it", a
 
     await page.locator("#assistantActionDock .assistant-action-primary").click();
     await waitUntil(() => stub.agentMessages.length === 1, "selected motion capability was not submitted");
-    assert.equal(stub.agentMessages[0].body.skillId, "cliptalk-local-motion-renderer");
+    assert.equal(stub.agentMessages[0].body.skillId, "chatclip-local-motion-renderer");
     assert.match(stub.agentMessages[0].body.text, /制作一段简洁的动态图文片头/);
 
   });
@@ -887,11 +887,11 @@ test("grouped capability selection sets a Skill and automatic mode clears it", a
 test("capability recommendation preserves an existing instruction and can be appended", async () => {
   await withPage(async ({ page, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
     await page.locator("#chatInput").fill("保留品牌绿色");
     await page.locator("#assistantActionDock [data-open-capability-drawer]").first().click();
     await page.locator('#quickWorkflowPicker [data-capability-category-switch="package"]').click();
-    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="cliptalk-local-motion-renderer"]').click();
+    await page.locator('#quickWorkflowPicker [data-draft-capability-skill="chatclip-local-motion-renderer"]').click();
     await page.waitForFunction(() => document.querySelector("#composerSuggestion")?.textContent.includes("添加建议"));
     assert.equal(await page.locator("#chatInput").inputValue(), "保留品牌绿色");
     assert.match(await page.locator("#composerSuggestion").textContent(), /添加建议.*动态图文片头/);
@@ -903,7 +903,7 @@ test("capability recommendation preserves an existing instruction and can be app
 test("highlight quick workflow starts after target duration is configured", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
     await chooseQuickWorkflow(page, "highlight");
 	    await page.waitForFunction(() => document.querySelector("#quickWorkflowPicker")?.textContent?.includes("开始智能高光"));
@@ -943,7 +943,7 @@ for (const quickCase of quickWorkflowStartCases) {
   test(`${quickCase.workflowKind} quick workflow starts from its launch card`, async () => {
     await withPage(async ({ page, stub, video }) => {
       await openDraft(page);
-      await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+      await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
       await chooseQuickWorkflow(page, quickCase.workflowKind);
       await page.waitForFunction((text) => document.querySelector("#quickWorkflowPicker")?.textContent?.includes(text), quickCase.launchText);
@@ -965,7 +965,7 @@ for (const quickCase of quickWorkflowStartCases) {
 test("content search quick workflow requires a search instruction before starting", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
     await chooseQuickWorkflow(page, "content_search");
     await page.locator("#chatInput").fill("");
@@ -983,7 +983,7 @@ test("content search quick workflow requires a search instruction before startin
 test("content search quick workflow starts from Enter after a mode is selected", async () => {
   await withPage(async ({ page, stub, video }) => {
     await openDraft(page);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === "job_first");
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === "job_first");
 
     await chooseQuickWorkflow(page, "content_search");
     await page.locator("#chatInput").fill("查找所有汽车画面");

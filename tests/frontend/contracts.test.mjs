@@ -47,7 +47,7 @@ test("review-sample timing accepts edit-session source ranges", () => {
 test("workflow copy uses one four-mode terminology contract", () => {
   const context = { window: {} };
   vm.runInNewContext(read("static/ui-copy.js"), context);
-  const copy = context.window.ClipTalkCopy;
+  const copy = context.window.ChatClipCopy;
 
   assert.deepEqual([...copy.WORKFLOWS.highlight.navigation[2]], ["事件审核", "确认事件与候选镜头"]);
   assert.equal(copy.WORKFLOWS.content_search.output, "内容视频");
@@ -60,7 +60,7 @@ test("workflow copy uses one four-mode terminology contract", () => {
 test("workspace state prefers canonical presentation and execution facts", () => {
   const context = { window: {} };
   vm.runInNewContext(read("static/workspace-state.js"), context);
-  const { derive, derivePresentation, STATES, PRESENTATION_STATES } = context.window.ClipTalkWorkspaceState;
+  const { derive, derivePresentation, STATES, PRESENTATION_STATES } = context.window.ChatClipWorkspaceState;
 
   assert.equal(derive({
     job: {
@@ -136,7 +136,7 @@ test("API errors preserve recovery action and request number", async () => {
   vm.runInNewContext(read("static/api-client.js"), context);
 
   await assert.rejects(
-    context.window.ClipTalkApi.request("/api/failing"),
+    context.window.ChatClipApi.request("/api/failing"),
     (error) => {
       assert.equal(error.status, 500);
       assert.equal(error.code, "internal_error");
@@ -149,7 +149,7 @@ test("API errors preserve recovery action and request number", async () => {
 
   context.fetch = async () => { throw new TypeError("Failed to fetch"); };
   await assert.rejects(
-    context.window.ClipTalkApi.request("/api/offline"),
+    context.window.ChatClipApi.request("/api/offline"),
     (error) => {
       assert.equal(error.status, 0);
       assert.equal(error.code, "network_error");
@@ -212,7 +212,7 @@ test("agent execution events refresh the current job and player without manual r
   assert.match(workspace, /"step\.completed"/);
   assert.match(workspace, /function scheduleAgentWorkspaceSync/);
   assert.match(workspace, /await refreshPlan\(\)/);
-  assert.match(workspace, /ClipTalkRefreshCurrentJob\?\.\(\)/);
+  assert.match(workspace, /ChatClipRefreshCurrentJob\?\.\(\)/);
   assert.match(workspace, /if \(activityEventShouldSync\(name\)\) scheduleAgentWorkspaceSync\(\)/);
   assert.match(workspace, /clearTimeout\(activityRefreshTimer\)/);
 });
@@ -235,7 +235,7 @@ test("output delivery exposes cover, package, and optional intro controls", () =
   assert.match(html, /id="coverIntroButton"/);
   assert.match(html, /id="adjustCoverButton"/);
   assert.match(app, /createCoverIntroOutput/);
-  assert.match(app, /ClipTalkOpenCoverTimeline/);
+  assert.match(app, /ChatClipOpenCoverTimeline/);
   assert.match(app, /已关联此版本/);
   assert.match(app, /output\.coverUrl/);
   assert.match(app, /output\.packageUrl/);
@@ -251,7 +251,7 @@ test("completed cover plans show the generated image instead of only step progre
   assert.match(workspace, /查看生成的封面/);
   assert.match(workspace, /下载封面 JPG/);
   assert.match(workspace, /打开封面时间轴/);
-  assert.match(workspace, /ClipTalkConfirmCoverTimelineSelection/);
+  assert.match(workspace, /ChatClipConfirmCoverTimelineSelection/);
   assert.match(html, /id="timelineCoverTrack"/);
   assert.match(app, /function renderTimelineCoverTrack/);
   assert.match(app, /data-cover-timeline-duration/);
@@ -283,14 +283,14 @@ test("opening an agent review sample preserves its complete artifact state", () 
 
 test("subtitle review opens the dedicated subtitle flow without entering the fine-cut editor", () => {
   const app = read("static/app.js");
-  const start = app.indexOf("window.ClipTalkOpenAgentSubtitleReview = async");
-  const end = app.indexOf("window.ClipTalkOpenAgentPreview = async", start);
+  const start = app.indexOf("window.ChatClipOpenAgentSubtitleReview = async");
+  const end = app.indexOf("window.ChatClipOpenAgentPreview = async", start);
   assert.ok(start >= 0 && end > start);
   const implementation = app.slice(start, end);
 
   assert.match(implementation, /reviewSubtitlesBeforeRender/);
   assert.match(implementation, /operation:\s*\{[\s\S]*type:\s*"set_subtitle"/);
-  assert.doesNotMatch(implementation, /ClipTalkOpenAgentTimeline/);
+  assert.doesNotMatch(implementation, /ChatClipOpenAgentTimeline/);
   assert.doesNotMatch(implementation, /reviewSecondaryEditorSubtitles/);
 });
 
@@ -430,11 +430,11 @@ test("v4 output preview suppresses legacy result panels and evidence strip", () 
   assert.match(read("static/workspace-controller.js"), /ct-v4-adopted-preview/);
   assert.match(read("static/workspace-controller.js"), /竖屏/);
   assert.match(read("static/workspace-controller.js"), /root\?\.querySelector\?\.\(selector\) \|\| null/);
-  assert.match(read("static/workspace-controller.js"), /sourceTitle = cleanDisplayText\(window\.ClipTalkCurrentJobSnapshot\?\.\(\)\?\.filename\)/);
+  assert.match(read("static/workspace-controller.js"), /sourceTitle = cleanDisplayText\(window\.ChatClipCurrentJobSnapshot\?\.\(\)\?\.filename\)/);
   assert.match(html, /workbench\.css\?v=[0-9]{8}-[\w-]+/);
   assert.match(html, /app\.js\?v=[0-9]{8}-[\w-]+/);
   assert.match(html, /timeline-presentation\.js\?v=[0-9]{8}-[\w-]+/);
-  assert.doesNotMatch(html, /cliptalk-(?:reference-v3|redesign-v1)\.js/);
+  assert.doesNotMatch(html, /chatclip-(?:reference-v3|redesign-v1)\.js/);
   assert.match(html, /workspace-controller\.js\?v=[0-9]{8}-[\w-]+/);
 });
 
@@ -443,15 +443,15 @@ test("adopted segments render time-coded source thumbnails and can expand", () =
   const workbench = read("static/workspace-controller.js");
   const css = read("static/workbench.css");
 
-  assert.match(app, /window\.ClipTalkTimelineAssetsSnapshot = \(\) =>/);
-  assert.match(app, /window\.ClipTalkSeekSourceTime = \(second\) => seekSourceTime\(second\)/);
+  assert.match(app, /window\.ChatClipTimelineAssetsSnapshot = \(\) =>/);
+  assert.match(app, /window\.ChatClipSeekSourceTime = \(second\) => seekSourceTime\(second\)/);
   assert.match(workbench, /function applyAdoptedSegmentThumbnail/);
   assert.match(workbench, /timelineAssetsSnapshot\?\.spriteUrl/);
   assert.match(workbench, /adoptedSegments\.slice\(0, 3\)/);
   assert.match(workbench, /host\.dataset\.expanded/);
   assert.match(workbench, /ct-v4-adopted-thumb is-loading/);
   assert.match(workbench, /点击缩略图可跳回源片位置/);
-  assert.match(workbench, /window\.ClipTalkSeekSourceTime\(start\)/);
+  assert.match(workbench, /window\.ChatClipSeekSourceTime\(start\)/);
   assert.match(css, /ct-v4-adopted-preview[\s\S]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(css, /ct-v4-adopted-preview\.is-expanded[\s\S]*repeat\(2, minmax\(0, 1fr\)\)/);
 });

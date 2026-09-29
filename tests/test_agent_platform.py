@@ -14,7 +14,20 @@ from unittest.mock import patch
 import pytest
 from starlette.datastructures import UploadFile
 
-from app.agent_platform import SKILL_PROFILES, AgentPlatform
+from app.agent import AgentPlatform
+from app.agent.brief import editing_brief, plan_understanding
+from app.agent.compiler import (
+    compile_profile_plan,
+    replan_force_replay_tools,
+    step_execution_signatures,
+)
+from app.agent.skills import (
+    SKILL_PROFILES,
+    compose_skills,
+    profile_for_skill,
+    skill_routing_eligibility,
+    supports_autonomous_review,
+)
 from app.agent_store import AgentStore, parse_skill_markdown
 
 
@@ -38,13 +51,16 @@ class FakeAgentClient:
             "sideEffect": "read", "estimatedSeconds": 1, "optional": False,
         }]
 
-    def plan(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    def plan(
+        self, _payload: dict[str, Any], *, model_config: dict[str, Any] | None = None,
+        emit: Any = None,
+    ) -> dict[str, Any]:
         return {"plan": {"summary": "测试计划", "steps": self.steps}, "events": []}
 
-    def route_skill(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    def route_skill(self, _payload: dict[str, Any], *, model_config: dict[str, Any] | None = None) -> dict[str, Any]:
         return {"skillId": "test-editor", "reason": "matches"}
 
-    def generate_skill(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    def generate_skill(self, _payload: dict[str, Any], *, model_config: dict[str, Any] | None = None) -> dict[str, Any]:
         return {
             "skillMarkdown": """---
 name: generated-editor
@@ -64,48 +80,23 @@ workflow-profile: revision
 
 def platform_at(path: Path, steps: list[dict[str, Any]] | None = None) -> AgentPlatform:
     platform = AgentPlatform(
-        data_root=path, service_url="http://agent.invalid",
+        data_root=path,
         model_config_resolver=lambda: {"model": "fake"},
     )
-    platform.client = FakeAgentClient(steps)  # type: ignore[assignment]
+    platform.planner_backend = FakeAgentClient(steps)  # type: ignore[assignment]
     platform.install_skill(markdown=SKILL, source="test", status="enabled")
     return platform
 
 
-def test_plugin_approval_binds_both_content_and_tree_hashes(tmp_path):
-    platform = platform_at(tmp_path)
-    plugin = {"id": "plugin-test", "version": "1.0.0", "status": "enabled", "contentHash": "content-a", "treeHash": "tree-a",
-              "tools": [{"name": "plugin-check", "sideEffect": "read"}]}
-    platform.store.save("plugins", plugin)
-    catalog = next(item for item in platform.tool_catalog() if item["name"] == "plugin-check")
-    platform._validate_plugin_identity(catalog)
-    changed = {**plugin, "contentHash": "content-b"}
-    platform.store.save("plugins", changed)
-    with pytest.raises(ValueError, match="重新规划"):
-        platform._validate_plugin_identity(catalog)
-    platform.store.save("plugins", {**plugin, "treeHash": "tree-b"})
-    with pytest.raises(ValueError, match="重新规划"):
-        platform._validate_plugin_identity(catalog)
-    legacy = {**catalog, "contentHash": None, "treeHash": None}
-    with pytest.raises(ValueError):
-        platform._validate_plugin_identity(legacy)
-
-
-def test_uncertain_plugin_result_cannot_be_confirmed_as_success(tmp_path):
-    platform = platform_at(tmp_path)
-    workspace = platform.create_workspace(job_id="isolated-job")
-    plan = platform.store.save("plans", {"id": "uncertain-plan", "status": "action_required", "workspaceId": workspace["id"],
-        "steps": [{"id": "step", "pluginId": "plugin", "status": "action_required", "attempts": 1,
-                   "result": {"operationId": "op", "operationStatus": "uncertain", "retryable": False}}]})
-    with pytest.raises(ValueError, match="尚未核实"):
-        platform.resolve_action(plan["id"], approved=True)
-    calls = []
-    def query(operation_id):
-        calls.append(operation_id)
-        return {"status": "uncertain"}
-    platform.client.query_plugin_operation = query
-    assert platform.retry_action(plan["id"])["status"] == "action_required"
-    assert calls == ["op"]
+def await_plan_status(platform: AgentPlatform, plan_id: str, status: str, timeout: float = 5.0):
+    """Background-operation delivery runs on the platform driver thread."""
+    import time as _time
+    deadline = _time.monotonic() + timeout
+    plan = platform.store.get("plans", plan_id)
+    while _time.monotonic() < deadline and (not plan or plan.get("status") != status):
+        _time.sleep(0.01)
+        plan = platform.store.get("plans", plan_id)
+    return plan
 
 
 def test_failed_cover_confirmation_can_be_reconciled_without_replaying_candidates(tmp_path: Path) -> None:
@@ -144,7 +135,7 @@ def test_failed_cover_confirmation_can_be_reconciled_without_replaying_candidate
 
 
 def test_cover_requested_with_a_short_video_still_compiles_a_timeline_delivery() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "把嘉宾发言剪成45秒短视频，添加字幕并生成一张16:9封面", {},
     )
 
@@ -224,7 +215,7 @@ def test_cover_review_retry_rebuilds_candidates_from_structured_goal_constraints
 
 
 def test_interview_respondents_do_not_trigger_visual_person_tracking() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "把不同人物关于成长、工作和未来的回答整理成 90 秒访谈精华，"
         "保留必要问题上下文并添加字幕。",
         {},
@@ -236,7 +227,7 @@ def test_interview_respondents_do_not_trigger_visual_person_tracking() -> None:
 
 
 def test_explicit_anonymous_speaker_label_is_preserved_in_brief() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "识别视频中的说话人，只保留说话人 B 的所有发言，生成审核样片。",
         {},
     )
@@ -247,7 +238,7 @@ def test_explicit_anonymous_speaker_label_is_preserved_in_brief() -> None:
 
 
 def test_visual_identity_request_still_selects_person_targeting() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "识别画面中的人物，只保留穿黑色上衣的人出镜的片段。",
         {},
     )
@@ -259,7 +250,7 @@ def test_visual_identity_request_still_selects_person_targeting() -> None:
 
 
 def test_combined_vertical_video_and_cover_request_preserves_both_deliverables() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "找出所有汽车画面，合成一个竖屏的视频，在顶部添加字幕，最开头放封面，文本描述：小米牛逼！",
         {},
     )
@@ -280,7 +271,7 @@ def test_external_person_cover_is_parsed_without_silent_source_frame_fallback() 
         "找出所有汽车相关画面，合成竖屏视频，并在顶部添加对应字幕。"
         "并找到小米创始人雷军的照片作为封面，封面上写上小米牛逼，雷军牛逼！！！"
     )
-    brief = AgentPlatform._editing_brief(goal, {})
+    brief = editing_brief(goal, {})
 
     assert brief["coverRequested"] is True
     assert brief["coverTitle"] == "小米牛逼，雷军牛逼！！！"
@@ -288,7 +279,7 @@ def test_external_person_cover_is_parsed_without_silent_source_frame_fallback() 
     assert brief["coverSubject"] == "小米创始人雷军"
     assert brief["coverSourceStatus"] == "requires_external_asset"
 
-    source_cover = AgentPlatform._editing_brief(
+    source_cover = editing_brief(
         "使用视频画面制作封面，封面文字写关键时刻，并导出竖屏视频。", {},
     )
     assert source_cover["coverTitle"] == "关键时刻"
@@ -305,7 +296,7 @@ def test_cover_text_and_compose_instruction_are_parsed_as_separate_requirements(
         "editing": {"hasOutputs": True, "hasActiveSession": True},
     }
 
-    brief = AgentPlatform._editing_brief(goal, context)
+    brief = editing_brief(goal, context)
 
     assert brief["operationIntent"] == "cover_asset"
     assert brief["delivery"] == "artifact"
@@ -315,7 +306,7 @@ def test_cover_text_and_compose_instruction_are_parsed_as_separate_requirements(
     assert brief["coverIntroRequested"] is True
     assert brief["coverIntroDurationSeconds"] == 1.5
 
-    explicit = AgentPlatform._editing_brief(
+    explicit = editing_brief(
         "封面上写：小米牛逼，雷军牛逼！！！，并将封面作为2秒片头合成到当前成片。",
         context,
     )
@@ -325,7 +316,7 @@ def test_cover_text_and_compose_instruction_are_parsed_as_separate_requirements(
 
 
 def test_named_source_frame_cover_preserves_subject_and_exact_time() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "用第54秒小米创始人雷军的画面作为封面，封面写上发布会高光。", {},
     )
 
@@ -337,7 +328,7 @@ def test_named_source_frame_cover_preserves_subject_and_exact_time() -> None:
 
 
 def test_deictic_source_frame_cover_preserves_exact_time_without_duration_target() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "找出所有汽车相关画面，合成竖屏视频，并在顶部添加对应字幕。"
         "并选取54s出现的那个人作为封面，封面上写好上：小米牛逼！！雷军雷神！！！！",
         {},
@@ -352,21 +343,21 @@ def test_deictic_source_frame_cover_preserves_exact_time_without_duration_target
     assert brief["coverIdentityPolicy"] == "verify"
     assert brief["coverSourceTime"] == 54
     assert brief["coverTitle"] == "小米牛逼！！雷军雷神！！！！"
-    understanding = AgentPlatform._plan_understanding(brief, {})
+    understanding = plan_understanding(brief, {})
     cover_item = next(item for item in understanding["items"] if item["label"] == "封面")
     assert "54 秒画面" in cover_item["value"]
     assert "人物：那个人" in cover_item["value"]
 
 
 def test_generic_cover_style_is_not_treated_as_a_person_subject() -> None:
-    brief = AgentPlatform._editing_brief("选择最具有冲击性的画面作为封面", {})
+    brief = editing_brief("选择最具有冲击性的画面作为封面", {})
 
     assert brief["coverRequested"] is True
     assert brief["operationIntent"] == "cover_asset"
     assert brief["coverSourceKind"] == "source_frame"
     assert brief["coverSubject"] == ""
     assert brief["coverIdentityPolicy"] == "ignore"
-    understanding = AgentPlatform._plan_understanding(brief, {})
+    understanding = plan_understanding(brief, {})
     cover_item = next(item for item in understanding["items"] if item["label"] == "封面")
     assert "人物：" not in cover_item["value"]
 
@@ -375,7 +366,7 @@ def test_cover_only_plan_uses_source_video_when_no_adopted_timeline_exists(tmp_p
     root = Path(__file__).resolve().parents[1]
     platform = platform_at(tmp_path)
     platform.install_skill(
-        markdown=(root / "skills" / "cliptalk-cover-director" / "SKILL.md").read_text(encoding="utf-8"),
+        markdown=(root / "skills" / "chatclip-cover-director" / "SKILL.md").read_text(encoding="utf-8"),
         source="test", status="enabled",
     )
     platform.configure_planning_context_provider(lambda job_id: {
@@ -392,7 +383,7 @@ def test_cover_only_plan_uses_source_video_when_no_adopted_timeline_exists(tmp_p
     candidate_arguments = next(
         step for step in plan["steps"] if step["tool"] == "propose_cover_candidates"
     )["arguments"]
-    assert plan["skillId"] == "cliptalk-cover-director"
+    assert plan["skillId"] == "chatclip-cover-director"
     assert candidate_arguments["sourceScope"] == "source_video"
     assert "subject" not in candidate_arguments
 
@@ -400,10 +391,10 @@ def test_cover_only_plan_uses_source_video_when_no_adopted_timeline_exists(tmp_p
 def test_external_cover_requirement_stops_managed_plan_before_media_work() -> None:
     root = Path(__file__).resolve().parents[1]
     skill_ids = (
-        "cliptalk-content-extractor",
-        "cliptalk-social-reframe-exporter",
-        "cliptalk-caption-layout-director",
-        "cliptalk-cover-director",
+        "chatclip-content-extractor",
+        "chatclip-social-reframe-exporter",
+        "chatclip-caption-layout-director",
+        "chatclip-cover-director",
     )
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
@@ -418,7 +409,7 @@ def test_external_cover_requirement_stops_managed_plan_before_media_work() -> No
         })
         workspace = platform.create_workspace(job_id="job_external_cover")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=workspace["id"], skill_id="chatclip-content-extractor",
             goal=(
                 "找出汽车画面，合成竖屏视频；找到雷军的照片作为封面，"
                 "封面上写上小米牛逼，雷军牛逼！"
@@ -435,7 +426,7 @@ def test_external_cover_requirement_stops_managed_plan_before_media_work() -> No
 
 
 def test_cover_timestamp_does_not_become_target_duration() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "找出所有汽车相关画面，合成竖屏视频，并在顶部添加对应字幕。"
         "并选取54s出现的那个人作为封面，封面上写好上：小米牛逼！！雷军雷神！！！！",
         {},
@@ -448,7 +439,7 @@ def test_cover_timestamp_does_not_become_target_duration() -> None:
     assert brief["coverTitle"] == "小米牛逼！！雷军雷神！！！！"
     assert brief["socialDelivery"]["aspect"] == "9:16"
     assert brief["subtitleRequested"] is True
-    understanding = AgentPlatform._plan_understanding(brief, {})
+    understanding = plan_understanding(brief, {})
     by_label = {item["label"]: item["value"] for item in understanding["items"]}
     assert by_label["检索目标"] == "汽车"
     assert "成片时长" not in by_label
@@ -457,7 +448,7 @@ def test_cover_timestamp_does_not_become_target_duration() -> None:
 
 
 def test_add_text_command_is_graphics_not_a_cover_title() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "给当前成片顶部加文字‘小米牛逼’，显示 3 秒。", {},
     )
 
@@ -479,7 +470,7 @@ def test_intent_brief_handles_common_chinese_editing_ambiguities() -> None:
         },
     }
 
-    overlay = AgentPlatform._editing_brief(
+    overlay = editing_brief(
         "找出所有汽车相关画面，顶部添加“小米汽车”文字，显示5秒，合成竖屏视频",
         context,
     )
@@ -490,7 +481,7 @@ def test_intent_brief_handles_common_chinese_editing_ambiguities() -> None:
     assert overlay["targetSeconds"] is None
     assert overlay["socialDelivery"]["aspect"] == "9:16"
 
-    explicit_range = AgentPlatform._editing_brief("从 01:20 开始剪到 02:10，做成竖屏", context)
+    explicit_range = editing_brief("从 01:20 开始剪到 02:10，做成竖屏", context)
     assert explicit_range["operationIntent"] == "compose_timeline"
     assert explicit_range["sourceRange"] == {
         "kind": "custom", "start": 80.0, "end": 130.0,
@@ -498,72 +489,72 @@ def test_intent_brief_handles_common_chinese_editing_ambiguities() -> None:
         "source": "explicit_range",
     }
 
-    remove_prefix = AgentPlatform._editing_brief("剪掉前30秒，保留后面的内容", context)
+    remove_prefix = editing_brief("剪掉前30秒，保留后面的内容", context)
     assert remove_prefix["operationIntent"] == "compose_timeline"
     assert remove_prefix["retrievalQuery"] == ""
     assert remove_prefix["removedSourceRanges"][0]["start"] == 0
     assert remove_prefix["removedSourceRanges"][0]["end"] == 30
 
-    semantic_range = AgentPlatform._editing_brief("把讲价格的地方开始到讲配置结束剪出来", context)
+    semantic_range = editing_brief("把讲价格的地方开始到讲配置结束剪出来", context)
     assert semantic_range["retrievalQuery"] == "价格"
     assert semantic_range["anchorStart"] == {"query": "价格", "selectionPolicy": "unique_or_review"}
     assert semantic_range["sourceEndAnchor"] == {"query": "配置", "selectionPolicy": "unique_or_review"}
 
-    search_only = AgentPlatform._editing_brief("不要生成成片，只列出汽车相关候选", context)
+    search_only = editing_brief("不要生成成片，只列出汽车相关候选", context)
     assert search_only["operationIntent"] == "search_only"
     assert search_only["delivery"] == "candidates"
     assert search_only["retrievalQuery"] == "汽车"
 
-    product_shorter = AgentPlatform._editing_brief("把介绍XX产品的部分剪出来，再短一点", context)
+    product_shorter = editing_brief("把介绍XX产品的部分剪出来，再短一点", context)
     assert product_shorter["retrievalQuery"] == "介绍XX产品"
     assert product_shorter["targetSeconds"] == 80
     assert product_shorter["durationSource"] == "relative"
 
     # ux22 回归：“前三秒”描述成片开头，不是素材范围
-    output_opening = AgentPlatform._editing_brief(
+    output_opening = editing_brief(
         "剪成一条 60 秒短视频，前三秒突出核心亮点，随后用紧凑节奏展开主要内容。",
         context,
     )
     assert output_opening["sourceRange"] is None
     assert output_opening["targetSeconds"] == 60
 
-    output_hook = AgentPlatform._editing_brief("前 3 秒进入 Hook，随后展示高潮", context)
+    output_hook = editing_brief("前 3 秒进入 Hook，随后展示高潮", context)
     assert output_hook["sourceRange"] is None
 
-    real_range = AgentPlatform._editing_brief("只保留前三秒的画面", context)
+    real_range = editing_brief("只保留前三秒的画面", context)
     assert real_range["sourceRange"]["start"] == 0
     assert real_range["sourceRange"]["end"] == 3
 
-    social_only = AgentPlatform._editing_brief("做一个小红书视频，但不要裁切，保留完整画面", context)
+    social_only = editing_brief("做一个小红书视频，但不要裁切，保留完整画面", context)
     assert social_only["operationIntent"] == "reframe_existing"
     assert social_only["retrievalQuery"] == ""
     assert social_only["socialDelivery"] == {
         "requested": True, "aspect": "9:16", "fit": "blur", "focusX": .5, "focusY": .5,
     }
 
-    subtitles = AgentPlatform._editing_brief("只导出字幕文件，不要生成视频", context)
+    subtitles = editing_brief("只导出字幕文件，不要生成视频", context)
     assert subtitles["operationIntent"] == "export_subtitles"
     assert subtitles["delivery"] == "artifact"
     assert subtitles["subtitleAssetRequested"] is True
 
-    speaker = AgentPlatform._editing_brief("只保留雷军说话的片段", context)
+    speaker = editing_brief("只保留雷军说话的片段", context)
     assert speaker["speakerTargeted"] is True
     assert speaker["speakerTargetLabel"] == "雷军"
     assert speaker["subjectKind"] == "speaker"
 
-    person = AgentPlatform._editing_brief("只保留54秒出现的那个人的画面", context)
+    person = editing_brief("只保留54秒出现的那个人的画面", context)
     assert person["personTargeted"] is True
     assert person["personDescription"] == "54 秒出现的那个人"
     assert person["personSourceTime"] == 54
     assert person["retrievalQuery"] == ""
 
-    negative = AgentPlatform._editing_brief("去掉没有汽车的部分，保留有汽车的画面", context)
+    negative = editing_brief("去掉没有汽车的部分，保留有汽车的画面", context)
     assert negative["retrievalQuery"] == "汽车"
     assert negative["selectionMode"] == "include"
 
 
 def test_cover_text_command_does_not_become_a_generic_text_layer() -> None:
-    brief = AgentPlatform._editing_brief(
+    brief = editing_brief(
         "生成本次任务封面，封面文字写‘小米牛逼！’。", {},
     )
 
@@ -575,7 +566,7 @@ def test_cover_text_command_does_not_become_a_generic_text_layer() -> None:
 def test_subtitle_file_intent_routes_to_export_without_video_rendering(tmp_path: Path) -> None:
     platform = platform_at(tmp_path)
     caption_skill = """---
-name: cliptalk-caption-layout-director
+name: chatclip-caption-layout-director
 version: 1.1.0
 description: Caption layout and subtitle export.
 allowed-tools: inspect_workspace layout_subtitles prepare_subtitle_review render_review_preview export_subtitles
@@ -593,7 +584,7 @@ workflow-profile: caption-layout
 
     plan = platform.create_plan(workspace_id=workspace["id"], goal="只导出字幕文件，不要生成视频")
 
-    assert plan["skillId"] == "cliptalk-caption-layout-director"
+    assert plan["skillId"] == "chatclip-caption-layout-director"
     assert plan["brief"]["operationIntent"] == "export_subtitles"
     assert [step["tool"] for step in plan["steps"]] == ["inspect_workspace", "export_subtitles"]
     assert plan["steps"][1]["arguments"] == {"format": "srt"}
@@ -602,7 +593,7 @@ workflow-profile: caption-layout
 def test_source_range_edit_is_not_routed_as_existing_output_reframe(tmp_path: Path) -> None:
     platform = platform_at(tmp_path)
     revision_skill = """---
-name: cliptalk-revision-editor
+name: chatclip-revision-editor
 version: 1.1.0
 description: Timeline revision.
 allowed-tools: inspect_workspace propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
@@ -612,7 +603,7 @@ workflow-profile: revision
 # Revision
 """
     social_skill = """---
-name: cliptalk-social-reframe-exporter
+name: chatclip-social-reframe-exporter
 version: 1.1.0
 description: Social reframe.
 allowed-tools: inspect_workspace render_social_preview run_delivery_qc
@@ -632,7 +623,7 @@ workflow-profile: social-reframe
 
     plan = platform.create_plan(workspace_id=workspace["id"], goal="从 01:20 开始剪到 02:10，做成竖屏")
 
-    assert plan["skillId"] == "cliptalk-revision-editor"
+    assert plan["skillId"] == "chatclip-revision-editor"
     assert plan["brief"]["sourceRange"]["start"] == 80.0
     assert plan["brief"]["sourceRange"]["end"] == 130.0
     assert "render_social_preview" not in [step["tool"] for step in plan["steps"][:3]]
@@ -649,22 +640,22 @@ def test_conversational_edit_phrases_compile_to_the_expected_internal_brief() ->
         },
     }
 
-    highlight = AgentPlatform._editing_brief("把最精彩的部分剪成一个高光视频", context)
+    highlight = editing_brief("把最精彩的部分剪成一个高光视频", context)
     assert highlight["retrievalQuery"] == ""
     assert highlight["delivery"] == "timeline"
 
-    product = AgentPlatform._editing_brief("把介绍 XX 产品的部分剪出来", context)
+    product = editing_brief("把介绍 XX 产品的部分剪出来", context)
     assert product["retrievalQuery"] == "介绍 XX 产品"
     assert product["delivery"] == "timeline"
 
-    shorter = AgentPlatform._editing_brief("再短一点", context)
+    shorter = editing_brief("再短一点", context)
     assert shorter["retrievalQuery"] == ""
     assert shorter["targetSeconds"] == 80
     assert shorter["durationExplicit"] is True
     assert shorter["durationSource"] == "relative"
     assert shorter["relativeDurationBaseSeconds"] == 100
 
-    anchor = AgentPlatform._editing_brief("从讲价格的地方开始", context)
+    anchor = editing_brief("从讲价格的地方开始", context)
     assert anchor["retrievalQuery"] == "价格"
     assert anchor["anchorStart"] == {
         "query": "价格", "selectionPolicy": "unique_or_review",
@@ -672,12 +663,12 @@ def test_conversational_edit_phrases_compile_to_the_expected_internal_brief() ->
     assert anchor["delivery"] == "timeline"
     assert anchor["graphicsRequested"] is False
 
-    price_card = AgentPlatform._editing_brief("在顶部添加价格卡", context)
+    price_card = editing_brief("在顶部添加价格卡", context)
     assert price_card["graphicsRequested"] is True
 
 
 def test_relative_duration_without_a_current_cut_is_explicitly_unresolved() -> None:
-    brief = AgentPlatform._editing_brief("再短一点", {"editing": {"hasOutputs": False}})
+    brief = editing_brief("再短一点", {"editing": {"hasOutputs": False}})
 
     assert brief["targetSeconds"] is None
     assert brief["unresolvedRelativeDuration"] is True
@@ -685,16 +676,16 @@ def test_relative_duration_without_a_current_cut_is_explicitly_unresolved() -> N
 
 def test_existing_voice_composition_keeps_reference_identity_scope(tmp_path):
     platform = platform_at(tmp_path)
-    name = "cliptalk-speaker-editor"
+    name = "chatclip-speaker-editor"
     profile = SKILL_PROFILES[name]
     skill = platform.install_skill(markdown=f"---\nname: {name}\ndescription: Test\nallowed-tools: {' '.join(sorted(profile['tools']))}\n---\nTest",
                                    source="test", status="enabled")
     goal = "把当前已核验的目标声音片段合成为审核样片"
     context = {"evidence": {"hasCandidates": True, "hasContentSearch": True,
                            "contentConstraint": {"contract": {"predicates": [{"kind": "speech.voice_identity"}]}}}}
-    brief = platform._editing_brief(goal, context)
-    plan = platform._compile_profile_plan({}, skill=skill, goal=goal, context=context,
-        skills=platform._compose_skills(skill, brief=brief, context=context))
+    brief = editing_brief(goal, context)
+    plan = compile_profile_plan({}, skill=skill, goal=goal, context=context,
+        skills=compose_skills(skill, brief=brief, context=context, enabled_skill_for_kind=platform._enabled_skill_for_kind))
     names = [s["tool"] for s in plan["steps"]]
     assert "select_speakers" not in names
     assert "search_content" not in names
@@ -719,11 +710,11 @@ def test_conversational_routing_and_executable_plan(tmp_path, goal, expected):
                            "currentDurationSeconds": 100},
                "delivery": {"outputAspect": "9:16"}}
     skill = platform.route_skill(goal, planning_context=context)
-    assert platform._profile_for_skill(skill)["kind"] == expected
-    brief = platform._editing_brief(goal, context)
-    plan = platform._compile_profile_plan(
+    assert profile_for_skill(skill)["kind"] == expected
+    brief = editing_brief(goal, context)
+    plan = compile_profile_plan(
         {}, skill=skill, goal=goal, context=context,
-        skills=platform._compose_skills(skill, brief=brief, context=context),
+        skills=compose_skills(skill, brief=brief, context=context, enabled_skill_for_kind=platform._enabled_skill_for_kind),
     )
     steps = {s["tool"]: s for s in plan["steps"]}
     assert "propose_timeline_edit" in steps
@@ -739,21 +730,21 @@ def test_conversational_routing_and_executable_plan(tmp_path, goal, expected):
 
 def test_cover_intro_wording_does_not_route_all_content_request_to_shortform() -> None:
     content_skill = """---
-name: cliptalk-content-extractor
+name: chatclip-content-extractor
 description: Content extraction.
 allowed-tools: inspect_workspace search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: content
 ---
 """
     shortform_skill = """---
-name: cliptalk-shortform-hook-director
+name: chatclip-shortform-hook-director
 description: Shortform hook editing.
 allowed-tools: inspect_workspace analyze_highlights search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: shortform
 ---
 """
     cover_skill = """---
-name: cliptalk-cover-director
+name: chatclip-cover-director
 description: Cover creation.
 allowed-tools: inspect_workspace propose_cover_candidates render_cover_variants review_cover_variants confirm_cover
 workflow-profile: cover
@@ -771,7 +762,7 @@ workflow-profile: cover
             planning_context={"editing": {"hasOutputs": False, "hasActiveSession": False}},
         )
 
-        assert selected["id"] == "cliptalk-content-extractor"
+        assert selected["id"] == "chatclip-content-extractor"
 
 
 def test_existing_vertical_output_cover_request_routes_to_one_final_intro_qc_chain() -> None:
@@ -787,9 +778,9 @@ def test_existing_vertical_output_cover_request_routes_to_one_final_intro_qc_cha
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
         for skill_id in (
-            "cliptalk-cover-intro-composer",
-            "cliptalk-cover-director",
-            "cliptalk-dynamic-reframe-director",
+            "chatclip-cover-intro-composer",
+            "chatclip-cover-director",
+            "chatclip-dynamic-reframe-director",
         ):
             platform.install_skill(
                 markdown=(root / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8"),
@@ -797,11 +788,11 @@ def test_existing_vertical_output_cover_request_routes_to_one_final_intro_qc_cha
             )
 
         skill = platform.route_skill(goal, planning_context=context)
-        assert skill["id"] == "cliptalk-cover-intro-composer"
-        brief = platform._editing_brief(goal, context)
-        compiled = platform._compile_profile_plan(
+        assert skill["id"] == "chatclip-cover-intro-composer"
+        brief = editing_brief(goal, context)
+        compiled = compile_profile_plan(
             {}, skill=skill, goal=goal, context=context,
-            skills=platform._compose_skills(skill, brief=brief, context=context),
+            skills=compose_skills(skill, brief=brief, context=context, enabled_skill_for_kind=platform._enabled_skill_for_kind),
         )
 
         assert [step["tool"] for step in compiled["steps"]] == [
@@ -829,14 +820,14 @@ def test_existing_vertical_output_cover_request_routes_to_one_final_intro_qc_cha
 
 def test_short_topic_phrase_routes_to_content_not_shortform() -> None:
     content_skill = """---
-name: cliptalk-content-extractor
+name: chatclip-content-extractor
 description: Content extraction.
 allowed-tools: inspect_workspace search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: content
 ---
 """
     shortform_skill = """---
-name: cliptalk-shortform-hook-director
+name: chatclip-shortform-hook-director
 description: Shortform hook editing.
 allowed-tools: inspect_workspace analyze_highlights search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: shortform
@@ -847,7 +838,7 @@ workflow-profile: shortform
         platform.install_skill(markdown=content_skill, source="test", status="enabled")
         platform.install_skill(markdown=shortform_skill, source="test", status="enabled")
 
-        brief = AgentPlatform._editing_brief("产品新老替换和核心卖点", {})
+        brief = editing_brief("产品新老替换和核心卖点", {})
         selected = platform.route_skill(
             "产品新老替换和核心卖点",
             planning_context={"editing": {"hasOutputs": False, "hasActiveSession": False}},
@@ -855,19 +846,19 @@ workflow-profile: shortform
 
         assert brief["retrievalQuery"] == "产品新老替换和核心卖点"
         assert brief["shortForm"] is False
-        assert selected["id"] == "cliptalk-content-extractor"
+        assert selected["id"] == "chatclip-content-extractor"
 
 
 def test_short_video_cover_request_adds_the_cover_skill_as_an_edit_addon() -> None:
     speaker_skill = """---
-name: cliptalk-speaker-editor
+name: chatclip-speaker-editor
 description: Speaker editing.
 allowed-tools: inspect_workspace discover_speakers select_speakers search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: speaker
 ---
 """
     cover_skill = """---
-name: cliptalk-cover-director
+name: chatclip-cover-director
 description: Cover creation.
 allowed-tools: inspect_workspace propose_cover_candidates render_cover_variants review_cover_variants confirm_cover
 workflow-profile: cover
@@ -877,28 +868,28 @@ workflow-profile: cover
         platform = platform_at(Path(directory))
         platform.install_skill(markdown=speaker_skill, source="test", status="enabled")
         platform.install_skill(markdown=cover_skill, source="test", status="enabled")
-        primary = platform._enabled_skill("cliptalk-speaker-editor")
-        brief = AgentPlatform._editing_brief("把嘉宾发言剪成45秒短视频并生成16:9封面", {})
+        primary = platform._enabled_skill("chatclip-speaker-editor")
+        brief = editing_brief("把嘉宾发言剪成45秒短视频并生成16:9封面", {})
 
-        skills = platform._compose_skills(primary, brief=brief, context={})
+        skills = compose_skills(primary, brief=brief, context={}, enabled_skill_for_kind=platform._enabled_skill_for_kind)
 
         assert [item["id"] for item in skills] == [
-            "cliptalk-speaker-editor", "cliptalk-cover-director",
+            "chatclip-speaker-editor", "chatclip-cover-director",
         ]
 
 
 def test_cover_addon_keeps_first_party_short_video_plan_in_autonomous_review() -> None:
     skills = [
-        {"id": "cliptalk-speaker-editor", "source": "builtin", "pluginId": None},
-        {"id": "cliptalk-cover-director", "source": "builtin", "pluginId": None},
+        {"id": "chatclip-speaker-editor", "source": "builtin", "pluginId": None},
+        {"id": "chatclip-cover-director", "source": "builtin", "pluginId": None},
     ]
 
-    assert AgentPlatform._supports_autonomous_review(skills) is True
+    assert supports_autonomous_review(skills) is True
 
 
 def test_plain_timeline_request_routes_deterministically_to_highlight_skill() -> None:
     highlight_skill = """---
-name: cliptalk-highlight-director
+name: chatclip-highlight-director
 description: Builds a highlight timeline and review preview.
 allowed-tools: inspect_workspace analyze_highlights propose_timeline_edit confirm_timeline_edit render_review_preview
 workflow-profile: highlight
@@ -913,7 +904,7 @@ workflow-profile: highlight
             "输出约 20 秒 1:1 审核预览，左右主播都要完整可见，弹幕文字仍可辨认。",
             planning_context={"editing": {"hasOutputs": False}},
         )
-        assert selected["id"] == "cliptalk-highlight-director"
+        assert selected["id"] == "chatclip-highlight-director"
 
         workspace = platform.create_workspace(job_id="job_light_planning_surface")
         reserved, _skill, _payload = platform.prepare_plan_request(
@@ -1009,6 +1000,7 @@ def test_no_result_is_terminal_and_skips_downstream_steps() -> None:
         assert "未形成可靠结果" in completed["steps"][1]["skipReason"]
         assert platform.store.get("workspaces", workspace["id"])["status"] == "no_result"
         assert platform.store.events_after(workspace["id"])[-1]["type"] == "plan.no_result"
+        platform.close()
 
 
 def test_no_result_plan_can_retry_from_content_search_without_new_approval() -> None:
@@ -1157,7 +1149,7 @@ def test_insufficient_coverage_retry_reuses_search_and_replays_timeline_only() -
         plan["steps"][3].update({"status": "skipped", "attempts": 0})
         platform.store.save("plans", plan)
 
-        with patch.object(platform, "_advance_plan") as advance:
+        with patch.object(platform, "_kick_plan") as advance:
             recovered = platform.retry_action(plan["id"])
 
         assert recovered["status"] == "running"
@@ -1215,7 +1207,7 @@ def test_retry_clears_cover_timestamp_misread_as_duration() -> None:
             "goal": goal,
             "status": "no_result",
             "summary": "旧计划误把封面时间码当成目标时长",
-            "skillId": "cliptalk-content-extractor",
+            "skillId": "chatclip-content-extractor",
             "brief": {
                 "targetSeconds": 54,
                 "durationExplicit": True,
@@ -1239,7 +1231,7 @@ def test_retry_clears_cover_timestamp_misread_as_duration() -> None:
         plan["steps"][3].update({"status": "skipped", "attempts": 0})
         platform.store.save("plans", plan)
 
-        with patch.object(platform, "_advance_plan"):
+        with patch.object(platform, "_kick_plan"):
             recovered = platform.retry_action(plan["id"])
 
         timeline_args = recovered["steps"][2]["arguments"]
@@ -1268,7 +1260,7 @@ def test_preview_ready_retry_clears_stale_agent_no_result_job_state() -> None:
     }
     plan = {
         "id": "plan_retry", "planHash": "hash", "status": "preview_ready",
-        "summary": "已生成审核样片", "skillId": "cliptalk-content-extractor",
+        "summary": "已生成审核样片", "skillId": "chatclip-content-extractor",
         "steps": [{
             "id": "render", "title": "生成审核样片", "tool": "render_review_preview",
             "status": "completed",
@@ -1430,11 +1422,12 @@ def test_background_step_preserves_durable_handoff_result() -> None:
         assert waiting["steps"][0]["status"] == "waiting_operation"
 
         future.set_result(None)
-        completed = platform.store.get("plans", plan["id"])
+        completed = await_plan_status(platform, plan["id"], "preview_ready")
         assert completed is not None
         assert completed["status"] == "preview_ready"
         assert completed["steps"][0]["result"]["job"]["id"] == "job_child"
         assert completed["steps"][0]["result"]["operationCompleted"] is True
+        platform.close()
 
 
 def test_background_step_merges_worker_artifact_into_step_result() -> None:
@@ -1466,10 +1459,11 @@ allowed-tools: run_delivery_qc
         assert waiting["steps"][0]["status"] == "waiting_operation"
 
         future.set_result({"artifact": {"kind": "delivery_qc_report", "passed": True}})
-        completed = platform.store.get("plans", plan["id"])
+        completed = await_plan_status(platform, plan["id"], "preview_ready")
         assert completed is not None
         assert completed["steps"][0]["result"]["artifact"]["passed"] is True
         assert completed["steps"][0]["result"]["accepted"] is True
+        platform.close()
 
 
 def test_delivery_qc_fails_when_requested_visual_deliverables_are_only_metadata(
@@ -1697,7 +1691,7 @@ def test_background_content_search_no_candidates_finishes_as_no_result() -> None
         assert waiting["steps"][0]["status"] == "waiting_operation"
 
         future.set_result(None)
-        completed = platform.store.get("plans", plan["id"])
+        completed = await_plan_status(platform, plan["id"], "no_result")
 
         assert completed is not None
         assert completed["status"] == "no_result"
@@ -1705,6 +1699,7 @@ def test_background_content_search_no_candidates_finishes_as_no_result() -> None
         assert completed["steps"][0]["result"]["terminalStatus"] == "no_result"
         assert completed["steps"][0]["result"]["artifact"]["reasonCode"] == "coverage_incomplete"
         assert completed["steps"][1]["status"] == "skipped"
+        platform.close()
 
 
 def test_recover_completed_content_search_waiting_operation_after_restart() -> None:
@@ -3290,7 +3285,7 @@ def test_propose_timeline_tool_builds_draft_directly_from_highlight_candidates(
 
 def test_interview_profile_compiles_three_minute_theme_cut_without_identity_gate() -> None:
     interview_skill = """---
-name: cliptalk-interview-editor
+name: chatclip-interview-editor
 description: Interview test profile.
 allowed-tools: inspect_workspace discover_speakers select_speakers search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: interview
@@ -3308,7 +3303,7 @@ workflow-profile: interview
         })
         workspace = platform.create_workspace(job_id="job_interview")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-interview-editor",
+            workspace_id=workspace["id"], skill_id="chatclip-interview-editor",
             goal="将视频剪辑成3分钟访谈精华，按主题组织回答，删除重复表达",
         )
         tools = [step["tool"] for step in plan["steps"]]
@@ -3359,7 +3354,7 @@ def test_autonomous_timeline_proposal_stops_with_no_result_when_search_has_no_ca
 
 def test_content_profile_extracts_semantic_target_and_plans_only_requested_deliverables() -> None:
     content_skill = """---
-name: cliptalk-content-extractor
+name: chatclip-content-extractor
 description: Content extraction test profile.
 allowed-tools: inspect_workspace search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: content
@@ -3376,7 +3371,7 @@ workflow-profile: content
 
         workspace = platform.create_workspace(job_id="job_housework")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=workspace["id"], skill_id="chatclip-content-extractor",
             goal="上传 source.mp4，交给智能剪辑 Agent：帮我找到做家务的片段，并做一些合理组合，给我不同的成片；素材范围：全片",
         )
         assert plan["brief"]["retrievalQuery"] == "做家务"
@@ -3391,9 +3386,9 @@ workflow-profile: content
         assert "字幕" not in " ".join(step["title"] for step in plan["steps"])
         assert sum(step["tool"] == "render_review_preview" for step in plan["steps"]) == 1
 
-        compiled = platform._compile_profile_plan(
+        compiled = compile_profile_plan(
             {"strategy": {"searchQuery": "扫地、拖地、洗衣、做饭、接水等所有家务动作和相关工具"}},
-            skill=platform.store.get("skills", "cliptalk-content-extractor"),
+            skill=platform.store.get("skills", "chatclip-content-extractor"),
             goal="帮我找到做家务的片段，并合理组合",
             context={"sourceScope": "all", "evidence": {"hasCandidates": False}},
         )
@@ -3402,7 +3397,7 @@ workflow-profile: content
 
         review_workspace = platform.create_workspace(job_id="job_subtitle_preview")
         review_plan = platform.create_plan(
-            workspace_id=review_workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=review_workspace["id"], skill_id="chatclip-content-extractor",
             goal="找到做家务的片段，组合成 1 分钟成片并添加字幕，生成低码率审阅样片",
         )
         assert [step["tool"] for step in review_plan["steps"]] == [
@@ -3418,7 +3413,7 @@ workflow-profile: content
 
         search_only_workspace = platform.create_workspace(job_id="job_watermelon")
         search_only = platform.create_plan(
-            workspace_id=search_only_workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=search_only_workspace["id"], skill_id="chatclip-content-extractor",
             goal="找出切西瓜的片段",
         )
         assert search_only["brief"]["retrievalQuery"] == "切西瓜"
@@ -3428,20 +3423,20 @@ workflow-profile: content
 
 def test_social_reframe_cannot_displace_source_content_assembly() -> None:
     social_skill = {
-        "id": "cliptalk-social-reframe-exporter",
+        "id": "chatclip-social-reframe-exporter",
         "allowedTools": ["inspect_workspace", "render_social_preview", "run_delivery_qc"],
     }
     content_skill = {
-        "id": "cliptalk-content-extractor",
+        "id": "chatclip-content-extractor",
         "allowedTools": ["inspect_workspace", "search_content", "review_content_evidence", "propose_timeline_edit", "confirm_timeline_edit"],
     }
     goal = "上传 source.mp4，找到做家务的片段并合成为 4:5 小红书版本"
     context = {"editing": {"hasOutputs": False}}
-    brief = AgentPlatform._editing_brief(goal, context)
-    social_ok, social_reason = AgentPlatform._skill_routing_eligibility(
+    brief = editing_brief(goal, context)
+    social_ok, social_reason = skill_routing_eligibility(
         social_skill, brief=brief, context=context,
     )
-    content_ok, _ = AgentPlatform._skill_routing_eligibility(
+    content_ok, _ = skill_routing_eligibility(
         content_skill, brief=brief, context=context,
     )
     assert not social_ok
@@ -3450,8 +3445,8 @@ def test_social_reframe_cannot_displace_source_content_assembly() -> None:
 
     delivery_goal = "把已有成片改成 4:5 小红书审核预览"
     delivery_context = {"editing": {"hasOutputs": True}}
-    delivery_brief = AgentPlatform._editing_brief(delivery_goal, delivery_context)
-    assert AgentPlatform._skill_routing_eligibility(
+    delivery_brief = editing_brief(delivery_goal, delivery_context)
+    assert skill_routing_eligibility(
         social_skill, brief=delivery_brief, context=delivery_context,
     )[0]
 
@@ -3461,8 +3456,8 @@ def test_cover_lineage_constraint_does_not_replace_a_new_video_edit_with_audit()
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
         for skill_id in (
-            "cliptalk-highlight-director", "cliptalk-shortform-hook-director",
-            "cliptalk-source-provenance-guard",
+            "chatclip-highlight-director", "chatclip-shortform-hook-director",
+            "chatclip-source-provenance-guard",
         ):
             platform.install_skill(
                 markdown=(root / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8"),
@@ -3475,7 +3470,7 @@ def test_cover_lineage_constraint_does_not_replace_a_new_video_edit_with_audit()
         )
 
         assert selected["id"] in {
-            "cliptalk-highlight-director", "cliptalk-shortform-hook-director",
+            "chatclip-highlight-director", "chatclip-shortform-hook-director",
         }
 
 
@@ -3512,7 +3507,7 @@ def test_content_evidence_review_is_a_real_agent_gate() -> None:
 
 def test_builtin_autonomous_plan_runs_review_steps_through_to_preview() -> None:
     skill = """---
-name: cliptalk-highlight-director
+name: chatclip-highlight-director
 version: 1.2.0
 description: Autonomous highlight test profile.
 allowed-tools: inspect_workspace analyze_highlights propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
@@ -3533,7 +3528,7 @@ workflow-profile: highlight
         ))
         workspace = platform.create_workspace(job_id="job_autonomous")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-highlight-director",
+            workspace_id=workspace["id"], skill_id="chatclip-highlight-director",
             goal="自动剪出高光版本",
         )
         completed = platform.approve_plan(plan["id"], expected_hash=plan["planHash"])
@@ -3583,7 +3578,7 @@ workflow-profile: interview
 
 def test_shortform_hook_profile_does_not_invent_duration_and_chooses_evidence() -> None:
     shortform_skill = """---
-name: cliptalk-shortform-hook-director
+name: chatclip-shortform-hook-director
 description: Short-form Hook test profile.
 allowed-tools: inspect_workspace analyze_highlights search_content propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
 workflow-profile: shortform
@@ -3600,7 +3595,7 @@ workflow-profile: shortform
 
         hook_workspace = platform.create_workspace(job_id="job_hook")
         hook_plan = platform.create_plan(
-            workspace_id=hook_workspace["id"], skill_id="cliptalk-shortform-hook-director",
+            workspace_id=hook_workspace["id"], skill_id="chatclip-shortform-hook-director",
             goal="剪一个抓人的短视频 Hook",
         )
         assert [step["tool"] for step in hook_plan["steps"]] == [
@@ -3613,7 +3608,7 @@ workflow-profile: shortform
 
         topic_workspace = platform.create_workspace(job_id="job_hook_topic")
         topic_plan = platform.create_plan(
-            workspace_id=topic_workspace["id"], skill_id="cliptalk-shortform-hook-director",
+            workspace_id=topic_workspace["id"], skill_id="chatclip-shortform-hook-director",
             goal="围绕产品演示剪一个 45 秒短视频",
         )
         assert [step["tool"] for step in topic_plan["steps"]][1] == "search_content"
@@ -3622,7 +3617,7 @@ workflow-profile: shortform
 
 def test_delivery_qc_profile_compiles_read_only_media_checks() -> None:
     skill = """---
-name: cliptalk-delivery-qc
+name: chatclip-delivery-qc
 description: Delivery QC test profile.
 allowed-tools: inspect_workspace run_delivery_qc
 workflow-profile: delivery-qc
@@ -3638,7 +3633,7 @@ workflow-profile: delivery-qc
         })
         workspace = platform.create_workspace(job_id="job_qc")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-delivery-qc",
+            workspace_id=workspace["id"], skill_id="chatclip-delivery-qc",
             goal="检查现有成片是否可以交付",
         )
         assert plan["profile"] == "delivery-qc"
@@ -3660,7 +3655,7 @@ def test_social_reframe_profile_compiles_preview_then_qc(
     goal: str, aspect: str, fit: str,
 ) -> None:
     skill = """---
-name: cliptalk-social-reframe-exporter
+name: chatclip-social-reframe-exporter
 description: Social reframe test profile.
 allowed-tools: inspect_workspace render_social_preview run_delivery_qc
 workflow-profile: social-reframe
@@ -3676,7 +3671,7 @@ workflow-profile: social-reframe
         })
         workspace = platform.create_workspace(job_id=f"job_{aspect}_{fit}")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-social-reframe-exporter",
+            workspace_id=workspace["id"], skill_id="chatclip-social-reframe-exporter",
             goal=goal,
         )
         assert plan["profile"] == "social-reframe"
@@ -3687,23 +3682,23 @@ workflow-profile: social-reframe
         assert plan["steps"][1]["arguments"]["fit"] == fit
 
 
-def test_new_cliptalk_skill_profiles_compile_executable_steps() -> None:
+def test_new_chatclip_skill_profiles_compile_executable_steps() -> None:
     root = Path(__file__).resolve().parents[1]
     scenarios = [
-        ("cliptalk-source-provenance-guard", "同一源视频新任务，检查不要复用旧任务", {}, ["inspect_workspace", "validate_task_provenance"]),
-        ("cliptalk-multi-topic-assembler", "分别找出冰箱、空调、洗衣机片段，每段20秒，合成60秒", {}, ["inspect_workspace", "search_content", "select_multi_topic_evidence", "propose_timeline_edit", "confirm_timeline_edit", "render_review_preview"]),
-        ("cliptalk-cover-intro-composer", "给当前成片生成封面，并把封面作为1秒片头", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "propose_cover_candidates", "render_cover_variants", "review_cover_variants", "confirm_cover", "compose_cover_intro", "run_delivery_qc"]),
-        ("cliptalk-dynamic-reframe-director", "把已有成片改成竖屏，完整保留画面并用虚化背景补齐", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "analyze_reframe_safe_areas", "render_social_preview", "run_delivery_qc"]),
-        ("cliptalk-caption-layout-director", "把当前时间线字幕放到顶部安全区", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "prepare_subtitle_review", "layout_subtitles", "render_review_preview"]),
-        ("cliptalk-caption-layout-director", "只导出字幕文件，不要生成视频", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "export_subtitles"]),
-        ("cliptalk-audio-polish-mixer", "给当前成片做人声增强和降噪", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "polish_audio_mix", "run_delivery_qc"]),
-        ("cliptalk-broll-overlay-editor", "给当前时间线穿插汽车产品画面", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "search_content", "review_content_evidence", "propose_broll_overlay", "render_review_preview"]),
-        ("cliptalk-graphics-packager", "给当前时间线加顶部参数卡和水印", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "render_graphics_package", "render_review_preview"]),
-        ("cliptalk-local-motion-renderer", "生成一个竖屏动态图文标题卡，不调用外部 API", {}, ["inspect_workspace", "render_motion_graphics", "run_delivery_qc"]),
-        ("cliptalk-local-motion-renderer", "给当前成片合入一个动态图文片头，不调用外部 API", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "render_motion_graphics", "compose_motion_intro", "run_delivery_qc"]),
-        ("cliptalk-local-draft-exporter", "导出当前任务剪映草稿桥接包", {}, ["inspect_workspace", "export_editing_draft"]),
-        ("cliptalk-platform-delivery-exporter", "确认后导出高清正式交付版本", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "export_delivery_master", "run_delivery_qc"]),
-        ("cliptalk-edit-diagnostics", "诊断为什么当前任务未找到可用内容", {}, ["inspect_workspace", "diagnose_edit_failure"]),
+        ("chatclip-source-provenance-guard", "同一源视频新任务，检查不要复用旧任务", {}, ["inspect_workspace", "validate_task_provenance"]),
+        ("chatclip-multi-topic-assembler", "分别找出冰箱、空调、洗衣机片段，每段20秒，合成60秒", {}, ["inspect_workspace", "search_content", "select_multi_topic_evidence", "propose_timeline_edit", "confirm_timeline_edit", "render_review_preview"]),
+        ("chatclip-cover-intro-composer", "给当前成片生成封面，并把封面作为1秒片头", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "propose_cover_candidates", "render_cover_variants", "review_cover_variants", "confirm_cover", "compose_cover_intro", "run_delivery_qc"]),
+        ("chatclip-dynamic-reframe-director", "把已有成片改成竖屏，完整保留画面并用虚化背景补齐", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "analyze_reframe_safe_areas", "render_social_preview", "run_delivery_qc"]),
+        ("chatclip-caption-layout-director", "把当前时间线字幕放到顶部安全区", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "prepare_subtitle_review", "layout_subtitles", "render_review_preview"]),
+        ("chatclip-caption-layout-director", "只导出字幕文件，不要生成视频", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "export_subtitles"]),
+        ("chatclip-audio-polish-mixer", "给当前成片做人声增强和降噪", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "polish_audio_mix", "run_delivery_qc"]),
+        ("chatclip-broll-overlay-editor", "给当前时间线穿插汽车产品画面", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "search_content", "review_content_evidence", "propose_broll_overlay", "render_review_preview"]),
+        ("chatclip-graphics-packager", "给当前时间线加顶部参数卡和水印", {"editing": {"hasActiveSession": True}}, ["inspect_workspace", "render_graphics_package", "render_review_preview"]),
+        ("chatclip-local-motion-renderer", "生成一个竖屏动态图文标题卡，不调用外部 API", {}, ["inspect_workspace", "render_motion_graphics", "run_delivery_qc"]),
+        ("chatclip-local-motion-renderer", "给当前成片合入一个动态图文片头，不调用外部 API", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "render_motion_graphics", "compose_motion_intro", "run_delivery_qc"]),
+        ("chatclip-local-draft-exporter", "导出当前任务剪映草稿桥接包", {}, ["inspect_workspace", "export_editing_draft"]),
+        ("chatclip-platform-delivery-exporter", "确认后导出高清正式交付版本", {"editing": {"hasOutputs": True}}, ["inspect_workspace", "export_delivery_master", "run_delivery_qc"]),
+        ("chatclip-edit-diagnostics", "诊断为什么当前任务未找到可用内容", {}, ["inspect_workspace", "diagnose_edit_failure"]),
     ]
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
@@ -3725,7 +3720,7 @@ def test_local_motion_intro_without_existing_output_renders_standalone_preview()
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
-        skill_id = "cliptalk-local-motion-renderer"
+        skill_id = "chatclip-local-motion-renderer"
         platform.install_skill(
             markdown=(root / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8"),
             source="test", status="enabled",
@@ -3752,8 +3747,8 @@ def test_automatic_route_prefers_timeline_addon_over_reframe_for_current_graphic
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
         for skill_id in (
-            "cliptalk-dynamic-reframe-director",
-            "cliptalk-graphics-packager",
+            "chatclip-dynamic-reframe-director",
+            "chatclip-graphics-packager",
         ):
             platform.install_skill(
                 markdown=(root / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8"),
@@ -3770,7 +3765,7 @@ def test_automatic_route_prefers_timeline_addon_over_reframe_for_current_graphic
             goal="给当前时间线顶部添加“小米汽车”文字，显示5秒，并做成竖屏。",
         )
 
-        assert plan["skillId"] == "cliptalk-graphics-packager"
+        assert plan["skillId"] == "chatclip-graphics-packager"
         assert plan["brief"]["operationIntent"] == "revise_timeline"
         assert [step["tool"] for step in plan["steps"]] == [
             "inspect_workspace", "render_graphics_package", "render_review_preview",
@@ -3782,22 +3777,22 @@ def test_automatic_route_prefers_timeline_addon_over_reframe_for_current_graphic
     ("skill_id", "goal", "required_state"),
     [
         (
-            "cliptalk-smart-reframe",
+            "chatclip-smart-reframe",
             "把当前已确认成片改成 9:16，完整保留画面并用虚化背景补齐",
             "current_output",
         ),
         (
-            "cliptalk-subtitle-editor",
+            "chatclip-subtitle-editor",
             "把当前已确认时间线的字幕放到顶部安全区",
             "active_timeline",
         ),
         (
-            "cliptalk-cover-intro-composer",
+            "chatclip-cover-intro-composer",
             "选择当前任务封面并作为 1 秒片头合入当前成片",
             "current_output",
         ),
         (
-            "cliptalk-local-motion-renderer",
+            "chatclip-local-motion-renderer",
             "给当前成片合入一个 1.5 秒动态图文片头",
             "current_output",
         ),
@@ -3835,18 +3830,18 @@ def test_managed_provenance_plan_ignores_model_invented_media_addons() -> None:
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
-        for skill_id in ("cliptalk-source-provenance-guard", "cliptalk-cover-director"):
+        for skill_id in ("chatclip-source-provenance-guard", "chatclip-cover-director"):
             platform.install_skill(
                 markdown=(root / "skills" / skill_id / "SKILL.md").read_text(encoding="utf-8"),
                 source="test", status="enabled",
             )
-        platform.client.plan = lambda _payload: {  # type: ignore[method-assign]
+        platform.planner_backend.plan = lambda _payload, **_: {  # type: ignore[method-assign]
             "plan": {
                 "summary": "检查是否复用了旧任务封面",
                 "steps": [],
                 "skillChain": [
-                    {"id": "cliptalk-source-provenance-guard"},
-                    {"id": "cliptalk-cover-director"},
+                    {"id": "chatclip-source-provenance-guard"},
+                    {"id": "chatclip-cover-director"},
                 ],
             },
             "events": [],
@@ -3855,7 +3850,7 @@ def test_managed_provenance_plan_ignores_model_invented_media_addons() -> None:
         workspace = platform.create_workspace(job_id="job_provenance_only")
 
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-source-provenance-guard",
+            workspace_id=workspace["id"], skill_id="chatclip-source-provenance-guard",
             goal="检查同一源视频新任务是否复用了旧任务时间范围、封面或输出",
         )
 
@@ -3863,7 +3858,7 @@ def test_managed_provenance_plan_ignores_model_invented_media_addons() -> None:
             "inspect_workspace", "validate_task_provenance",
         ]
         assert [item["id"] for item in plan["skills"]] == [
-            "cliptalk-source-provenance-guard",
+            "chatclip-source-provenance-guard",
         ]
 
 
@@ -3872,7 +3867,7 @@ def test_local_draft_export_runs_autonomously_after_initial_plan_confirmation() 
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
         platform.install_skill(
-            markdown=(root / "skills" / "cliptalk-local-draft-exporter" / "SKILL.md").read_text(encoding="utf-8"),
+            markdown=(root / "skills" / "chatclip-local-draft-exporter" / "SKILL.md").read_text(encoding="utf-8"),
             source="test",
             status="enabled",
         )
@@ -3882,7 +3877,7 @@ def test_local_draft_export_runs_autonomously_after_initial_plan_confirmation() 
         workspace = platform.create_workspace(job_id="job_source_only_draft")
         plan = platform.create_plan(
             workspace_id=workspace["id"],
-            skill_id="cliptalk-local-draft-exporter",
+            skill_id="chatclip-local-draft-exporter",
             goal="导出当前任务剪映草稿桥接包",
             execution_mode="autonomous_review",
         )
@@ -3925,21 +3920,21 @@ def test_plan_validation_rejects_cycles_and_unknown_tools() -> None:
         with pytest.raises(ValueError, match="循环依赖"):
             platform.create_plan(workspace_id=workspace["id"], goal="循环")
 
-        platform.client.steps = [{
+        platform.planner_backend.steps = [{
             "id": "bad", "title": "未知", "tool": "invented_tool",
             "arguments": {}, "dependencies": [], "sideEffect": "analysis",
         }]
         with pytest.raises(ValueError, match="未安装的工具"):
             platform.create_plan(workspace_id=workspace["id"], goal="未知工具")
 
-        platform.client.steps = [{
+        platform.planner_backend.steps = [{
             "id": "unsafe", "title": "绕过人物确认", "tool": "select_people",
             "arguments": {}, "dependencies": [], "sideEffect": "read",
         }]
         with pytest.raises(ValueError, match="不能改变工具声明"):
             platform.create_plan(workspace_id=workspace["id"], goal="绕过确认")
 
-        platform.client.steps = [{
+        platform.planner_backend.steps = [{
             "id": "timeline", "title": "时间线草稿", "tool": "propose_timeline_edit",
             "arguments": {"instruction": "按主题组织"}, "dependencies": [], "sideEffect": "preview",
         }]
@@ -4164,9 +4159,9 @@ def test_replan_reuse_signature_invalidates_downstream_confirmation() -> None:
         **previous[0], "arguments": {"instruction": "改为二倍速"},
     }, dict(previous[1])]
 
-    old_signatures = AgentPlatform._step_execution_signatures(previous)
-    unchanged_signatures = AgentPlatform._step_execution_signatures(unchanged)
-    changed_signatures = AgentPlatform._step_execution_signatures(changed)
+    old_signatures = step_execution_signatures(previous)
+    unchanged_signatures = step_execution_signatures(unchanged)
+    changed_signatures = step_execution_signatures(changed)
 
     assert unchanged_signatures["confirm"] == old_signatures["confirm"]
     assert changed_signatures["timeline"] != old_signatures["timeline"]
@@ -4178,7 +4173,7 @@ def test_material_replan_requires_a_new_confirmation() -> None:
         platform = platform_at(Path(directory))
 
         def fail_and_expand(_workspace: dict[str, Any], _tool: str, _arguments: dict[str, Any]) -> dict[str, Any]:
-            platform.client.steps = [{
+            platform.planner_backend.steps = [{
                 "id": "analysis", "title": "新增分析", "tool": "analyze_highlights",
                 "arguments": {}, "dependencies": [], "expectedOutput": "高光候选",
                 "sideEffect": "analysis", "estimatedSeconds": 30, "optional": False,
@@ -4219,7 +4214,7 @@ def test_agent_upload_entry_creates_a_source_workspace_without_enqueuing_analysi
         main.settings.ensure_directories()
         main.job_store = JobStore(root / "jobs.sqlite3")
         main.agent_platform = AgentPlatform(
-            data_root=root, service_url="http://agent.invalid",
+            data_root=root,
             model_config_resolver=lambda: {"model": "fake"},
         )
         main.agent_platform.configure_workspace_state_listener(main.sync_agent_workspace_to_job)
@@ -4275,7 +4270,7 @@ def test_agent_draft_idempotency_is_bound_to_draft_session_not_source_hash() -> 
         main.settings.ensure_directories()
         main.job_store = JobStore(root / "jobs.sqlite3")
         main.agent_platform = AgentPlatform(
-            data_root=root, service_url="http://agent.invalid",
+            data_root=root,
             model_config_resolver=lambda: {"model": "fake"},
         )
         main.agent_platform.configure_workspace_state_listener(main.sync_agent_workspace_to_job)
@@ -4332,49 +4327,49 @@ def test_agent_draft_idempotency_is_bound_to_draft_session_not_source_hash() -> 
 
 
 def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverables() -> None:
-    female = AgentPlatform._editing_brief("找到女性说话的片段", {})
+    female = editing_brief("找到女性说话的片段", {})
     assert female["speakerTargeted"] is True
     assert female["personTargeted"] is False
     assert female["delivery"] == "candidates"
     assert female["subtitleRequested"] is False
     assert female["reviewPreviewRequested"] is False
 
-    keep_only = AgentPlatform._editing_brief(
+    keep_only = editing_brief(
         "只保留讲解手机芯片型号和跑分参数的片段，剪成约 30 秒审核样片。", {},
     )
     assert keep_only["retrievalQuery"] == "讲解手机芯片型号和跑分参数"
     assert keep_only["requiresEvidenceReview"] is True
 
-    interview_topics = AgentPlatform._editing_brief(
+    interview_topics = editing_brief(
         "把不同员工关于入职、成长和未来的回答组织成约 90 秒访谈精华，保留必要问题上下文。", {},
     )
     assert interview_topics["retrievalQuery"] == "入职、成长和未来"
 
-    minute = AgentPlatform._editing_brief("找到产品演示并剪成一分钟成片", {})
+    minute = editing_brief("找到产品演示并剪成一分钟成片", {})
     assert minute["targetSeconds"] == 60
     assert minute["durationExplicit"] is True
     assert minute["retrievalQuery"] == "产品演示"
 
-    social = AgentPlatform._editing_brief("找到做家务的片段并合成为 9:16，保留完整画面，人物靠左", {})
+    social = editing_brief("找到做家务的片段并合成为 9:16，保留完整画面，人物靠左", {})
     assert social["retrievalQuery"] == "做家务"
     assert social["socialDelivery"] == {
         "requested": True, "aspect": "9:16", "fit": "blur", "focusX": .25, "focusY": .5,
     }
-    plain_vertical = AgentPlatform._editing_brief("找出刷碗和切西瓜的片段，最后成片要竖屏", {})
+    plain_vertical = editing_brief("找出刷碗和切西瓜的片段，最后成片要竖屏", {})
     assert plain_vertical["socialDelivery"]["fit"] == "blur"
-    source_landscape_target_vertical = AgentPlatform._editing_brief(
+    source_landscape_target_vertical = editing_brief(
         "找出所有关于汽车的画面，按源视频时间顺序合成竖屏视频；原视频是横屏，要最大化保留原始画面信息。",
         {},
     )
     assert source_landscape_target_vertical["socialDelivery"]["aspect"] == "9:16"
-    no_default_duration = AgentPlatform._editing_brief(
+    no_default_duration = editing_brief(
         "找出所有关于汽车的画面，不限制总时长，有多少用多少，不要因为默认 30 秒目标丢片段。",
         {},
     )
     assert no_default_duration["targetSeconds"] is None
     assert no_default_duration["durationExplicit"] is False
     assert no_default_duration["selectionMode"] == "include"
-    multiple_negative_defaults = AgentPlatform._editing_brief(
+    multiple_negative_defaults = editing_brief(
         "找出全片所有关于汽车的画面并合成视频；我没有指定成片时长，"
         "不要自动套用 30 秒或 60 秒目标，也不要丢掉超出默认时长的命中片段。",
         {},
@@ -4382,21 +4377,21 @@ def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverabl
     assert multiple_negative_defaults["targetSeconds"] is None
     assert multiple_negative_defaults["durationExplicit"] is False
     assert multiple_negative_defaults["selectionMode"] == "include"
-    interaction = AgentPlatform._editing_brief(
+    interaction = editing_brief(
         "只保留主持人与歌手交谈的内容，不要演唱。", {},
     )
     assert interaction["retrievalQuery"] == "主持人与歌手交谈"
     assert interaction["speakerTargeted"] is False
     assert interaction["selectionMode"] == "include"
-    launch_event = AgentPlatform._editing_brief(
+    launch_event = editing_brief(
         "剪一条约 60 秒的小米汽车发布会精华，保持横屏。", {},
     )
     assert launch_event["deliveryExportRequested"] is False
-    vertical_cut = AgentPlatform._editing_brief(
+    vertical_cut = editing_brief(
         "做一个竖屏成片，最开头加封面。", {},
     )
     assert vertical_cut["socialDelivery"]["aspect"] == "9:16"
-    search_only = AgentPlatform._editing_brief(
+    search_only = editing_brief(
         "只检索并列出所有关于冰箱的候选片段和源视频时间，"
         "不要创建成片、封面或审核样片；等我确认候选后再进入时间线。",
         {},
@@ -4405,14 +4400,14 @@ def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverabl
     assert search_only["delivery"] == "candidates"
     assert search_only["coverRequested"] is False
     assert search_only["reviewPreviewRequested"] is False
-    washer_preview = AgentPlatform._editing_brief(
+    washer_preview = editing_brief(
         "找出所有关于洗衣机的画面，合成竖屏审核样片；"
         "每段顶部叠加对应字幕，开头使用本次任务从源视频生成的封面。",
         {},
     )
     assert washer_preview["socialDelivery"]["aspect"] == "9:16"
     assert washer_preview["coverIntroRequested"] is True
-    format_only = AgentPlatform._editing_brief(
+    format_only = editing_brief(
         "输出 1:1 方屏，左右两边的重要人物和字幕都不能被裁掉。", {},
     )
     assert format_only["formatOnly"] is True
@@ -4423,15 +4418,15 @@ def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverabl
         ("生成 4:5 审核片", "4:5"),
         ("生成 16:9 审核片", "16:9"),
     ):
-        delivery = AgentPlatform._editing_brief(instruction, {})["socialDelivery"]
+        delivery = editing_brief(instruction, {})["socialDelivery"]
         assert delivery["aspect"] == aspect
         assert delivery["fit"] == "blur"
-    cropped = AgentPlatform._editing_brief("生成 9:16 并居中裁切", {})
+    cropped = editing_brief("生成 9:16 并居中裁切", {})
     assert cropped["socialDelivery"]["fit"] == "crop"
-    black_bars = AgentPlatform._editing_brief("生成 9:16 并保留黑边", {})
+    black_bars = editing_brief("生成 9:16 并保留黑边", {})
     assert black_bars["socialDelivery"]["fit"] == "pad"
 
-    appliance = AgentPlatform._editing_brief(
+    appliance = editing_brief(
         "帮我找出三个片段，分别是冰箱、空调、洗衣机的新老替换片段。"
         "每个片段要20s，组合成一个60s的视频。最终成品给我方屏比例。",
         {},
@@ -4442,42 +4437,42 @@ def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverabl
         "requested": True, "aspect": "1:1", "fit": "blur", "focusX": .5, "focusY": .5,
     }
 
-    spliced = AgentPlatform._editing_brief(
+    spliced = editing_brief(
         "三类每段约20秒，按冰箱、空调、洗衣机顺序拼接成约60秒成品。", {},
     )
     assert spliced["targetSeconds"] == 60
 
-    explicit_tolerance = AgentPlatform._editing_brief(
+    explicit_tolerance = editing_brief(
         "每类约 20 秒，组合成 60±6 秒视频；生成 9:16 审核预览并质检。", {},
     )
     assert explicit_tolerance["targetSeconds"] == 60
     assert explicit_tolerance["durationToleranceSeconds"] == 6
 
-    cover_landscape_video_portrait = AgentPlatform._editing_brief(
+    cover_landscape_video_portrait = editing_brief(
         "找出汽车画面，封面做成16:9，视频竖屏。", {},
     )
     assert cover_landscape_video_portrait["coverAspect"] == "16:9"
     assert cover_landscape_video_portrait["socialDelivery"]["aspect"] == "9:16"
     assert cover_landscape_video_portrait["delivery"] == "timeline"
 
-    time_anchor = AgentPlatform._editing_brief("从 1:20 出现汽车的地方开始剪。", {})
+    time_anchor = editing_brief("从 1:20 出现汽车的地方开始剪。", {})
     assert time_anchor["targetSeconds"] is None
     assert time_anchor["retrievalQuery"] == "汽车"
     assert time_anchor["anchorStart"] == {
         "query": "汽车", "selectionPolicy": "unique_or_review", "sourceTimeSeconds": 80.0,
     }
 
-    quoted_graphics = AgentPlatform._editing_brief(
+    quoted_graphics = editing_brief(
         "找出所有汽车画面，顶部添加“小米汽车”文字。", {},
     )
     assert quoted_graphics["graphicsRequested"] is True
     assert quoted_graphics["graphicsText"] == "小米汽车"
 
-    assert AgentPlatform._replan_force_replay_tools({
+    assert replan_force_replay_tools({
         "tool": "review_content_evidence",
         "error": "内容检索没有生成可用于自动编排的有效候选",
     }) == {"search_content"}
-    assert AgentPlatform._replan_force_replay_tools({
+    assert replan_force_replay_tools({
         "tool": "review_content_evidence",
         "error": "自动编排缺少必要类别的候选：空调换新",
     }) == {"search_content"}
@@ -4486,23 +4481,23 @@ def test_v2_editing_brief_parses_real_chinese_requests_without_hidden_deliverabl
 def test_project_output_aspect_is_a_delivery_default_not_a_search_command() -> None:
     context = {"delivery": {"outputAspect": "9:16"}}
 
-    generated = AgentPlatform._editing_brief("生成一条高光成片", context)
+    generated = editing_brief("生成一条高光成片", context)
     assert generated["delivery"] == "timeline"
     assert generated["socialDelivery"] == {
         "requested": True, "aspect": "9:16", "fit": "blur", "focusX": .5, "focusY": .5,
     }
 
-    search_only = AgentPlatform._editing_brief("找出所有汽车画面", context)
+    search_only = editing_brief("找出所有汽车画面", context)
     assert search_only["delivery"] == "candidates"
     assert search_only["socialDelivery"]["requested"] is False
 
-    explicit_override = AgentPlatform._editing_brief("生成横屏 16:9 高光成片", context)
+    explicit_override = editing_brief("生成横屏 16:9 高光成片", context)
     assert explicit_override["socialDelivery"]["aspect"] == "16:9"
 
 
 def test_content_and_social_delivery_are_compiled_as_one_versioned_skill_chain() -> None:
     content_skill = """---
-name: cliptalk-content-extractor
+name: chatclip-content-extractor
 version: 1.1.0
 description: Content extraction test profile.
 allowed-tools: inspect_workspace search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
@@ -4512,7 +4507,7 @@ workflow-profile: content
 # Content
 """
     social_skill = """---
-name: cliptalk-social-reframe-exporter
+name: chatclip-social-reframe-exporter
 version: 1.1.0
 description: Social delivery test profile.
 allowed-tools: inspect_workspace render_social_preview run_delivery_qc
@@ -4531,12 +4526,12 @@ workflow-profile: social-reframe
         })
         workspace = platform.create_workspace(job_id="job_composite_social")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=workspace["id"], skill_id="chatclip-content-extractor",
             goal="找到做家务的片段并合理组合成 60 秒 9:16 竖屏审核版本",
         )
         assert [(item["id"], item["role"], item["version"]) for item in plan["skills"]] == [
-            ("cliptalk-content-extractor", "primary", "1.1.0"),
-            ("cliptalk-social-reframe-exporter", "addon", "1.1.0"),
+            ("chatclip-content-extractor", "primary", "1.1.0"),
+            ("chatclip-social-reframe-exporter", "addon", "1.1.0"),
         ]
         assert [step["tool"] for step in plan["steps"]] == [
             "inspect_workspace", "search_content", "review_content_evidence",
@@ -4638,7 +4633,7 @@ def test_agent_cover_intro_composes_from_latest_social_preview(
 
 def test_vertical_content_cover_intro_and_top_captions_compile_to_one_final_preview_chain() -> None:
     content_skill = """---
-name: cliptalk-content-extractor
+name: chatclip-content-extractor
 version: 1.1.0
 description: Content extraction test profile.
 allowed-tools: inspect_workspace search_content review_content_evidence propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
@@ -4648,7 +4643,7 @@ workflow-profile: content
 # Content
 """
     social_skill = """---
-name: cliptalk-social-reframe-exporter
+name: chatclip-social-reframe-exporter
 version: 1.1.0
 description: Social delivery test profile.
 allowed-tools: inspect_workspace render_social_preview run_delivery_qc
@@ -4658,7 +4653,7 @@ workflow-profile: social-reframe
 # Social
 """
     cover_skill = """---
-name: cliptalk-cover-director
+name: chatclip-cover-director
 version: 1.1.0
 description: Cover creation.
 allowed-tools: inspect_workspace propose_cover_candidates render_cover_variants review_cover_variants confirm_cover
@@ -4668,7 +4663,7 @@ workflow-profile: cover
 # Cover
 """
     cover_intro_skill = """---
-name: cliptalk-cover-intro-composer
+name: chatclip-cover-intro-composer
 version: 1.1.0
 description: Cover intro composer.
 allowed-tools: inspect_workspace propose_cover_candidates render_cover_variants review_cover_variants confirm_cover compose_cover_intro run_delivery_qc
@@ -4678,7 +4673,7 @@ workflow-profile: cover-intro
 # Cover intro
 """
     caption_skill = """---
-name: cliptalk-caption-layout-director
+name: chatclip-caption-layout-director
 version: 1.1.0
 description: Caption layout.
 allowed-tools: inspect_workspace layout_subtitles prepare_subtitle_review render_review_preview export_subtitles
@@ -4702,16 +4697,16 @@ workflow-profile: caption-layout
         )
 
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=workspace["id"], skill_id="chatclip-content-extractor",
             goal=goal,
         )
 
         assert [item["id"] for item in plan["skills"]] == [
-            "cliptalk-content-extractor",
-            "cliptalk-social-reframe-exporter",
-            "cliptalk-cover-intro-composer",
-            "cliptalk-caption-layout-director",
-            "cliptalk-cover-director",
+            "chatclip-content-extractor",
+            "chatclip-social-reframe-exporter",
+            "chatclip-cover-intro-composer",
+            "chatclip-caption-layout-director",
+            "chatclip-cover-director",
         ]
         tools = [step["tool"] for step in plan["steps"]]
         assert tools == [
@@ -4751,7 +4746,7 @@ workflow-profile: caption-layout
         assert by_tool["run_delivery_qc"]["arguments"]["expectedAspect"] == "9:16"
         product_workspace = platform.create_workspace(job_id="job_product_vertical_cover")
         product_plan = platform.create_plan(
-            workspace_id=product_workspace["id"], skill_id="cliptalk-content-extractor",
+            workspace_id=product_workspace["id"], skill_id="chatclip-content-extractor",
             goal="找出产品新老替换和核心卖点画面，合成竖屏产品宣传短片，并生成审核样片。并找到一个具有冲击力的画面做封面，封面上写：小米厉害！！",
         )
         product_steps = {step["tool"]: step for step in product_plan["steps"]}
@@ -4763,8 +4758,8 @@ workflow-profile: caption-layout
 @pytest.mark.parametrize(
     ("skill_id", "workflow_profile", "goal", "context_key", "selection_tool"),
     [
-        ("cliptalk-speaker-editor", "speaker", "只保留女性说话片段并剪成成片", "speaker", "select_speakers"),
-        ("cliptalk-person-editor", "person", "删除已选男性的出镜片段", "people", "select_people"),
+        ("chatclip-speaker-editor", "speaker", "只保留女性说话片段并剪成成片", "speaker", "select_speakers"),
+        ("chatclip-person-editor", "person", "删除已选男性的出镜片段", "people", "select_people"),
     ],
 )
 def test_reliable_identity_selection_is_reused_without_a_duplicate_gate(
@@ -4810,7 +4805,7 @@ def test_autonomous_person_discovery_finishes_with_agent_identity_gate() -> None
     with tempfile.TemporaryDirectory() as directory:
         platform = platform_at(Path(directory))
         platform.install_skill(markdown="""---
-name: cliptalk-person-editor
+name: chatclip-person-editor
 version: 1.1.0
 description: Person editor test profile.
 allowed-tools: inspect_workspace discover_people select_people propose_timeline_edit confirm_timeline_edit render_review_preview
@@ -4829,7 +4824,7 @@ workflow-profile: person
         })
         workspace = platform.create_workspace(job_id="job_person_autonomous_gate")
         plan = platform.create_plan(
-            workspace_id=workspace["id"], skill_id="cliptalk-person-editor",
+            workspace_id=workspace["id"], skill_id="chatclip-person-editor",
             goal="只保留穿黑色上衣的男士提到 AI 的完整回答，剪成 30 秒样片",
         )
 

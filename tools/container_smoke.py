@@ -24,16 +24,16 @@ REQUIRED_MODULES = (
 
 
 def main() -> int:
-    profile = os.environ.get("CLIPTALK_INSTALL_PROFILE", "cpu")
+    profile = os.environ.get("CHATCLIP_INSTALL_PROFILE", "cpu")
     if profile not in {"cpu", "gpu"}:
-        raise RuntimeError(f"unsupported CLIPTALK_INSTALL_PROFILE: {profile}")
+        raise RuntimeError(f"unsupported CHATCLIP_INSTALL_PROFILE: {profile}")
     versions: dict[str, str] = {}
     for name in REQUIRED_MODULES:
         module = importlib.import_module(name)
         versions[name] = str(getattr(module, "__version__", "installed"))
     from app.main import app
 
-    assert app.title == "ClipTalk Video Editor"
+    assert app.title == "ChatClip Video Editor"
     print(json.dumps({"ok": True, "profile": profile, "modules": versions}, ensure_ascii=False))
     return 0
 

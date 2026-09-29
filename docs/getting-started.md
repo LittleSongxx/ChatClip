@@ -41,7 +41,7 @@ bash start.sh
 http://127.0.0.1:5180
 ```
 
-等待终端显示“ClipTalk 网页服务已启动”或“ClipTalk 剪辑能力已就绪”，然后在页面“设置”中配置视觉模型、剪辑规划和 AI 助手所需的模型服务。
+等待终端显示“ChatClip 网页服务已启动”或“ChatClip 剪辑能力已就绪”，然后在页面“设置”中配置视觉模型、剪辑规划和 AI 助手所需的模型服务。
 页面顶部的“首次使用检查”会分别显示基础剪辑和 Agent Tool Calling 是否就绪；人物说话识别是可选增强项，不会阻断基础剪辑。
 保存后上传视频并描述目标。按 `Ctrl+C` 会停止本次启动的服务，不会终止此前已运行的独立助手。
 端口被其他程序占用时会报错，不会自动杀掉那个程序。
@@ -89,9 +89,9 @@ docker compose up --build -d
 
 默认构建 CPU 环境并安装 TalkNet，首次构建需要下载模型。
 GPU 部署使用仓库的 GPU Compose 配置，详见 [部署说明](deployment.md)。
-数据卷挂载在 `/app/data`；镜像内 TalkNet 位于 `/opt/cliptalk-models`，不会被空数据卷遮住。
+数据卷挂载在 `/app/data`；镜像内 TalkNet 位于 `/opt/chatclip-models`，不会被空数据卷遮住。
 默认端口只发布到宿主机 `127.0.0.1:5180`。不要直接将无认证服务改为公网可访问。
-查看启动状态使用 `docker compose ps`，持续查看日志使用 `docker compose logs -f cliptalk agent`，停止服务使用 `docker compose down`。
+查看启动状态使用 `docker compose ps`，持续查看日志使用 `docker compose logs -f chatclip agent`，停止服务使用 `docker compose down`。
 
 ## 配置原则
 

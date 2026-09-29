@@ -54,10 +54,10 @@ def configure_device(requested: str, repository: Path) -> str:
         backend = "cuda"
     else:
         for name in ("demoTalkNet.py", "talkNet.py"):
-            if "cliptalk-device-v1" not in (repository / name).read_text():
+            if "chatclip-device-v1" not in (repository / name).read_text():
                 raise RuntimeError("现有 TalkNet 未安装 CPU 兼容适配，请按安装说明更新，或指定可用 GPU")
         backend = "cpu"
-    os.environ["CLIPTALK_TALKNET_DEVICE"] = backend
+    os.environ["CHATCLIP_TALKNET_DEVICE"] = backend
     return selected
 
 
@@ -508,7 +508,7 @@ def main() -> int:
                 from talkNet import talkNet
                 from model.faceDetector.s3fd import S3FD
                 model = talkNet()
-                backend = os.environ["CLIPTALK_TALKNET_DEVICE"]
+                backend = os.environ["CHATCLIP_TALKNET_DEVICE"]
                 parameters = torch.load(str(checkpoint), map_location=backend)
                 parameters = {key.removeprefix("module."): value for key, value in parameters.items()}
                 model.load_state_dict(parameters, strict=True)

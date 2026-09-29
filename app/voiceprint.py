@@ -108,13 +108,13 @@ def classify_voice_match(
 def _decode_key(value: str) -> bytes:
     raw = str(value or "").strip().encode("ascii", errors="ignore")
     if not raw:
-        raise ValueError("未配置 HIGHLIGHT_VOICEPRINT_ENCRYPTION_KEY")
+        raise ValueError("未配置 CHATCLIP_VOICEPRINT_ENCRYPTION_KEY")
     try:
         decoded = base64.urlsafe_b64decode(raw + b"=" * (-len(raw) % 4))
     except Exception as error:
-        raise ValueError("HIGHLIGHT_VOICEPRINT_ENCRYPTION_KEY 不是有效的 Base64") from error
+        raise ValueError("CHATCLIP_VOICEPRINT_ENCRYPTION_KEY 不是有效的 Base64") from error
     if len(decoded) != 32:
-        raise ValueError("HIGHLIGHT_VOICEPRINT_ENCRYPTION_KEY 解码后必须为 32 字节")
+        raise ValueError("CHATCLIP_VOICEPRINT_ENCRYPTION_KEY 解码后必须为 32 字节")
     return decoded
 
 

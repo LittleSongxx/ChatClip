@@ -64,7 +64,7 @@ function colorString(color) {
   return `rgb(${color.r}, ${color.g}, ${color.b})`;
 }
 
-async function setupClipTalkWorkspace(page, theme) {
+async function setupChatClipWorkspace(page, theme) {
   await page.evaluate((themeName) => {
     document.documentElement.dataset.theme = themeName;
     document.body.classList.add("ct-workbench-v4");
@@ -94,7 +94,7 @@ Options:
   --width NUMBER         Viewport width. Default: 1600
   --height NUMBER        Viewport height. Default: 950
   --selector SELECTOR    Elements to hover and audit.
-  --no-workspace         Do not force the ClipTalk workspace state.
+  --no-workspace         Do not force the ChatClip workspace state.
   --view VIEW            Read-only view: editor, cover, settings, library.
   --include-offscreen    Include offscreen elements.
   --report PATH          Write full JSON report.
@@ -125,30 +125,30 @@ try {
   const page = await browser.newPage({ viewport: { width, height }, colorScheme: theme });
   await page.route('**/api/**', route => route.request().method() === 'GET' ? route.continue() : route.abort());
   await page.addInitScript((themeName) => {
-    localStorage.setItem("cliptalk-theme", themeName);
+    localStorage.setItem("chatclip-theme", themeName);
     localStorage.setItem("theme", themeName);
     document.documentElement.dataset.theme = themeName;
   }, theme);
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20_000 });
-  await page.waitForFunction(() => typeof window.ClipTalkTheme?.apply === "function" && window.ClipTalkAppShell, null, { timeout: 20_000 });
+  await page.waitForFunction(() => typeof window.ChatClipTheme?.apply === "function" && window.ChatClipAppShell, null, { timeout: 20_000 });
   const jobId = new URL(url).hash.match(/(?:^#|&)job=([^&]+)/)?.[1];
-  if (jobId) await page.waitForFunction(id => window.ClipTalkCurrentJobId?.() === id, decodeURIComponent(jobId));
+  if (jobId) await page.waitForFunction(id => window.ChatClipCurrentJobId?.() === id, decodeURIComponent(jobId));
   else await page.waitForFunction(() => document.querySelector('#homeView')?.dataset.homeState !== 'loading');
   if (args.view) {
     await page.evaluate(async view => {
       if (view === 'editor') {
-        const job = window.ClipTalkCurrentJobSnapshot?.();
+        const job = window.ChatClipCurrentJobSnapshot?.();
         const sessionId = job?.activeEditSessionId || job?.editSessions?.[0]?.id;
         if (!sessionId) throw new Error('No existing edit session to inspect');
-        await window.ClipTalkOpenAgentTimeline({ sessionId, reviewPendingProposal: true });
+        await window.ChatClipOpenAgentTimeline({ sessionId, reviewPendingProposal: true });
       } else if (view === 'cover') {
-        if (!window.ClipTalkOpenCoverTimeline?.()) throw new Error('No cover candidates to inspect');
+        if (!window.ChatClipOpenCoverTimeline?.()) throw new Error('No cover candidates to inspect');
       } else if (view === 'settings' || view === 'library') {
-        window.ClipTalkAppShell.showView(view, { route: false });
+        window.ChatClipAppShell.showView(view, { route: false });
       } else throw new Error('Unsupported view');
     }, args.view);
     await page.waitForTimeout(400);
-  } else if (!args["no-workspace"]) await setupClipTalkWorkspace(page, theme);
+  } else if (!args["no-workspace"]) await setupChatClipWorkspace(page, theme);
 
   const elements = await page.$$(selector);
   const checked = [];

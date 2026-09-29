@@ -1,4 +1,4 @@
-# ClipTalk 环境与部署配置
+# ChatClip 环境与部署配置
 
 本文档是运行配置的维护入口。真实密钥只写入本机 `.env`，不要写入代码、测试、日志或提交记录。
 
@@ -10,7 +10,6 @@
 | Python | 3.10–3.11 | `.python-version` 固定为 3.10；当前依赖不支持 3.12 |
 | Node.js | 22 | 仅构建前端资源和运行浏览器测试需要 |
 | FFmpeg / FFprobe | 4.3+ | 必须同时可执行 |
-| curl | 任一受支持版本 | `restart.sh` 用于本机健康检查 |
 | 中文字幕字体 | 文泉驿正黑 | Debian/Ubuntu 安装 `fonts-wqy-zenhei` |
 | 磁盘 | 15 GiB 起 | 不含用户上传视频；完整识别模型会额外占用数 GiB |
 
@@ -51,7 +50,7 @@ python3 tools/prepare_recognition_models.py --data-root data
 python3 tools/doctor.py --profile cuda
 ```
 
-TalkNet 是独立的可选主动说话人后端，不随默认依赖安装。只有在已准备其仓库、checkpoint 和隔离 Python 后，才配置 `HIGHLIGHT_TALKNET_*`。
+TalkNet 是独立的可选主动说话人后端，不随默认依赖安装。只有在已准备其仓库、checkpoint 和隔离 Python 后，才配置 `CHATCLIP_TALKNET_*`。
 
 ### 开发与测试工具
 
@@ -97,26 +96,25 @@ Anthropic 兼容接口使用 `ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 和 `
 
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
-| `HIGHLIGHT_HOST` | `127.0.0.1` | 非回环地址必须配置访问令牌 |
-| `HIGHLIGHT_PORT` | `5180` | 本机服务端口；Docker 容器内固定为 5180 |
-| `HIGHLIGHT_ACCESS_TOKEN` | 空 | 公网或局域网部署时至少 16 字符 |
-| `HIGHLIGHT_DATA_ROOT` | `./data` | 上传、任务、模型、缓存和输出目录 |
-| `HIGHLIGHT_MAX_WORKERS` | `1` | 最大并行 Worker，代码上限为 4 |
+| `CHATCLIP_HOST` | `127.0.0.1` | 非回环地址必须配置访问令牌 |
+| `CHATCLIP_PORT` | `5180` | 本机服务端口；Docker 容器内固定为 5180 |
+| `CHATCLIP_ACCESS_TOKEN` | 空 | 公网或局域网部署时至少 16 字符 |
+| `CHATCLIP_DATA_ROOT` | `./data` | 上传、任务、模型、缓存和输出目录 |
+| `CHATCLIP_MAX_WORKERS` | `1` | 最大并行 Worker，代码上限为 4 |
 | `CONTENT_SEARCH_MODEL_CONCURRENCY` | `3` | 单次内容检索的语义复核并发数，代码上限为 4 |
-| `HIGHLIGHT_MAX_UPLOAD_BYTES` | 8 GiB | 单文件上传上限 |
-| `HIGHLIGHT_MAX_STORAGE_BYTES` | 50 GiB | 全部运行数据磁盘上限 |
-| `HIGHLIGHT_RETENTION_DAYS` | `0` | 0 表示不自动清理 |
-| `HIGHLIGHT_LOG_LEVEL` | `INFO` | JSON 日志级别 |
-| `HIGHLIGHT_LOG_FILE` | `./vlm-highlight.log` | `restart.sh` 的输出日志位置 |
+| `CHATCLIP_MAX_UPLOAD_BYTES` | 8 GiB | 单文件上传上限 |
+| `CHATCLIP_MAX_STORAGE_BYTES` | 50 GiB | 全部运行数据磁盘上限 |
+| `CHATCLIP_RETENTION_DAYS` | `0` | 0 表示不自动清理 |
+| `CHATCLIP_LOG_LEVEL` | `INFO` | JSON 日志级别 |
 
 远程部署必须置于 HTTPS 反向代理后，不要把访问令牌放入 URL。
 
 ### 识别能力
 
-- `HIGHLIGHT_RECOGNITION_PROFILE=auto`：按已安装依赖启用能力。
-- `HIGHLIGHT_RECOGNITION_PYTHON`：把可选原生识别模型隔离到另一 Python 环境。
-- `HIGHLIGHT_SENSEVOICE_DEVICE=auto`：自动选择 CPU 或 CUDA。
-- `HIGHLIGHT_RECOGNITION_MODEL_CACHE=./data/models/recognition`：模型缓存位置。
+- `CHATCLIP_RECOGNITION_PROFILE=auto`：按已安装依赖启用能力。
+- `CHATCLIP_RECOGNITION_PYTHON`：把可选原生识别模型隔离到另一 Python 环境。
+- `CHATCLIP_SENSEVOICE_DEVICE=auto`：自动选择 CPU 或 CUDA。
+- `CHATCLIP_RECOGNITION_MODEL_CACHE=./data/models/recognition`：模型缓存位置。
 
 ### 可选 WeMM 视觉检索后端
 
@@ -130,13 +128,13 @@ python3 -m venv .venv-wemm
 ```
 
 ```dotenv
-HIGHLIGHT_VISUAL_EMBEDDING_BACKEND=wemm
-HIGHLIGHT_RECOGNITION_PYTHON=.venv-wemm/bin/python
-HIGHLIGHT_WEMM_MODEL=tencent/WeMM-Embedding-2B
-HIGHLIGHT_WEMM_DIMENSION=256
-HIGHLIGHT_WEMM_VIDEO_INDEX=true
-HIGHLIGHT_WEMM_RECALL_THRESHOLD=0.18
-HIGHLIGHT_WEMM_EXHAUSTIVE_VLM_FALLBACK=false
+CHATCLIP_VISUAL_EMBEDDING_BACKEND=wemm
+CHATCLIP_RECOGNITION_PYTHON=.venv-wemm/bin/python
+CHATCLIP_WEMM_MODEL=tencent/WeMM-Embedding-2B
+CHATCLIP_WEMM_DIMENSION=256
+CHATCLIP_WEMM_VIDEO_INDEX=true
+CHATCLIP_WEMM_RECALL_THRESHOLD=0.18
+CHATCLIP_WEMM_EXHAUSTIVE_VLM_FALLBACK=false
 ```
 
 默认的 `false` 策略会完整扫描图片与视频向量索引，只把候选交给 VLM 核验，因此结果会明确显示“向量召回完整、语义证明不完整”。需要原有逐帧严格语义覆盖时把最后一项设为 `true`，或在单次检索中请求强制密集扫描。文件协议 worker 会在每次查询冷启动模型，持续流量部署应改用官方支持的 vLLM/SGLang 常驻 embedding 服务。
@@ -150,12 +148,12 @@ HIGHLIGHT_WEMM_EXHAUSTIVE_VLM_FALLBACK=false
 
 ```bash
 python3 -c 'import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())'
-# 将输出写入 .env 的 HIGHLIGHT_VOICEPRINT_ENCRYPTION_KEY，然后重启服务
+# 将输出写入 .env 的 CHATCLIP_VOICEPRINT_ENCRYPTION_KEY，然后重启服务
 ```
 
 人物名称、CAM++ 参考向量和聚合向量会整体写入 `data/voiceprints/profiles.enc`，使用 AES-GCM 加密。上传或从视频截取的参考声音仅存在于 `data/runtime/voiceprint-temp`，向量提取完成或失败后都会删除。密钥不会写入声纹文件；丢失或更换密钥后旧库无法恢复，应先备份或删除旧库再重新注册。
 
-默认匹配策略为三态判定：相似度低于 `0.31` 排除，`0.31–0.38` 标记为待复核；高于 `0.38` 且领先其他已注册人物至少 `0.05` 才自动保留。阈值可通过 `HIGHLIGHT_VOICEPRINT_*_THRESHOLD` 调整。串音、重叠说话和竞争人物分数接近的片段不会自动进入成片。
+默认匹配策略为三态判定：相似度低于 `0.31` 排除，`0.31–0.38` 标记为待复核；高于 `0.38` 且领先其他已注册人物至少 `0.05` 才自动保留。阈值可通过 `CHATCLIP_VOICEPRINT_*_THRESHOLD` 调整。串音、重叠说话和竞争人物分数接近的片段不会自动进入成片。
 
 一句话入口先使用本地规则判断任务方向。规则置信度不足且剪辑规划模型可用时，只把文字要求发送给模型做一次轻量分类；视频不会在此步骤上传给模型。分类置信度低于 0.78、模型超时或未配置时，界面会要求用户明确选择，不会猜测执行。
 
@@ -170,20 +168,20 @@ Docker Compose 默认使用 `cpu`，包含 SenseVoice、OCR、多模态索引、
 ```bash
 cp .env.example .env
 python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
-# 将输出写入 .env 的 HIGHLIGHT_ACCESS_TOKEN
+# 将输出写入 .env 的 CHATCLIP_ACCESS_TOKEN
 docker compose up --build -d
 docker compose ps
-docker compose exec -T cliptalk python tools/container_smoke.py
+docker compose exec -T chatclip python tools/container_smoke.py
 ```
 
 GPU 容器需要宿主机安装 NVIDIA Container Toolkit，并叠加 GPU Compose 配置；该配置会安装 GPU requirements 并向容器公开显卡：
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec -T cliptalk python tools/container_smoke.py
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml exec -T chatclip python tools/container_smoke.py
 ```
 
-Compose 会把 `.env` 注入容器，并使用 `cliptalk-data` 命名卷持久化 `/app/data`。命名卷能保留容器内非 root 用户的正确权限，首次启动无需在宿主机手工修改目录所有者。容器内监听 `0.0.0.0:5180`，宿主机只映射 `127.0.0.1:5180`。修改宿主机访问方式时仍应通过反向代理提供 HTTPS。
+Compose 会把 `.env` 注入容器，并使用 `chatclip-data` 命名卷持久化 `/app/data`。命名卷能保留容器内非 root 用户的正确权限，首次启动无需在宿主机手工修改目录所有者。容器内监听 `0.0.0.0:5180`，宿主机只映射 `127.0.0.1:5180`。修改宿主机访问方式时仍应通过反向代理提供 HTTPS。
 
 ## 5. 提交安全
 

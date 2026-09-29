@@ -10,16 +10,13 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
 
-import httpx
 import pytest
 from fastapi import HTTPException
 
 from app import main
-from app.agent_platform import AgentServiceClient
 from app.delivery import merge_committed_version, output_capabilities, output_revision, prepare_formal_export, select_export_output
 from app.job_persistence import persist_job
 from app.job_projection import ui_presentation_snapshot
-from app.service_security import plugin_tree_hash, service_token
 from app.store import JobStore
 from app.task_queue import DurableTaskExecutor, DurableTaskStore
 from app.worker_lock import WorkerLock
@@ -428,20 +425,6 @@ def test_completed_operation_supersedes_only_its_own_agent_plan():
     assert ui_presentation_snapshot(job, workflow={}, execution={}, output_count=1)["key"] == "preview_review"
 
 
-def test_plugin_timeout_queries_operation_without_repeating_effect(monkeypatch):
-    calls = []
-    def post(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/execute"):
-            raise httpx.ReadTimeout("effect may have completed")
-        return httpx.Response(200, json={"status": "succeeded", "result": {"ok": True}}, request=httpx.Request("POST", url))
-    monkeypatch.setattr(httpx, "post", post)
-    result = AgentServiceClient("http://local", token="test").execute_plugin_tool({"operationId": "stable"})
-    assert result == {"ok": True}
-    assert len([call for call in calls if call.endswith("/execute")]) == 1
-    assert calls[-1].endswith("/operations/get")
-
-
 def test_post_commit_failure_never_deletes_committed_media(delivery_job, monkeypatch):
     job = delivery_job
     version = job["outputVersions"][0]
@@ -533,30 +516,3 @@ def test_single_worker_lock_is_exclusive(tmp_path):
     WorkerLock(tmp_path / "worker.lock").close()
 
 
-def test_agent_client_sends_independent_credential(monkeypatch):
-    seen = []
-    def post(url, **kwargs):
-        seen.append(kwargs["headers"])
-        return httpx.Response(200, json={"status": "ok"}, request=httpx.Request("POST", url))
-    monkeypatch.setattr(httpx, "post", post)
-    client = AgentServiceClient("http://agent", token="a" * 64)
-    client._post("/v1/plan", {"requestId": "request"})
-    assert seen == [{"Authorization": "Bearer " + "a" * 64, "Idempotency-Key": "request"}]
-
-
-def test_credentials_are_atomic_and_plugin_hash_detects_changes(tmp_path, monkeypatch):
-    monkeypatch.delenv("CLIPTALK_AGENT_SERVICE_TOKEN", raising=False)
-    path = tmp_path / "service-token"
-    with ThreadPoolExecutor(8) as pool:
-        tokens = list(pool.map(lambda _: service_token(path), range(16)))
-    assert len(set(tokens)) == 1 and len(tokens[0]) == 64
-    assert path.stat().st_mode & 0o777 == 0o600
-    plugin = tmp_path / "plugin"
-    plugin.mkdir()
-    (plugin / "index.mjs").write_text("export default {}")
-    original = plugin_tree_hash(plugin)
-    (plugin / "index.mjs").write_text("export default {changed:true}")
-    assert plugin_tree_hash(plugin) != original
-    (plugin / "outside").symlink_to(path)
-    with pytest.raises(ValueError, match="符号链接"):
-        plugin_tree_hash(plugin)

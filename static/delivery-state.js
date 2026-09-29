@@ -66,5 +66,5 @@
       subtitleDraftId, acknowledgeQualityRisk,
     };
   }
-  window.ClipTalkDelivery = Object.freeze({ capture, isCurrent, requestBody, withOptions, mountOptions });
+  window.ChatClipDelivery = Object.freeze({ capture, isCurrent, requestBody, withOptions, mountOptions });
 })();

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const storageKey = "cliptalk-color-theme-v1";
+  const storageKey = "chatclip-color-theme-v1";
   const themes = new Set(["dark", "light"]);
   const defaultTheme = "light";
   const root = document.documentElement;
@@ -40,7 +40,7 @@
       try { localStorage.setItem(storageKey, normalized); }
       catch { /* Theme persistence is optional. */ }
     }
-    window.dispatchEvent(new CustomEvent("cliptalk:themechange", { detail: { theme: normalized } }));
+    window.dispatchEvent(new CustomEvent("chatclip:themechange", { detail: { theme: normalized } }));
     return normalized;
   }
 
@@ -49,7 +49,7 @@
   }
 
   applyTheme(storedTheme() || defaultTheme);
-  window.ClipTalkTheme = { apply: applyTheme, current: () => root.dataset.theme || defaultTheme, toggle: toggleTheme };
+  window.ChatClipTheme = { apply: applyTheme, current: () => root.dataset.theme || defaultTheme, toggle: toggleTheme };
 
   document.addEventListener("DOMContentLoaded", () => {
     syncToggle(root.dataset.theme || defaultTheme);

@@ -23,7 +23,7 @@ def is_loopback_bind_host(host: str) -> bool:
 
 def validate_deployment_access(
     host: str, access_token: str, *, allow_unauthenticated_remote: bool = False,
-    setting_name: str = "HIGHLIGHT_HOST",
+    setting_name: str = "CHATCLIP_HOST",
 ) -> None:
     """Refuse an externally reachable bind without a meaningful bearer token."""
     if is_loopback_bind_host(host) or allow_unauthenticated_remote:
@@ -32,14 +32,14 @@ def validate_deployment_access(
     if len(token) < 16:
         raise SecurityConfigurationError(
             f"{setting_name} 不是本机回环地址时，必须配置至少 16 字符的 "
-            "HIGHLIGHT_ACCESS_TOKEN"
+            "CHATCLIP_ACCESS_TOKEN"
         )
 
 
 def session_cookie_value(access_token: str) -> str:
     return hmac.new(
         str(access_token).encode("utf-8"),
-        b"cliptalk-browser-session-v1",
+        b"chatclip-browser-session-v1",
         hashlib.sha256,
     ).hexdigest()
 
@@ -58,7 +58,7 @@ def validate_public_http_endpoint(url: str, *, allow_private: bool = False) -> s
     """Validate a user-controlled model endpoint before the server connects.
 
     Custom on-premise model gateways remain possible through the explicit
-    HIGHLIGHT_ALLOW_PRIVATE_MODEL_ENDPOINTS opt-in. Public deployments default
+    CHATCLIP_ALLOW_PRIVATE_MODEL_ENDPOINTS opt-in. Public deployments default
     to blocking loopback, private, link-local, reserved and metadata networks.
     """
     normalized = str(url or "").strip().rstrip("/")

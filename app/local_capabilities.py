@@ -13,7 +13,7 @@ def describe_talknet(runtime: dict[str, Any]) -> dict[str, Any]:
     status, reason = runtime.get("status"), str(runtime.get("reason") or "")
     if status == "disabled":
         state, label = "disabled", "已关闭"
-        detail = "人物说话识别被运行配置关闭；需要时将 HIGHLIGHT_ACTIVE_SPEAKER_MODE 改为 primary 并重启。"
+        detail = "人物说话识别被运行配置关闭；需要时将 CHATCLIP_ACTIVE_SPEAKER_MODE 改为 primary 并重启。"
     elif reason.startswith("talknet_missing:"):
         state, label = "not_installed", "未安装完整"
         detail = "人物说话识别的环境或模型缺失，请重新运行默认安装命令。"

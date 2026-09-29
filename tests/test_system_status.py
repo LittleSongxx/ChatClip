@@ -31,8 +31,9 @@ def test_health_snapshot_preserves_current_and_legacy_fields(tmp_path) -> None:
         recognition_state={"schemaVersion": 4},
     )
     assert snapshot["visionConfigured"] is True
-    assert snapshot["arkConfigured"] is True
+    assert snapshot["llmConfigured"] is True
     assert snapshot["llmUsesVision"] is True
+    assert snapshot["anthropicConfigured"] is False
     assert snapshot["contentRecognition"] == {"schemaVersion": 4}
     assert snapshot["ffmpeg"] is True
     assert "apiKey" not in snapshot

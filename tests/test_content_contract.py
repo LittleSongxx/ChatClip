@@ -400,16 +400,15 @@ def test_person_appearance_uses_identity_linked_tracks_without_guessing(monkeypa
 
 
 def test_evidence_approval_replays_proposal_instead_of_skipping_it(monkeypatch, tmp_path):
-    from app.agent_platform import AgentPlatform
-    platform = AgentPlatform(data_root=tmp_path, service_url="http://agent.invalid",
-                             model_config_resolver=lambda: {"model": "fake"})
+    from app.agent import AgentPlatform
+    platform = AgentPlatform(data_root=tmp_path, model_config_resolver=lambda: {"model": "fake"})
     workspace = {"id": "ws_contract", "jobId": "job_contract"}
     platform.store.save("workspaces", workspace)
     platform.store.save("plans", {"id": "plan_contract", "workspaceId": workspace["id"], "status": "action_required",
         "steps": [{"id": "propose", "tool": "propose_timeline_edit", "status": "action_required",
                    "result": {"action": "content_evidence_review"}}]})
     advanced = []
-    monkeypatch.setattr(platform, "_advance_plan", lambda plan_id: advanced.append(plan_id))
+    monkeypatch.setattr(platform, "_kick_plan", lambda plan_id: advanced.append(plan_id))
     result = platform.resolve_action("plan_contract", approved=True, value={
         "context": {"jobId": "job_contract", "stepId": "propose"},
         "selection": {"searchId": "search_1", "matchIds": ["m1"]}})

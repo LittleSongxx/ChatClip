@@ -496,7 +496,7 @@ def _extract_uniform_frames_uncached(
     command = [
         ffmpeg, "-hide_banner", "-loglevel", "error", "-i", str(source),
         "-vf", f"fps=1/{interval:.6f},scale=512:-2:force_original_aspect_ratio=decrease",
-        "-q:v", "3", "-y", str(pattern),
+        "-strict", "unofficial", "-q:v", "3", "-y", str(pattern),
     ]
     timeout = max(180.0, duration * 1.5)
     started_at = time.monotonic()
@@ -630,7 +630,7 @@ def extract_frames_at_times(
             command.extend([
                 "-map", f"{local_index}:v:0", "-frames:v", "1", "-an",
                 "-vf", "scale=640:-2:force_original_aspect_ratio=decrease",
-                "-q:v", "2", "-y", str(path),
+                "-strict", "unofficial", "-q:v", "2", "-y", str(path),
             ])
         _run_cancellable(
             command, timeout=max(60, len(batch) * 12), cancelled=cancelled,
@@ -687,7 +687,7 @@ def extract_first_frame(source: Path, output: Path, *, ffmpeg: str) -> Path:
         command.extend([
             "-i", str(source), "-map", "0:v:0", "-frames:v", "1", "-an",
             "-vf", "scale=720:-2:force_original_aspect_ratio=decrease",
-            "-q:v", "3", "-y", str(temporary),
+            "-strict", "unofficial", "-q:v", "3", "-y", str(temporary),
         ])
         try:
             _run(command, timeout=60)

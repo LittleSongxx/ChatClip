@@ -1,4 +1,4 @@
-(function createClipTalkCopy(global) {
+(function createChatClipCopy(global) {
   const WORKFLOWS = Object.freeze({
     highlight: Object.freeze({
       label: "智能高光",
@@ -81,5 +81,5 @@
     hotEditDirty: (suffix) => `请先保存或取消当前片段设置${suffix ? `，${suffix}` : ""}`,
   });
 
-  global.ClipTalkCopy = Object.freeze({ WORKFLOWS, ACTIONS, GUARDS, workflow });
+  global.ChatClipCopy = Object.freeze({ WORKFLOWS, ACTIONS, GUARDS, workflow });
 })(window);

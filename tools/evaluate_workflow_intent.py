@@ -28,7 +28,7 @@ def load_cases(path: Path) -> list[dict[str, str]]:
 
 def evaluate(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     cases = load_cases(args.corpus)
-    headers = {"X-Highlight-Token": args.token} if args.token else {}
+    headers = {"X-ChatClip-Token": args.token} if args.token else {}
     results = []
     with httpx.Client(base_url=args.base_url.rstrip("/"), headers=headers, timeout=args.timeout) as client:
         for case in cases:

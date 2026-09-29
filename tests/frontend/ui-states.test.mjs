@@ -17,7 +17,7 @@ function loadAdapter() {
   const source = readFileSync(new URL("../../static/ui-states.js", import.meta.url), "utf8");
   const sandbox = { window: {}, document: { hidden: false, addEventListener() {}, removeEventListener() {} } };
   sandbox.window = sandbox;
-  const fn = new Function("window", "document", source + "\nreturn window.ClipTalkUIStates;");
+  const fn = new Function("window", "document", source + "\nreturn window.ChatClipUIStates;");
   return fn(sandbox, sandbox.document);
 }
 
@@ -98,7 +98,7 @@ test("createPolling 页面隐藏时不执行", () => {
     clearInterval: () => {},
   };
   const source = readFileSync(new URL("../../static/ui-states.js", import.meta.url), "utf8");
-  const fn = new Function("window", "document", source + "\nreturn window.ClipTalkUIStates;");
+  const fn = new Function("window", "document", source + "\nreturn window.ChatClipUIStates;");
   const local = fn(win, doc);
 
   const polling = local.createPolling(() => calls.push(1), 1000);
@@ -112,7 +112,7 @@ test("createPolling 页面可见时执行", () => {
   const doc = { hidden: false, addEventListener() {}, removeEventListener() {} };
   const win = { document: doc, setInterval: () => 1, clearInterval: () => {} };
   const source = readFileSync(new URL("../../static/ui-states.js", import.meta.url), "utf8");
-  const fn = new Function("window", "document", source + "\nreturn window.ClipTalkUIStates;");
+  const fn = new Function("window", "document", source + "\nreturn window.ChatClipUIStates;");
   const local = fn(win, doc);
 
   const polling = local.createPolling(() => calls.push(1), 1000);
@@ -126,7 +126,7 @@ test("createPolling stop 之后不再执行", () => {
   const doc = { hidden: false, addEventListener() {}, removeEventListener() {} };
   const win = { document: doc, setInterval: () => 7, clearInterval: () => {} };
   const source = readFileSync(new URL("../../static/ui-states.js", import.meta.url), "utf8");
-  const fn = new Function("window", "document", source + "\nreturn window.ClipTalkUIStates;");
+  const fn = new Function("window", "document", source + "\nreturn window.ChatClipUIStates;");
   const local = fn(win, doc);
 
   const polling = local.createPolling(() => calls.push(1), 1000);

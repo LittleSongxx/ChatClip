@@ -1382,7 +1382,7 @@ body.secondary-editor-open #secondaryEditor .secondary-timeline-clip .secondary-
   body.secondary-editor-open #secondaryEditor .secondary-editor-action-overflow { flex: none; }
 }
 
-/* Secondary editor v2: explicit review states in the shared ClipTalk theme. */
+/* Secondary editor v2: explicit review states in the shared ChatClip theme. */
 body.secondary-editor-open #secondaryEditor.secondary-editor-v2#secondaryEditor {
   background: var(--secondary-canvas) !important;
 }

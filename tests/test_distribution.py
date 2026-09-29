@@ -14,7 +14,7 @@ from app import config
 from app.local_capabilities import active_speaker_warning, describe_talknet, local_capabilities
 from app.system_api import build_system_router
 from tools.install_talknet import REVISION, adapted_source, download_weight, prepare_repository
-from tools.launch import agent_matches_credentials, service_ready, stop_owned
+from tools.launch import service_ready, stop_owned
 from tools.setup import automatic_profile, installation_steps
 from tools.talknet_worker import visible_cuda_device
 
@@ -23,7 +23,7 @@ from tools.talknet_worker import visible_cuda_device
 def clean_settings(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "load_env", lambda: None)
     for name in list(os.environ):
-        if name.startswith(("HIGHLIGHT_", "VISION_", "ARK_", "LLM_", "AGENT_", "CLIPTALK_")):
+        if name.startswith(("HIGHLIGHT_", "VISION_", "ARK_", "LLM_", "AGENT_", "CHATCLIP_")):
             monkeypatch.delenv(name)
     monkeypatch.setattr(config, "ROOT", tmp_path)
     return tmp_path
@@ -45,11 +45,11 @@ def test_clean_checkout_needs_no_machine_paths(clean_settings):
 
 
 def test_existing_overrides_win_and_blank_paths_are_auto(clean_settings, monkeypatch):
-    monkeypatch.setenv("HIGHLIGHT_DATA_ROOT", str(clean_settings / "custom-data"))
-    monkeypatch.setenv("HIGHLIGHT_TALKNET_PYTHON", "/custom/environment/python")
-    monkeypatch.setenv("HIGHLIGHT_TALKNET_REPOSITORY", "relative/repository")
-    monkeypatch.setenv("HIGHLIGHT_TALKNET_CHECKPOINT", "")
-    monkeypatch.setenv("HIGHLIGHT_TALKNET_DEVICE", "cuda:1")
+    monkeypatch.setenv("CHATCLIP_DATA_ROOT", str(clean_settings / "custom-data"))
+    monkeypatch.setenv("CHATCLIP_TALKNET_PYTHON", "/custom/environment/python")
+    monkeypatch.setenv("CHATCLIP_TALKNET_REPOSITORY", "relative/repository")
+    monkeypatch.setenv("CHATCLIP_TALKNET_CHECKPOINT", "")
+    monkeypatch.setenv("CHATCLIP_TALKNET_DEVICE", "cuda:1")
     settings = config.Settings.from_environment()
     assert settings.talknet_worker_python == "/custom/environment/python"
     assert settings.talknet_repository == str(clean_settings / "relative/repository")
@@ -67,11 +67,11 @@ def test_ffmpeg_follows_path_without_ignoring_explicit_configuration(clean_setti
     assert config.Settings.from_environment().ffmpeg == "/missing/chosen/ffmpeg"
 
 
-def test_default_install_contains_talknet_and_both_services(tmp_path):
+def test_default_install_contains_talknet_and_frontend_dependencies(tmp_path):
     steps = installation_steps(tmp_path, "cpu")
     commands = [command for command, _ in steps]
     assert any("tools/install_talknet.py" in command for command in commands)
-    assert any(command[:2] == ["npm", "ci"] and "--omit=dev" in command and cwd == tmp_path / "agent-service" for command, cwd in steps)
+    assert any(command[:2] == ["npm", "ci"] and "--omit=dev" in command and cwd == tmp_path for command, cwd in steps)
     assert not any(".env" in argument for command in commands for argument in command)
     (tmp_path / ".venv").mkdir()
     assert not any(command[1:3] == ["-m", "venv"] for command, _ in installation_steps(tmp_path, "gpu"))
@@ -104,7 +104,7 @@ def test_upstream_adapter_is_checked_and_idempotent():
     source = "import torch\nmodel = torch.ones(1).cuda()\nvalue = torch.load(path)\n"
     patched = adapted_source("talkNet.py", source)
     assert ".cuda()" not in patched
-    assert "map_location=CLIPTALK_DEVICE" in patched
+    assert "map_location=CHATCLIP_DEVICE" in patched
     assert adapted_source("talkNet.py", patched) == patched
     ast.parse(patched)
     with pytest.raises(ValueError):
@@ -113,7 +113,7 @@ def test_upstream_adapter_is_checked_and_idempotent():
     patched_demo = adapted_source("demoTalkNet.py", demo)
     assert "--noVisualization" in patched_demo
     assert "if not args.noVisualization:" in patched_demo
-    assert "S3FD(device=CLIPTALK_DEVICE)" in patched_demo
+    assert "S3FD(device=CHATCLIP_DEVICE)" in patched_demo
 
 
 def test_failed_download_is_not_promoted_or_reported_installed(tmp_path, monkeypatch):
@@ -179,11 +179,9 @@ def test_explicit_capability_route_is_separate_from_fast_health():
     assert any(route.path == "/api/capabilities/local" for route in router.routes)
 
 
-def test_launcher_never_trusts_an_unrelated_healthy_port(monkeypatch, tmp_path):
+def test_launcher_never_trusts_an_unrelated_healthy_port(monkeypatch):
     monkeypatch.setattr("tools.launch.urlopen", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("unavailable")))
-    assert not service_ready("http://127.0.0.1/health", "cliptalk")
-    monkeypatch.delenv("CLIPTALK_AGENT_SERVICE_TOKEN", raising=False)
-    assert not agent_matches_credentials("http://127.0.0.1", SimpleNamespace(data_root=tmp_path))
+    assert not service_ready("http://127.0.0.1/health", "chatclip")
 
 
 def test_launcher_only_stops_processes_it_was_given():
@@ -204,5 +202,5 @@ def test_dry_run_does_not_create_environment_or_download():
 def test_docker_default_installs_models_outside_data_volume():
     dockerfile = (Path(__file__).resolve().parents[1] / "Dockerfile").read_text()
     assert "RUN python tools/install_talknet.py" in dockerfile
-    assert "--data-root /opt/cliptalk-models" in dockerfile
-    assert "HIGHLIGHT_TALKNET_PYTHON=/opt/cliptalk-models" in dockerfile
+    assert "--data-root /opt/chatclip-models" in dockerfile
+    assert "CHATCLIP_TALKNET_PYTHON=/opt/chatclip-models" in dockerfile

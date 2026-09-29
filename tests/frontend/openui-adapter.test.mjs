@@ -1,4 +1,4 @@
-/* ClipTalk × OpenUI：转译层单元测试
+/* ChatClip × OpenUI：转译层单元测试
  *
  * adapter 是纯函数，所以可以在 Node 里直接跑，不需要浏览器。
  * 这是"确定性转译"路线相对"LLM 生成 UI"的核心优势：可验证、可回归。
@@ -15,7 +15,7 @@ function loadAdapter() {
   const source = readFileSync(path.join(root, "static/openui-adapter.js"), "utf8");
   const sandbox = { window: {} };
   new Function("window", source)(sandbox.window);
-  return sandbox.window.ClipTalkOpenUIAdapter;
+  return sandbox.window.ChatClipOpenUIAdapter;
 }
 
 const adapter = loadAdapter();

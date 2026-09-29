@@ -1,10 +1,10 @@
-/* ClipTalk × OpenUI：确定性转译层
+/* ChatClip × OpenUI：确定性转译层
  *
  * 把宿主侧已有的结构化数据转成 OpenUI Lang 文本，交给 iframe 里的 Renderer 渲染。
  *
  * 设计原则：
  *   1. 纯函数 —— 无网络、无 DOM、无副作用，可单元测试
- *   2. 不让 LLM 生成 UI —— ClipTalk 的 VLM 负责看视频，不该兼职输出布局
+ *   2. 不让 LLM 生成 UI —— ChatClip 的 VLM 负责看视频，不该兼职输出布局
  *   3. 参数顺序按组件 Zod schema 的 key 顺序（OpenUI Lang 是位置化参数）
  *
  * 组件签名（读自 openui/packages/react-ui/src/genui-lib/）：
@@ -60,7 +60,7 @@
     return lines.join("\n");
   }
 
-  global.ClipTalkOpenUIAdapter = {
+  global.ChatClipOpenUIAdapter = {
     quote: quote,
     activityToOpenUILang: activityToOpenUILang,
   };

@@ -6,7 +6,7 @@ import { chromium } from "playwright";
 const productionCss = [...readFileSync(new URL("../../static/index.html", import.meta.url), "utf8").matchAll(/href="\/static\/([^"?]+\.css)/g)].map(match => readFileSync(new URL(`../../static/${match[1]}`, import.meta.url), "utf8")).join("\n");
 
 const css = readFileSync(new URL("../../static/agent-workspace.css", import.meta.url), "utf8");
-const tokensCss = readFileSync(new URL("../../static/cliptalk-tokens.css", import.meta.url), "utf8");
+const tokensCss = readFileSync(new URL("../../static/chatclip-tokens.css", import.meta.url), "utf8");
 // Workspace component rules are consolidated into the workbench owner.
 const referenceV3Css = readFileSync(new URL("../../static/workbench.css", import.meta.url), "utf8");
 const workbenchV4Css = readFileSync(new URL("../../static/workbench.css", import.meta.url), "utf8");
@@ -33,18 +33,18 @@ test("submitting an Agent goal clears the composer while planning is in progress
       <textarea id="chatInput">生成一条 60 秒高光视频</textarea>
       <button id="sendButton" type="button">发送</button>
       <script>
-        window.ClipTalkApi = {
+        window.ChatClipApi = {
           requestJson: async () => ({ workspace: { id: 'ws_planning', jobId: 'job_planning' } }),
           requestResponse: async () => new Promise(() => {}),
         };
-        window.ClipTalkCurrentJobId = () => 'job_planning';
-        window.ClipTalkRefreshCurrentJob = () => {};
+        window.ChatClipCurrentJobId = () => 'job_planning';
+        window.ChatClipRefreshCurrentJob = () => {};
         window.showToast = () => {};
       </script>
       <script>${agent}</script>`);
 
     await page.evaluate(() => {
-      window.ClipTalkAgentWorkspace.submitGoal(document.querySelector('#chatInput').value);
+      window.ChatClipAgentWorkspace.submitGoal(document.querySelector('#chatInput').value);
     });
     await page.waitForFunction(() => document.querySelector('#chatInput').disabled);
 
@@ -73,30 +73,30 @@ test("a new instruction folds the previous result, clears its action and lets pl
       </aside></aside>`);
     await page.evaluate(() => {
       const previous = { id: 'plan_previous', workspaceId: 'ws_handoff', status: 'preview_ready',
-        skillId: 'cliptalk-content-extractor', goal: '生成汽车竖屏视频', summary: '上一版审核样片', steps: [
+        skillId: 'chatclip-content-extractor', goal: '生成汽车竖屏视频', summary: '上一版审核样片', steps: [
           { id: 'preview', tool: 'render_social_preview', title: '生成竖屏样片', status: 'completed', result: { artifact: {
             kind: 'social_reframe_preview', output: { filename: 'old.mp4', previewUrl: '/old.mp4', reframe: { aspect: '9:16' } },
           } } },
         ] };
       window.__nextPlan = { id: 'plan_next', workspaceId: 'ws_handoff', status: 'awaiting_confirmation',
-        skillId: 'cliptalk-cover-director', goal: '为成片增加封面', summary: '生成封面并更新审核样片',
+        skillId: 'chatclip-cover-director', goal: '为成片增加封面', summary: '生成封面并更新审核样片',
         steps: [{ id: 'cover', tool: 'review_cover_variants', title: '生成封面候选', status: 'pending' }] };
       window.__detail = { workspace: { id: 'ws_handoff', jobId: 'job_handoff', status: 'preview_ready', activePlanId: previous.id }, plans: [previous] };
       window.__job = { id: 'job_handoff', revision: 1, presentation: { key: 'preview_review' }, agent: { workspaceId: 'ws_handoff', planId: previous.id, status: 'preview_ready' } };
-      window.ClipTalkCurrentJobId = () => 'job_handoff';
-      window.ClipTalkCurrentJobSnapshot = () => window.__job;
-      window.ClipTalkRefreshCurrentJob = () => {};
+      window.ChatClipCurrentJobId = () => 'job_handoff';
+      window.ChatClipCurrentJobSnapshot = () => window.__job;
+      window.ChatClipRefreshCurrentJob = () => {};
       window.showToast = () => {};
       window.EventSource = class { addEventListener() {} close() {} };
       window.__stream = new TransformStream();
       window.__writer = window.__stream.writable.getWriter();
-      window.ClipTalkApi = {
+      window.ChatClipApi = {
         requestJson: async () => window.__detail,
         requestResponse: async () => new Response(window.__stream.readable, { status: 200, headers: { 'Content-Type': 'text/event-stream' } }),
       };
-      window.ClipTalkRenderAssistantHistory = () => {
+      window.ChatClipRenderAssistantHistory = () => {
         const root = document.querySelector('#chatMessages');
-        const host = window.ClipTalkChatStream?.hostElement?.();
+        const host = window.ChatClipChatStream?.hostElement?.();
         root.querySelectorAll(':scope > :not(#csStreamHost)').forEach(node => node.remove());
         if (host && host.parentElement !== root) root.append(host);
       };
@@ -104,10 +104,10 @@ test("a new instruction folds the previous result, clears its action and lets pl
     await page.addScriptTag({ path: new URL('../../static/chat-stream.js', import.meta.url).pathname });
     await page.addScriptTag({ content: agent });
     await page.evaluate(() => document.dispatchEvent(new Event('DOMContentLoaded')));
-    await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.__job));
+    await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.__job));
     assert.equal(await page.locator('#csActionBar [data-cs-action="primary"]').isVisible(), true);
 
-    await page.evaluate(() => { window.__submission = window.ClipTalkAgentWorkspace.submitGoal('为成片增加封面'); });
+    await page.evaluate(() => { window.__submission = window.ChatClipAgentWorkspace.submitGoal('为成片增加封面'); });
     await page.waitForFunction(() => document.querySelector('[data-cs-id="planning:ws_handoff"]'));
     assert.equal(await page.locator('#csActionBar').isVisible(), false);
     assert.equal(await page.locator('#csStreamHost .agent-plan-history-row').count(), 1);
@@ -130,7 +130,7 @@ test("a new instruction folds the previous result, clears its action and lets pl
         stage: 'agent_plan_generating',
         agent: { ...window.__job.agent, workspaceStatus: 'planning' },
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob(window.__job);
+      await window.ChatClipAgentWorkspace.resumeForJob(window.__job);
     });
     assert.equal(await page.locator('#csActionBar').isVisible(), false);
     assert.equal(await page.locator('#csStreamHost .agent-plan-history-row').count(), 1);
@@ -157,7 +157,7 @@ test("a new instruction folds the previous result, clears its action and lets pl
     await page.evaluate(() => {
       window.__stream = new TransformStream();
       window.__writer = window.__stream.writable.getWriter();
-      window.__failedSubmission = window.ClipTalkAgentWorkspace.submitGoal('把封面文字改短一些');
+      window.__failedSubmission = window.ChatClipAgentWorkspace.submitGoal('把封面文字改短一些');
     });
     await page.waitForFunction(() => document.querySelector('[data-cs-id="planning:ws_handoff"]'));
     assert.equal(await page.locator('#csActionBar').isVisible(), false);
@@ -746,9 +746,9 @@ test("waiting instruction timeline uses real source thumbnails instead of solid 
         </aside>
         <h1 id="reviewTitle">产品宣传.mp4</h1>
         <script>
-          window.ClipTalkCurrentJobId = () => "job_waiting_instruction";
-          window.ClipTalkCurrentJobSnapshot = () => ({ id: "job_waiting_instruction", videoInfo: { duration: 664.1 } });
-          window.ClipTalkWorkspaceState = { derivePresentation: () => ({ key: "waiting_instruction", label: "等待剪辑要求" }) };
+          window.ChatClipCurrentJobId = () => "job_waiting_instruction";
+          window.ChatClipCurrentJobSnapshot = () => ({ id: "job_waiting_instruction", videoInfo: { duration: 664.1 } });
+          window.ChatClipWorkspaceState = { derivePresentation: () => ({ key: "waiting_instruction", label: "等待剪辑要求" }) };
           window.fetch = async (path) => {
             if (String(path).includes("/api/jobs/job_waiting_instruction/waveform")) {
               return {
@@ -788,7 +788,7 @@ test("waiting instruction timeline uses real source thumbnails instead of solid 
         <script>${timelinePresentationJs}</script>
       </body>`);
 
-    await page.evaluate(() => window.ClipTalkTimelinePresentation.sync());
+    await page.evaluate(() => window.ChatClipTimelinePresentation.sync());
 
     await page.waitForFunction(() => document.querySelector("#ctTimelinePlaceholder")?.dataset.ctTimelineAssetState === "ready");
     await page.waitForFunction(() => document.querySelector("#ctTimelinePlaceholder")?.dataset.ctWaveformState === "ready");
@@ -873,7 +873,7 @@ test("pending timeline assets stay in a generating state instead of becoming an 
           </section>
         </main>
         <script>
-          window.ClipTalkCurrentJobId = () => "job_timeline_pending";
+          window.ChatClipCurrentJobId = () => "job_timeline_pending";
           window.fetch = async (path) => {
             if (String(path).includes("/waveform")) return { ok: true, json: async () => ({ duration: 60, hasAudio: false }) };
             return { ok: true, json: async () => ({ ready: false, generating: true, retryAfterSeconds: 1 }) };
@@ -1137,17 +1137,17 @@ test("completed social preview is visible and opens from Agent review results", 
         <script>
           window.__openedAgentPreview = null;
           window.__openedAgentEditor = false;
-          window.ClipTalkApi = { requestJson: async (path) => {
+          window.ChatClipApi = { requestJson: async (path) => {
             if (path.includes('/api/agent/workspaces/')) return window.__agentDetail;
             if (path.includes('/api/agent/skills')) return { skills: [] };
             if (path.includes('/api/settings/agent')) return { providers: [] };
             return {};
           } };
-          window.ClipTalkCurrentJobId = () => 'job_social_preview';
-          window.ClipTalkCurrentJobSnapshot = () => window.__currentAgentJob || ({ id: 'job_social_preview', outputs: [], outputVersions: [] });
-          window.ClipTalkOpenAgentPreview = async (payload) => { window.__openedAgentPreview = payload; return true; };
-          window.ClipTalkOpenAgentReview = async () => { window.__openedAgentEditor = true; return true; };
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipCurrentJobId = () => 'job_social_preview';
+          window.ChatClipCurrentJobSnapshot = () => window.__currentAgentJob || ({ id: 'job_social_preview', outputs: [], outputVersions: [] });
+          window.ChatClipOpenAgentPreview = async (payload) => { window.__openedAgentPreview = payload; return true; };
+          window.ChatClipOpenAgentReview = async () => { window.__openedAgentEditor = true; return true; };
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1178,7 +1178,7 @@ test("completed social preview is visible and opens from Agent review results", 
       };
       const plan = {
         id: "plan_social", workspaceId: "ws_social", status: "preview_ready",
-        skillId: "cliptalk-content-extractor", executionMode: "autonomous_review",
+        skillId: "chatclip-content-extractor", executionMode: "autonomous_review",
         summary: "已生成普通审核样片和竖屏审核预览。",
         steps: [
           { id: "review", status: "completed", result: { artifact: { kind: "review_preview_batch", previews: [review] } } },
@@ -1198,7 +1198,7 @@ test("completed social preview is visible and opens from Agent review results", 
         workspace: { id: "ws_social", jobId: "job_social_preview", activePlanId: "plan_social" },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: "job_social_preview", revision: 1,
         agent: { workspaceId: "ws_social", planId: "plan_social" },
       });
@@ -1279,10 +1279,10 @@ test("an external cover mismatch stays visible and blocks final generation", asy
           <textarea id="chatInput"></textarea>
         </aside>
         <script>
-          window.ClipTalkApi = { requestJson: async (path) => path.includes('/api/agent/workspaces/') ? window.__agentDetail : { skills: [], providers: [] } };
-          window.ClipTalkCurrentJobId = () => 'job_cover_mismatch';
-          window.ClipTalkCurrentJobSnapshot = () => window.__currentAgentJob;
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipApi = { requestJson: async (path) => path.includes('/api/agent/workspaces/') ? window.__agentDetail : { skills: [], providers: [] } };
+          window.ChatClipCurrentJobId = () => 'job_cover_mismatch';
+          window.ChatClipCurrentJobSnapshot = () => window.__currentAgentJob;
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1304,7 +1304,7 @@ test("an external cover mismatch stays visible and blocks final generation", asy
       };
       const plan = {
         id: 'plan_cover_mismatch', workspaceId: 'ws_cover_mismatch', status: 'preview_ready',
-        skillId: 'cliptalk-content-extractor', executionMode: 'autonomous_review', goal,
+        skillId: 'chatclip-content-extractor', executionMode: 'autonomous_review', goal,
         brief: { goal, coverRequested: true }, summary: '审核样片已生成。',
         steps: [
           { id: 'cover', tool: 'confirm_cover', title: '保存当前任务封面', status: 'completed' },
@@ -1315,7 +1315,7 @@ test("an external cover mismatch stays visible and blocks final generation", asy
         workspace: { id: 'ws_cover_mismatch', jobId: 'job_cover_mismatch', activePlanId: plan.id },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_cover_mismatch', revision: 1,
         agent: { workspaceId: 'ws_cover_mismatch', planId: plan.id },
       });
@@ -1355,17 +1355,17 @@ test("completed composite plan opens final cover-intro vertical preview before c
         </aside>
         <script>
           window.__openedAgentPreview = null;
-          window.ClipTalkApi = { requestJson: async (path) => {
+          window.ChatClipApi = { requestJson: async (path) => {
             if (path.includes('/api/agent/workspaces/')) return window.__agentDetail;
             if (path.includes('/api/agent/skills')) return { skills: [] };
             if (path.includes('/api/settings/agent')) return { providers: [] };
             return {};
           } };
-          window.ClipTalkCurrentJobId = () => 'job_composite_preview';
-          window.ClipTalkCurrentJobSnapshot = () => window.__currentAgentJob;
-          window.ClipTalkOpenAgentPreview = async (payload) => { window.__openedAgentPreview = payload; return true; };
-          window.ClipTalkOpenAgentReview = async () => true;
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipCurrentJobId = () => 'job_composite_preview';
+          window.ChatClipCurrentJobSnapshot = () => window.__currentAgentJob;
+          window.ChatClipOpenAgentPreview = async (payload) => { window.__openedAgentPreview = payload; return true; };
+          window.ChatClipOpenAgentReview = async () => true;
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1414,7 +1414,7 @@ test("completed composite plan opens final cover-intro vertical preview before c
       };
       const plan = {
         id: "plan_composite", workspaceId: "ws_composite", status: "preview_ready",
-        skillId: "cliptalk-content-extractor", executionMode: "autonomous_review",
+        skillId: "chatclip-content-extractor", executionMode: "autonomous_review",
         summary: "找出汽车画面，生成顶部字幕、竖屏审核样片和当前任务封面片头。",
         steps: [
           { id: "sub_layout", tool: "layout_subtitles", title: "应用顶部字幕排版", status: "completed" },
@@ -1429,7 +1429,7 @@ test("completed composite plan opens final cover-intro vertical preview before c
         plans: [plan],
       };
       window.__currentAgentJob.agentPreviewOutputs.forEach((item) => { item.planId = plan.id; });
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: "job_composite_preview", revision: 1,
         agent: { workspaceId: "ws_composite", planId: "plan_composite" },
       });
@@ -1499,10 +1499,10 @@ test("unfinished cover intro is not presented as a ready final preview", async (
           outputKind: 'social_reframe_preview', reframe: { aspect: '9:16', fit: 'blur' },
         }],
       };
-      window.ClipTalkApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
-      window.ClipTalkCurrentJobId = () => 'job_intro_pending';
-      window.ClipTalkCurrentJobSnapshot = () => window.__currentAgentJob;
-      window.ClipTalkRefreshCurrentJob = () => {};
+      window.ChatClipApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
+      window.ChatClipCurrentJobId = () => 'job_intro_pending';
+      window.ChatClipCurrentJobSnapshot = () => window.__currentAgentJob;
+      window.ChatClipRefreshCurrentJob = () => {};
       window.showToast = () => {};
       window.EventSource = class { addEventListener() {} close() {} };
     });
@@ -1511,7 +1511,7 @@ test("unfinished cover intro is not presented as a ready final preview", async (
     await page.evaluate(async () => {
       const plan = {
         id: 'plan_intro_pending', workspaceId: 'ws_intro_pending', status: 'preview_ready',
-        skillId: 'cliptalk-cover-intro-composer', summary: '生成封面并合入成片开头。',
+        skillId: 'chatclip-cover-intro-composer', summary: '生成封面并合入成片开头。',
         brief: {
           coverRequested: true, coverIntroRequested: true,
           coverTitle: '小米牛逼！！！', coverAspect: '9:16',
@@ -1525,7 +1525,7 @@ test("unfinished cover intro is not presented as a ready final preview", async (
         workspace: { id: 'ws_intro_pending', jobId: 'job_intro_pending', activePlanId: plan.id },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_intro_pending', revision: 1,
         agent: { workspaceId: 'ws_intro_pending', planId: plan.id },
       });
@@ -1559,14 +1559,14 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
       </aside></aside>`);
     await page.evaluate(() => {
       window.__requests = [];
-      window.ClipTalkApi = { requestJson: async (path, options) => {
+      window.ChatClipApi = { requestJson: async (path, options) => {
         window.__requests.push({ path, method: options?.method || "GET" });
         return path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail;
       } };
-      window.ClipTalkCurrentJobId = () => 'job_details';
-      window.ClipTalkCurrentJobSnapshot = () => ({ id: 'job_details', outputs: [], outputVersions: [] });
-      window.ClipTalkRefreshCurrentJob = () => {};
-      window.ClipTalkOpenAgentPreview = preview => { window.__openedPreview = preview; };
+      window.ChatClipCurrentJobId = () => 'job_details';
+      window.ChatClipCurrentJobSnapshot = () => ({ id: 'job_details', outputs: [], outputVersions: [] });
+      window.ChatClipRefreshCurrentJob = () => {};
+      window.ChatClipOpenAgentPreview = preview => { window.__openedPreview = preview; };
       window.showToast = () => {};
       window.EventSource = class { addEventListener() {} close() {} };
     });
@@ -1578,7 +1578,7 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
         window.__agentDetail = {
           workspace: { id: 'ws_details', jobId: 'job_details', activePlanId: 'plan_details' },
           plans: [{ id: 'plan_details', workspaceId: 'ws_details', status,
-            skillId: 'cliptalk-content-extractor', summary: '核对这次剪辑的处理步骤',
+            skillId: 'chatclip-content-extractor', summary: '核对这次剪辑的处理步骤',
             steps: [{ id: 'step_details', tool: status === 'preview_ready' ? 'render_social_preview' : 'propose_timeline_edit',
               title: '整理时间线', status: status === 'action_required' ? status : 'completed',
               result: status === 'preview_ready' ? { artifact: { kind: 'social_reframe_preview', output: {
@@ -1586,7 +1586,7 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
               } } } : undefined }],
           }],
         };
-        await window.ClipTalkAgentWorkspace.resumeForJob({ id: 'job_details', revision: index + 1, agent: { workspaceId: 'ws_details', planId: 'plan_details' } });
+        await window.ChatClipAgentWorkspace.resumeForJob({ id: 'job_details', revision: index + 1, agent: { workspaceId: 'ws_details', planId: 'plan_details' } });
       }, { status, index });
       const card = page.locator('#csStreamHost [data-agent-plan-open]');
       if (index > 2) {
@@ -1633,7 +1633,7 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
       window.__agentDetail.plans = [{ id: 'plan_new', workspaceId: 'ws_details', status: 'preview_ready',
         summary: '新的汽车方案', steps: [] }];
       window.__agentDetail.workspace.activePlanId = 'plan_new';
-      await window.ClipTalkAgentWorkspace.resumeForJob({ id: 'job_details', revision: 10,
+      await window.ChatClipAgentWorkspace.resumeForJob({ id: 'job_details', revision: 10,
         agent: { workspaceId: 'ws_details', planId: 'plan_new' } });
     });
     assert.match(await page.locator('#csActionBar').innerText(), /预览暂不可用/);
@@ -1650,7 +1650,7 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
     assert.equal(await page.locator('[data-agent-drawer-tab="activity"]').isDisabled(), true);
     await page.evaluate(async () => {
       window.__agentDetail.plans[0].summary = '后台更新的新方案';
-      await window.ClipTalkAgentWorkspace.resumeForJob({ id: 'job_details', revision: 11,
+      await window.ChatClipAgentWorkspace.resumeForJob({ id: 'job_details', revision: 11,
         agent: { workspaceId: 'ws_details', planId: 'plan_new' } });
     });
     assert.match(await page.locator('#agentPlanDrawerPlan').innerText(), /核对这次剪辑的处理步骤/);
@@ -1661,7 +1661,7 @@ test("action-bar details opens the plan, removes only duplicate entries, and res
     assert.equal(await page.locator('#agentPlanDrawer').getAttribute('data-read-only'), 'false');
     const writes = await page.evaluate(() => window.__requests.filter(item => item.method !== 'GET'));
     assert.deepEqual(writes, [], 'history and missing-preview details must stay read-only');
-    assert.equal(await page.evaluate(() => window.ClipTalkAgentWorkspace.openDetails({ jobId: 'other_job', planId: 'plan_details' })), false);
+    assert.equal(await page.evaluate(() => window.ChatClipAgentWorkspace.openDetails({ jobId: 'other_job', planId: 'plan_details' })), false);
   } finally {
     await browser.close();
   }
@@ -1692,10 +1692,10 @@ test("plan details and revision editor follow both workspace themes", async () =
           <section id="chatMessages"></section>
         </aside>
         <script>
-          window.ClipTalkApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
-          window.ClipTalkCurrentJobId = () => 'job_revision';
-          window.ClipTalkCurrentJobSnapshot = () => ({ id: 'job_revision', outputs: [], outputVersions: [] });
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
+          window.ChatClipCurrentJobId = () => 'job_revision';
+          window.ChatClipCurrentJobSnapshot = () => ({ id: 'job_revision', outputs: [], outputVersions: [] });
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1704,7 +1704,7 @@ test("plan details and revision editor follow both workspace themes", async () =
     await page.evaluate(async () => {
       const plan = {
         id: 'plan_revision', workspaceId: 'ws_revision', status: 'awaiting_confirmation',
-        skillId: 'cliptalk-content-extractor', executionMode: 'autonomous_review',
+        skillId: 'chatclip-content-extractor', executionMode: 'autonomous_review',
         summary: '重新整理现有时间线并生成审核版本。',
         steps: [
           { id: 'step_done', title: '核查现有时间线', status: 'completed' },
@@ -1715,7 +1715,7 @@ test("plan details and revision editor follow both workspace themes", async () =
         workspace: { id: 'ws_revision', jobId: 'job_revision', activePlanId: 'plan_revision' },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_revision', revision: 1,
         agent: { workspaceId: 'ws_revision', planId: 'plan_revision' },
       });
@@ -1764,7 +1764,7 @@ test("plan details and revision editor follow both workspace themes", async () =
         },
         plans: [],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_planning_revision', revision: 1,
         status: 'awaiting_agent_plan', request: { entryWorkflow: 'agent' },
         agent: { workspaceId: 'ws_planning_revision', planId: '' },
@@ -1801,10 +1801,10 @@ test("subtitle layout stays behind subtitle review and hides implementation deta
           <section id="chatMessages"></section>
         </aside>
         <script>
-          window.ClipTalkApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
-          window.ClipTalkCurrentJobId = () => 'job_subtitles';
-          window.ClipTalkCurrentJobSnapshot = () => ({ id: 'job_subtitles', editSessions: [] });
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipApi = { requestJson: async (path) => path.includes('/api/agent/skills') ? { skills: [] } : window.__agentDetail };
+          window.ChatClipCurrentJobId = () => 'job_subtitles';
+          window.ChatClipCurrentJobSnapshot = () => ({ id: 'job_subtitles', editSessions: [] });
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1813,7 +1813,7 @@ test("subtitle layout stays behind subtitle review and hides implementation deta
     await page.evaluate(async () => {
       const plan = {
         id: 'plan_subtitles', workspaceId: 'ws_subtitles', status: 'action_required',
-        skillId: 'cliptalk-caption-layout-director', executionMode: 'stepwise_review',
+        skillId: 'chatclip-caption-layout-director', executionMode: 'stepwise_review',
         summary: '先确认字幕内容，再应用顶部排版并生成审核样片。',
         steps: [
           { id: 'cut_preview', tool: 'render_review_preview', title: '生成无字幕剪辑样片', status: 'completed', expectedOutput: '无字幕审核样片' },
@@ -1826,7 +1826,7 @@ test("subtitle layout stays behind subtitle review and hides implementation deta
         workspace: { id: 'ws_subtitles', jobId: 'job_subtitles', activePlanId: 'plan_subtitles' },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_subtitles', revision: 1,
         agent: { workspaceId: 'ws_subtitles', planId: 'plan_subtitles' },
       });
@@ -1870,7 +1870,7 @@ test("autonomous subtitle layout recovery explains the missing draft and retries
         <script>
           window.__agentRequests = [];
           window.__agentDetail = null;
-          window.ClipTalkApi = {
+          window.ChatClipApi = {
             requestJson: async (path) => {
               if (path.includes('/actions/retry')) {
                 window.__agentRequests.push(path);
@@ -1879,9 +1879,9 @@ test("autonomous subtitle layout recovery explains the missing draft and retries
               return window.__agentDetail;
             },
           };
-          window.ClipTalkCurrentJobId = () => 'job_layout_recovery';
-          window.ClipTalkCurrentJobSnapshot = () => ({ id: 'job_layout_recovery', editSessions: [] });
-          window.ClipTalkRefreshCurrentJob = () => {};
+          window.ChatClipCurrentJobId = () => 'job_layout_recovery';
+          window.ChatClipCurrentJobSnapshot = () => ({ id: 'job_layout_recovery', editSessions: [] });
+          window.ChatClipRefreshCurrentJob = () => {};
           window.showToast = () => {};
           window.EventSource = class { addEventListener() {} close() {} };
         </script>
@@ -1890,7 +1890,7 @@ test("autonomous subtitle layout recovery explains the missing draft and retries
     await page.evaluate(async () => {
       const plan = {
         id: 'plan_layout_recovery', workspaceId: 'ws_layout_recovery', status: 'action_required',
-        skillId: 'cliptalk-content-extractor', executionMode: 'autonomous_review',
+        skillId: 'chatclip-content-extractor', executionMode: 'autonomous_review',
         summary: '完整保留符合条件的片段并生成顶部字幕审核样片。',
         steps: [
           { id: 'subtitle_review', tool: 'prepare_subtitle_review', title: '自动生成并校对字幕草稿', status: 'completed', expectedOutput: '自动校对字幕草稿' },
@@ -1906,7 +1906,7 @@ test("autonomous subtitle layout recovery explains the missing draft and retries
         workspace: { id: 'ws_layout_recovery', jobId: 'job_layout_recovery', activePlanId: 'plan_layout_recovery' },
         plans: [plan],
       };
-      await window.ClipTalkAgentWorkspace.resumeForJob({
+      await window.ChatClipAgentWorkspace.resumeForJob({
         id: 'job_layout_recovery', revision: 1,
         agent: { workspaceId: 'ws_layout_recovery', planId: 'plan_layout_recovery' },
       });

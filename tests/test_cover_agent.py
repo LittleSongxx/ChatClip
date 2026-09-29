@@ -6,18 +6,19 @@ from typing import Any
 import pytest
 from PIL import Image, ImageDraw
 
-from app.agent_platform import AgentPlatform
+from app.agent import AgentPlatform
+from app.agent.compiler import compile_profile_plan
 from app import copy_messages
 from app.media import SampledFrame, VideoInfo
 
 
 def test_cover_profile_compiles_a_forced_review_plan(tmp_path: Path) -> None:
     platform = AgentPlatform(
-        data_root=tmp_path, service_url="http://agent.invalid",
+        data_root=tmp_path,
         model_config_resolver=lambda: {},
     )
     skill = {
-        "id": "cliptalk-cover-director", "source": "test", "version": "1.0.0",
+        "id": "chatclip-cover-director", "source": "test", "version": "1.0.0",
         "contentHash": "cover-hash", "workflowProfile": "cover",
         "allowedTools": [
             "inspect_workspace", "propose_cover_candidates", "render_cover_variants",
@@ -27,7 +28,7 @@ def test_cover_profile_compiles_a_forced_review_plan(tmp_path: Path) -> None:
     goal = "为视频做一张 9:16 封面，标题：关键时刻"
     context = {"jobId": "job_cover", "editing": {"hasOutputs": True}}
 
-    plan = platform._compile_profile_plan(
+    plan = compile_profile_plan(
         {}, skill=skill, goal=goal, context=context,
         execution_mode="autonomous_review",
     )

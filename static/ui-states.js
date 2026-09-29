@@ -1,5 +1,5 @@
 /**
- * ClipTalk 统一界面状态原语
+ * ChatClip 统一界面状态原语
  *
  * 背景：空状态曾散落在 app.js / app-shell.js / agent-workspace.js 三处，
  *   使用 6 种 CSS 类（rail-empty / agent-activity-empty / app-sidebar-empty /
@@ -13,7 +13,7 @@
  *   - 生产 CSS 数量上限 12 且当前已超限 → 本文件不新增 CSS 文件，
  *     .ct-empty / .ct-loading 基础类写在 app-shell.css 末尾。
  *   - 禁止出现 ct-v4- / ct-workbench-v4 / ct-faithful-v3 / data-ct-ui 等退役选择器。
- *   - 禁止在非 cliptalk-tokens.css 中定义 --ct-canvas 等色板 token。
+ *   - 禁止在非 chatclip-tokens.css 中定义 --ct-canvas 等色板 token。
  */
 (function (global) {
   "use strict";
@@ -185,7 +185,7 @@
     };
   }
 
-  global.ClipTalkUIStates = {
+  global.ChatClipUIStates = {
     escapeHtml: escapeHtml,
     emptyStateHtml: emptyStateHtml,
     loadingStateHtml: loadingStateHtml,

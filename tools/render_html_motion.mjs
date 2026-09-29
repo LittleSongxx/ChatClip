@@ -49,12 +49,12 @@ try {
     const progress = frameCount <= 1 ? 1 : frame / (frameCount - 1);
     await page.evaluate(
       (payload) => {
-        window.__cliptalkFrame = payload;
+        window.__chatclipFrame = payload;
         document.documentElement.style.setProperty("--frame", String(payload.frame));
         document.documentElement.style.setProperty("--time", String(payload.time));
         document.documentElement.style.setProperty("--progress", String(payload.progress));
-        if (typeof window.__cliptalkSetFrame === "function") {
-          window.__cliptalkSetFrame(payload);
+        if (typeof window.__chatclipSetFrame === "function") {
+          window.__chatclipSetFrame(payload);
         }
       },
       { frame, time, progress, duration, fps },

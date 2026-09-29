@@ -79,5 +79,5 @@
     return form;
   }
 
-  global.ClipTalkTaskCreation = Object.freeze({ briefMarkup, buildForm });
+  global.ChatClipTaskCreation = Object.freeze({ briefMarkup, buildForm });
 })(window);

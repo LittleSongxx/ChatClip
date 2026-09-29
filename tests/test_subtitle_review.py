@@ -20,15 +20,15 @@ def test_correction_profile_keeps_only_bounded_supported_context() -> None:
     profile = normalize_correction_profile({
         "summary": "冰箱产品演示",
         "terms": [
-            {"term": "ClipTalk", "variants": ["克利普托克"], "confidence": .94, "sources": ["screen_text", "invented"], "evidence": "片头重复出现"},
-            {"term": " cliptalk ", "confidence": .8},
+            {"term": "ChatClip", "variants": ["克利普托克"], "confidence": .94, "sources": ["screen_text", "invented"], "evidence": "片头重复出现"},
+            {"term": " chatclip ", "confidence": .8},
             {"term": "A", "confidence": 1},
         ],
         "uncertainTerms": ["型号尾号"],
     })
     assert profile["summary"] == "冰箱产品演示"
     assert profile["terms"] == [{
-        "term": "ClipTalk", "variants": ["克利普托克"], "confidence": .94,
+        "term": "ChatClip", "variants": ["克利普托克"], "confidence": .94,
         "sources": ["screen_text"], "evidence": "片头重复出现",
     }]
     assert profile["uncertainTerms"] == ["型号尾号"]

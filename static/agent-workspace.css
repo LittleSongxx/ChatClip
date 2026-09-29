@@ -737,7 +737,7 @@ body[data-shell-mode="workspace"] .agent-plan-dock[data-plan-surface="editor"] .
 body[data-shell-mode="workspace"] .agent-plan-dock[data-plan-surface="editor"] .agent-planning-focus > span { color: var(--ct-text); }
 
 /* Planning surface: a deliberate, cinematic briefing panel rather than a
-   generic side drawer. The Cliptalk mark remains the existing brand asset. */
+   generic side drawer. The Chatclip mark remains the existing brand asset. */
 .agent-plan-drawer {
   width: min(760px, calc(100vw - var(--agent-drawer-left, 480px) - 24px));
   border: 1px solid #354149;

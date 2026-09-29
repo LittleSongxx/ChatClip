@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run real user prompts through ClipTalk's autonomous Agent workflow.
+"""Run real user prompts through ChatClip's autonomous Agent workflow.
 
 The validator uses only public HTTP APIs. It creates retained, editable jobs,
 approves exactly one initial plan, stops at a review sample or an explicit
@@ -608,7 +608,7 @@ class AgentScenarioClient:
     def __init__(self, base_url: str, token: str, request_timeout: float) -> None:
         headers = {"Accept": "application/json"}
         if token:
-            headers["X-Highlight-Token"] = token
+            headers["X-ChatClip-Token"] = token
         self.client = httpx.Client(
             base_url=base_url.rstrip("/"), headers=headers,
             timeout=httpx.Timeout(request_timeout, connect=min(request_timeout, 15.0)),
@@ -1065,7 +1065,7 @@ def markdown_report(report: dict[str, Any]) -> str:
 def local_token(base_url: str, settings: Settings) -> str:
     host = (urlsplit(base_url).hostname or "").lower()
     if host in {"127.0.0.1", "localhost", "::1"}:
-        return os.environ.get("HIGHLIGHT_ACCESS_TOKEN", "").strip() or settings.access_token
+        return os.environ.get("CHATCLIP_ACCESS_TOKEN", "").strip() or settings.access_token
     return ""
 
 
@@ -1087,7 +1087,7 @@ def load_manifest(path: Path) -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 
 def parser_for(settings: Settings) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="使用 cest-video 真实模拟用户验证 ClipTalk Agent")
+    parser = argparse.ArgumentParser(description="使用 cest-video 真实模拟用户验证 ChatClip Agent")
     parser.add_argument(
         "--manifest", type=Path,
         default=ROOT / "tests" / "fixtures" / "agent_user_scenarios.json",

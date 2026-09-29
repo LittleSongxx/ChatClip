@@ -20,7 +20,7 @@ def scenario(**overrides):
         "video": "cest-video/访谈.mp4",
         "prompt": "剪成 60 秒访谈精华",
         "expectedOutcome": "preview_ready",
-        "expectedSkillAnyOf": ["cliptalk-interview-editor"],
+        "expectedSkillAnyOf": ["chatclip-interview-editor"],
         "expectedTerms": ["访谈"],
         "targetDuration": {"minimum": 54, "maximum": 66},
         "expectedAspect": "9:16",
@@ -32,7 +32,7 @@ def scenario(**overrides):
 def ready_plan(**overrides):
     value = {
         "id": "plan_1",
-        "skillId": "cliptalk-interview-editor",
+        "skillId": "chatclip-interview-editor",
         "executionMode": "autonomous_review",
         "status": "preview_ready",
         "steps": [
@@ -125,12 +125,12 @@ def test_capability_question_manifest_covers_agent_and_skill_regressions() -> No
 
     skill_ids = {skill for item in scenarios for skill in item["expectedSkillAnyOf"]}
     assert {
-        "cliptalk-content-extractor",
-        "cliptalk-highlight-director",
-        "cliptalk-shortform-hook-director",
-        "cliptalk-interview-editor",
-        "cliptalk-person-editor",
-        "cliptalk-speaker-editor",
+        "chatclip-content-extractor",
+        "chatclip-highlight-director",
+        "chatclip-shortform-hook-director",
+        "chatclip-interview-editor",
+        "chatclip-person-editor",
+        "chatclip-speaker-editor",
     } <= skill_ids
     kinds = {str(item.get("kind") or "") for item in scenarios}
     assert {"normal", "constraint", "cross_modal", "no_match"} <= kinds
@@ -139,20 +139,20 @@ def test_capability_question_manifest_covers_agent_and_skill_regressions() -> No
     assert any(item.get("expectedAspect") == "9:16" for item in scenarios)
     assert any(item.get("expectedAspect") == "1:1" for item in scenarios)
     assert {item.get("skillId") for item in scenarios if item.get("skillId")} == {
-        "cliptalk-audio-polish-mixer",
-        "cliptalk-broll-overlay-editor",
-        "cliptalk-caption-layout-director",
-        "cliptalk-cover-intro-composer",
-        "cliptalk-dynamic-reframe-director",
-        "cliptalk-edit-diagnostics",
-        "cliptalk-graphics-packager",
-        "cliptalk-local-draft-exporter",
-        "cliptalk-local-motion-renderer",
-        "cliptalk-multi-topic-assembler",
-        "cliptalk-platform-delivery-exporter",
-        "cliptalk-smart-reframe",
-        "cliptalk-source-provenance-guard",
-        "cliptalk-subtitle-editor",
+        "chatclip-audio-polish-mixer",
+        "chatclip-broll-overlay-editor",
+        "chatclip-caption-layout-director",
+        "chatclip-cover-intro-composer",
+        "chatclip-dynamic-reframe-director",
+        "chatclip-edit-diagnostics",
+        "chatclip-graphics-packager",
+        "chatclip-local-draft-exporter",
+        "chatclip-local-motion-renderer",
+        "chatclip-multi-topic-assembler",
+        "chatclip-platform-delivery-exporter",
+        "chatclip-smart-reframe",
+        "chatclip-source-provenance-guard",
+        "chatclip-subtitle-editor",
     }
 
 
@@ -190,7 +190,7 @@ def test_capability_question_runner_respects_explicit_manifest(monkeypatch) -> N
 
 def test_plan_contract_rejects_wrong_skill_and_formal_export() -> None:
     plan = ready_plan(
-        skillId="cliptalk-person-editor",
+        skillId="chatclip-person-editor",
         steps=[{
             "id": "export", "tool": "render_final", "sideEffect": "formal_export",
             "status": "pending", "attempts": 0,
@@ -214,7 +214,7 @@ def test_plan_contract_rejects_user_forbidden_tools() -> None:
     issues = evaluate_plan_contract(
         plan,
         scenario(
-            expectedSkillAnyOf=["cliptalk-content-extractor"],
+            expectedSkillAnyOf=["chatclip-content-extractor"],
             forbiddenTools=["propose_cover_candidates", "render_review_preview"],
         ),
     )

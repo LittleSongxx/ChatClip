@@ -116,7 +116,6 @@ def installation_steps(root: Path, profile: str) -> list[tuple[list[str], Path]]
         ([python, "-m", "pip", "install", "--upgrade", "pip"], root),
         ([python, "-m", "pip", "install", "-r", f"requirements-{profile}.txt"], root),
         (["npm", "ci", "--omit=dev", "--ignore-scripts"], root),
-        (["npm", "ci", "--omit=dev", "--ignore-scripts"], root / "agent-service"),
         (["node", "node_modules/playwright/cli.js", "install", "chromium"], root),
         ([python, "tools/install_talknet.py", "--profile", profile], root),
         ([python, "tools/doctor.py", "--profile", "cuda" if profile == "gpu" else "cpu"], root),
@@ -130,10 +129,8 @@ def step_label(command: list[str], directory: Path) -> str:
         return "创建 Python 隔离环境"
     if "requirements-" in joined:
         return "安装 Python 运行依赖"
-    if command[:2] == ["npm", "ci"] and directory == ROOT:
-        return "安装网页运行依赖"
     if command[:2] == ["npm", "ci"]:
-        return "安装 AI 助手运行依赖"
+        return "安装网页运行依赖"
     if "playwright" in joined:
         return "安装本地动效渲染浏览器"
     if "install_talknet.py" in joined:
@@ -145,7 +142,7 @@ def step_label(command: list[str], directory: Path) -> str:
 
 def main() -> int:
     load_env()
-    parser = argparse.ArgumentParser(description="安装 ClipTalk 和 TalkNet；不会覆盖 .env")
+    parser = argparse.ArgumentParser(description="安装 ChatClip 和 TalkNet；不会覆盖 .env")
     parser.add_argument("--profile", choices=("auto", "cpu", "gpu"), default="auto")
     parser.add_argument("--check", action="store_true", help="只检查系统前置条件，不安装")
     parser.add_argument("--dry-run", action="store_true", help="只列出安装步骤，不写文件或下载")

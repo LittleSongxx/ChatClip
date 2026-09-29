@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const context = { window: {} };
 vm.runInNewContext(readFileSync(new URL('../../static/workspace-state.js', import.meta.url), 'utf8'), context);
-const state = context.window.ClipTalkWorkspaceState;
+const state = context.window.ChatClipWorkspaceState;
 const plain = value => JSON.parse(JSON.stringify(value));
 
 test('display time carries rounded seconds into minutes and hours', () => {

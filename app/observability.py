@@ -56,7 +56,7 @@ def client_error_log_fields(report: Any) -> dict[str, Any]:
 
 def process_resource_snapshot(data_root: str) -> dict[str, Any]:
     usage = resource.getrusage(resource.RUSAGE_SELF)
-    # Linux reports KiB; ClipTalk's supported server and container targets are
+    # Linux reports KiB; ChatClip's supported server and container targets are
     # Linux. Keep the field explicit and stable for local performance audits.
     peak_resident_bytes = max(0, int(usage.ru_maxrss)) * 1024
     disk = shutil.disk_usage(data_root)
@@ -84,8 +84,8 @@ class JsonLogFormatter(logging.Formatter):
 
 
 def configure_json_logging() -> logging.Logger:
-    logger = logging.getLogger("cliptalk")
-    level_name = os.environ.get("HIGHLIGHT_LOG_LEVEL", "INFO").strip().upper()
+    logger = logging.getLogger("chatclip")
+    level_name = os.environ.get("CHATCLIP_LOG_LEVEL", "INFO").strip().upper()
     logger.setLevel(getattr(logging, level_name, logging.INFO))
     if not logger.handlers:
         handler = logging.StreamHandler()

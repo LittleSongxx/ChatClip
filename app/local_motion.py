@@ -29,12 +29,12 @@ def build_motion_graphics_html(
     subtitle: str = "",
     label: str = "",
     aspect: str = "9:16",
-    theme: str = "cliptalk",
+    theme: str = "chatclip",
 ) -> str:
     width, height = motion_canvas_size(aspect)
     safe_title = html.escape(title.strip()[:120] or "精彩内容")
     safe_subtitle = html.escape(subtitle.strip()[:220])
-    safe_label = html.escape(label.strip()[:60] or "ClipTalk")
+    safe_label = html.escape(label.strip()[:60] or "ChatClip")
     warm = theme == "warm"
     accent = "#ff965d" if not warm else "#f0b15f"
     green = "#9fd3b0" if not warm else "#6a9f73"
@@ -353,7 +353,7 @@ def write_editing_draft_package(job: dict[str, Any], destination: Path) -> Path:
                 "cutaways": session.get("cutaways") or [],
             })
     payload = {
-        "schemaVersion": "cliptalk-editing-draft-v1",
+        "schemaVersion": "chatclip-editing-draft-v1",
         "jobId": str(job.get("id") or ""),
         "source": {
             "filename": str(job.get("originalFilename") or job.get("filename") or ""),
@@ -367,7 +367,7 @@ def write_editing_draft_package(job: dict[str, Any], destination: Path) -> Path:
         "outputVersions": job.get("outputVersions") or [],
         "coverVersions": job.get("coverVersions") or [],
         "notes": [
-            "这是 ClipTalk 本地草稿包，不依赖外部 API。",
+            "这是 ChatClip 本地草稿包，不依赖外部 API。",
             "当 timelines 为空时，此包仅代表源素材草稿；需要先生成或确认时间线后才能映射为可编辑剪辑序列。",
             "如需导入剪映，需要再增加剪映草稿格式映射器；当前不直接写入本机剪映目录。",
         ],

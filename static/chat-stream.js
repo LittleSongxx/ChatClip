@@ -1,7 +1,7 @@
 /*!
  * chat-stream.js — 统一对话流（左侧面板唯一信息面）
  *
- * 设计目标（对应《ClipTalk左侧面板对话流改造方案》）：
+ * 设计目标（对应《ChatClip左侧面板对话流改造方案》）：
  *   1. 所有事件以消息卡片形式进入 #chatMessages，最新在底，历史可回溯。
  *   2. 常驻物只有三样：header、输入框、条件性「待处理条」。
  *   3. 高频轮询不整体重绘：卡片按 id 幂等，内容未变化则完全不写 DOM。
@@ -557,7 +557,7 @@
 
   /* ---------------- 对外接口 ---------------- */
 
-  global.ClipTalkChatStream = {
+  global.ChatClipChatStream = {
     emit: emit,
     restore: restore,
     liveUpdate: liveUpdate,

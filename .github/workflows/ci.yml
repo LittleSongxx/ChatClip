@@ -168,7 +168,7 @@ jobs:
           exit 1
 
       - name: Smoke test installed CPU capabilities
-        run: docker compose exec -T cliptalk python tools/container_smoke.py
+        run: docker compose exec -T chatclip python tools/container_smoke.py
 
       - name: Stop Compose services
         if: always()

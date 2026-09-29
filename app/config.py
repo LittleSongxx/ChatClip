@@ -12,6 +12,19 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_SUBTITLE_FONT = ROOT / "fonts/SourceHanSansSC-Bold.otf"
 SYSTEM_SUBTITLE_FONT = Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc")
 
+# 推荐模型主线（2026-09 定版）：视觉 qwen3-vl-max（百炼）、剪辑规划
+# deepseek-flash（DeepSeek 开放平台，即 DeepSeek-V4.1-Flash）、Agent
+# qwen3.8-max（百炼）。未配置密钥时以下预设仅用于预填设置表单。
+DEFAULT_VISION_PROVIDER = "bailian"
+DEFAULT_VISION_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_VISION_MODEL = "qwen3-vl-max"
+DEFAULT_LLM_PROVIDER = "deepseek"
+DEFAULT_LLM_BASE_URL = "https://api.deepseek.com/v1"
+DEFAULT_LLM_MODEL = "deepseek-flash"
+DEFAULT_AGENT_PROVIDER = "bailian"
+DEFAULT_AGENT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+DEFAULT_AGENT_MODEL = "qwen3.8-max"
+
 
 def _local_path(name: str, default: Path) -> str:
     """Empty overrides use relocatable defaults; explicit paths stay authoritative."""
@@ -25,7 +38,7 @@ def _binary(name: str, executable: str) -> str:
 
 
 def resolve_subtitle_font() -> Path:
-    configured = os.environ.get("HIGHLIGHT_SUBTITLE_FONT", "").strip()
+    configured = os.environ.get("CHATCLIP_SUBTITLE_FONT", "").strip()
     if configured:
         candidate = Path(configured).expanduser()
         return (ROOT / candidate).resolve() if not candidate.is_absolute() else candidate
@@ -102,13 +115,6 @@ class Settings:
     vision_thinking_type: str
     vision_response_format: str
     vision_timeout_seconds: float
-    # Legacy Ark values remain available so existing deployments and text-LLM
-    # fallback configuration continue to work without migration.
-    ark_api_key: str
-    ark_model: str
-    ark_base_url: str
-    ark_thinking_type: str
-    ark_timeout_seconds: float
     llm_api_key: str
     llm_model: str
     llm_base_url: str
@@ -119,7 +125,6 @@ class Settings:
     agent_base_url: str
     agent_thinking_type: str
     agent_timeout_seconds: float
-    agent_service_url: str
     anthropic_base_url: str
     anthropic_auth_token: str
     anthropic_model: str
@@ -184,131 +189,116 @@ class Settings:
     @classmethod
     def from_environment(cls) -> "Settings":
         load_env()
-        data_root = Path(os.environ.get("HIGHLIGHT_DATA_ROOT", ROOT / "data")).resolve()
-        ark_api_key = os.environ.get("ARK_API_KEY", "").strip()
-        ark_model = os.environ.get("ARK_MODEL", "").strip()
-        ark_base_url = os.environ.get("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3").rstrip("/")
-        vision_override = any(os.environ.get(name, "").strip() for name in ("VISION_API_KEY", "VISION_MODEL", "VISION_BASE_URL"))
-        vision_provider = os.environ.get("VISION_PROVIDER", "openai_compatible" if vision_override else "ark").strip().lower().replace("-", "_")
-        vision_api_key = os.environ.get("VISION_API_KEY", "").strip() or ark_api_key
-        vision_model = os.environ.get("VISION_MODEL", "").strip() or ark_model
-        vision_base_url = (os.environ.get("VISION_BASE_URL", "").strip() or ark_base_url).rstrip("/")
-        default_vision_thinking = os.environ.get("ARK_THINKING_TYPE", "disabled") if vision_provider in {"ark", "volcengine_ark"} else ""
+        data_root = Path(os.environ.get("CHATCLIP_DATA_ROOT", ROOT / "data")).resolve()
         return cls(
             root=ROOT,
             data_root=data_root,
-            vision_provider=vision_provider,
-            vision_api_key=vision_api_key,
-            vision_model=vision_model,
-            vision_base_url=vision_base_url,
-            vision_thinking_type=os.environ.get("VISION_THINKING_TYPE", default_vision_thinking).strip().lower(),
+            vision_provider=os.environ.get("VISION_PROVIDER", DEFAULT_VISION_PROVIDER).strip().lower().replace("-", "_"),
+            vision_api_key=os.environ.get("VISION_API_KEY", "").strip(),
+            vision_model=os.environ.get("VISION_MODEL", "").strip() or DEFAULT_VISION_MODEL,
+            vision_base_url=(os.environ.get("VISION_BASE_URL", "").strip() or DEFAULT_VISION_BASE_URL).rstrip("/"),
+            vision_thinking_type=os.environ.get("VISION_THINKING_TYPE", "disabled").strip().lower(),
             vision_response_format=os.environ.get("VISION_RESPONSE_FORMAT", "json_object").strip().lower(),
-            vision_timeout_seconds=_positive_float("VISION_TIMEOUT_SECONDS", _positive_float("ARK_TIMEOUT_SECONDS", 90.0)),
-            ark_api_key=ark_api_key,
-            ark_model=ark_model,
-            ark_base_url=ark_base_url,
-            ark_thinking_type=os.environ.get("ARK_THINKING_TYPE", "disabled").strip().lower(),
-            ark_timeout_seconds=_positive_float("ARK_TIMEOUT_SECONDS", 90.0),
-            llm_api_key=os.environ.get("LLM_API_KEY", "").strip() or ark_api_key,
-            llm_model=os.environ.get("LLM_MODEL", "").strip() or ark_model,
-            llm_base_url=(os.environ.get("LLM_BASE_URL", "").strip() or ark_base_url).rstrip("/"),
-            llm_thinking_type=os.environ.get("LLM_THINKING_TYPE", os.environ.get("ARK_THINKING_TYPE", "disabled")).strip().lower(),
+            vision_timeout_seconds=_positive_float("VISION_TIMEOUT_SECONDS", 90.0),
+            llm_api_key=os.environ.get("LLM_API_KEY", "").strip(),
+            llm_model=os.environ.get("LLM_MODEL", "").strip() or DEFAULT_LLM_MODEL,
+            llm_base_url=(os.environ.get("LLM_BASE_URL", "").strip() or DEFAULT_LLM_BASE_URL).rstrip("/"),
+            llm_thinking_type=os.environ.get("LLM_THINKING_TYPE", "").strip().lower(),
             llm_timeout_seconds=_positive_float("LLM_TIMEOUT_SECONDS", 60.0),
             agent_api_key=os.environ.get("AGENT_API_KEY", "").strip(),
-            agent_model=os.environ.get("AGENT_MODEL", "").strip(),
-            agent_base_url=os.environ.get("AGENT_BASE_URL", "").strip().rstrip("/"),
+            agent_model=os.environ.get("AGENT_MODEL", "").strip() or DEFAULT_AGENT_MODEL,
+            agent_base_url=(os.environ.get("AGENT_BASE_URL", "").strip() or DEFAULT_AGENT_BASE_URL).rstrip("/"),
             agent_thinking_type=os.environ.get("AGENT_THINKING_TYPE", "enabled").strip().lower(),
             agent_timeout_seconds=_positive_float("AGENT_TIMEOUT_SECONDS", 120.0),
-            agent_service_url=os.environ.get("CLIPTALK_AGENT_SERVICE_URL", "http://127.0.0.1:5190").strip().rstrip("/"),
             anthropic_base_url=os.environ.get("ANTHROPIC_BASE_URL", "").strip().rstrip("/"),
             anthropic_auth_token=os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip(),
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", "").strip(),
             # Keep a clean checkout local-only by default. Container or remote
             # deployments can explicitly opt into 0.0.0.0 and should pair it
-            # with HIGHLIGHT_ACCESS_TOKEN plus an HTTPS reverse proxy.
-            host=os.environ.get("HIGHLIGHT_HOST", "127.0.0.1"),
-            port=_positive_int("HIGHLIGHT_PORT", 5180),
-            published_bind_address=os.environ.get("CLIPTALK_PUBLISHED_BIND_ADDRESS", "").strip(),
+            # with CHATCLIP_ACCESS_TOKEN plus an HTTPS reverse proxy.
+            host=os.environ.get("CHATCLIP_HOST", "127.0.0.1"),
+            port=_positive_int("CHATCLIP_PORT", 5180),
+            published_bind_address=os.environ.get("CHATCLIP_BIND_ADDRESS", "").strip(),
             ffmpeg=_binary("FFMPEG_BIN", "ffmpeg"),
             ffprobe=_binary("FFPROBE_BIN", "ffprobe"),
             subtitle_font=resolve_subtitle_font(),
-            maximum_upload_bytes=_positive_int("HIGHLIGHT_MAX_UPLOAD_BYTES", 8 * 1024**3),
-            maximum_workers=min(4, _positive_int("HIGHLIGHT_MAX_WORKERS", 1)),
+            maximum_upload_bytes=_positive_int("CHATCLIP_MAX_UPLOAD_BYTES", 8 * 1024**3),
+            maximum_workers=min(4, _positive_int("CHATCLIP_MAX_WORKERS", 1)),
             content_search_model_concurrency=_bounded_positive_int(
                 "CONTENT_SEARCH_MODEL_CONCURRENCY", 3, 4,
             ),
-            access_token=os.environ.get("HIGHLIGHT_ACCESS_TOKEN", "").strip(),
-            allow_unauthenticated_remote=_boolean("HIGHLIGHT_ALLOW_UNAUTHENTICATED_REMOTE", False),
-            allow_private_model_endpoints=_boolean("HIGHLIGHT_ALLOW_PRIVATE_MODEL_ENDPOINTS", False),
-            maximum_storage_bytes=_positive_int("HIGHLIGHT_MAX_STORAGE_BYTES", 50 * 1024**3),
-            retention_days=_nonnegative_int("HIGHLIGHT_RETENTION_DAYS", 0),
-            whisper_model=os.environ.get("HIGHLIGHT_WHISPER_MODEL", "").strip(),
-            whisper_device=os.environ.get("HIGHLIGHT_WHISPER_DEVICE", "auto").strip().lower(),
-            speech_engine=os.environ.get("HIGHLIGHT_SPEECH_ENGINE", "sensevoice").strip().lower(),
-            sensevoice_model=os.environ.get("HIGHLIGHT_SENSEVOICE_MODEL", "iic/SenseVoiceSmall").strip(),
-            sensevoice_device=os.environ.get("HIGHLIGHT_SENSEVOICE_DEVICE", "auto").strip().lower(),
-            sensevoice_vad_model=os.environ.get("HIGHLIGHT_SENSEVOICE_VAD_MODEL", "fsmn-vad").strip(),
+            access_token=os.environ.get("CHATCLIP_ACCESS_TOKEN", "").strip(),
+            allow_unauthenticated_remote=_boolean("CHATCLIP_ALLOW_UNAUTHENTICATED_REMOTE", False),
+            allow_private_model_endpoints=_boolean("CHATCLIP_ALLOW_PRIVATE_MODEL_ENDPOINTS", False),
+            maximum_storage_bytes=_positive_int("CHATCLIP_MAX_STORAGE_BYTES", 50 * 1024**3),
+            retention_days=_nonnegative_int("CHATCLIP_RETENTION_DAYS", 0),
+            whisper_model=os.environ.get("CHATCLIP_WHISPER_MODEL", "").strip(),
+            whisper_device=os.environ.get("CHATCLIP_WHISPER_DEVICE", "auto").strip().lower(),
+            speech_engine=os.environ.get("CHATCLIP_SPEECH_ENGINE", "sensevoice").strip().lower(),
+            sensevoice_model=os.environ.get("CHATCLIP_SENSEVOICE_MODEL", "iic/SenseVoiceSmall").strip(),
+            sensevoice_device=os.environ.get("CHATCLIP_SENSEVOICE_DEVICE", "auto").strip().lower(),
+            sensevoice_vad_model=os.environ.get("CHATCLIP_SENSEVOICE_VAD_MODEL", "fsmn-vad").strip(),
             # SenseVoice already emits punctuation. Keep the optional external
             # punctuation model disabled unless a deployment explicitly asks
             # for it; CT-Punc alone adds roughly 1.1 GiB to first-run downloads.
-            sensevoice_punc_model=os.environ.get("HIGHLIGHT_SENSEVOICE_PUNC_MODEL", "").strip(),
-            sensevoice_spk_model=os.environ.get("HIGHLIGHT_SENSEVOICE_SPK_MODEL", "cam++").strip(),
+            sensevoice_punc_model=os.environ.get("CHATCLIP_SENSEVOICE_PUNC_MODEL", "").strip(),
+            sensevoice_spk_model=os.environ.get("CHATCLIP_SENSEVOICE_SPK_MODEL", "cam++").strip(),
             # Speaker separation is substantially more expensive than the
             # speech/emotion timeline. Enable it only for tasks that request
             # speaker-based editing, unless explicitly configured otherwise.
-            sensevoice_diarization=_boolean("HIGHLIGHT_SENSEVOICE_DIARIZATION", False),
-            speech_model_cache=Path(os.environ.get("HIGHLIGHT_SPEECH_MODEL_CACHE", data_root / "models")).resolve(),
-            voiceprint_encryption_key=os.environ.get("HIGHLIGHT_VOICEPRINT_ENCRYPTION_KEY", "").strip(),
+            sensevoice_diarization=_boolean("CHATCLIP_SENSEVOICE_DIARIZATION", False),
+            speech_model_cache=Path(os.environ.get("CHATCLIP_SPEECH_MODEL_CACHE", data_root / "models")).resolve(),
+            voiceprint_encryption_key=os.environ.get("CHATCLIP_VOICEPRINT_ENCRYPTION_KEY", "").strip(),
             voiceprint_model=os.environ.get(
-                "HIGHLIGHT_VOICEPRINT_MODEL", "iic/speech_campplus_sv_zh-cn_16k-common",
+                "CHATCLIP_VOICEPRINT_MODEL", "iic/speech_campplus_sv_zh-cn_16k-common",
             ).strip(),
-            voiceprint_device=os.environ.get("HIGHLIGHT_VOICEPRINT_DEVICE", "cpu").strip().lower(),
-            voiceprint_review_threshold=_bounded_float("HIGHLIGHT_VOICEPRINT_REVIEW_THRESHOLD", .31, -1.0, 1.0),
-            voiceprint_accept_threshold=_bounded_float("HIGHLIGHT_VOICEPRINT_ACCEPT_THRESHOLD", .38, -1.0, 1.0),
-            voiceprint_margin_threshold=_bounded_float("HIGHLIGHT_VOICEPRINT_MARGIN_THRESHOLD", .05, 0.0, 2.0),
-            recognition_enabled=_boolean("HIGHLIGHT_RECOGNITION_V4", True),
-            recognition_profile=(os.environ.get("HIGHLIGHT_RECOGNITION_PROFILE", "auto").strip().lower() or "auto"),
-            recognition_model_cache=Path(os.environ.get("HIGHLIGHT_RECOGNITION_MODEL_CACHE", data_root / "models" / "recognition")).resolve(),
-            recognition_worker_python=os.environ.get("HIGHLIGHT_RECOGNITION_PYTHON", "").strip(),
+            voiceprint_device=os.environ.get("CHATCLIP_VOICEPRINT_DEVICE", "cpu").strip().lower(),
+            voiceprint_review_threshold=_bounded_float("CHATCLIP_VOICEPRINT_REVIEW_THRESHOLD", .31, -1.0, 1.0),
+            voiceprint_accept_threshold=_bounded_float("CHATCLIP_VOICEPRINT_ACCEPT_THRESHOLD", .38, -1.0, 1.0),
+            voiceprint_margin_threshold=_bounded_float("CHATCLIP_VOICEPRINT_MARGIN_THRESHOLD", .05, 0.0, 2.0),
+            recognition_enabled=_boolean("CHATCLIP_RECOGNITION", True),
+            recognition_profile=(os.environ.get("CHATCLIP_RECOGNITION_PROFILE", "auto").strip().lower() or "auto"),
+            recognition_model_cache=Path(os.environ.get("CHATCLIP_RECOGNITION_MODEL_CACHE", data_root / "models" / "recognition")).resolve(),
+            recognition_worker_python=os.environ.get("CHATCLIP_RECOGNITION_PYTHON", "").strip(),
             recognition_visual_backend=(
-                os.environ.get("HIGHLIGHT_VISUAL_EMBEDDING_BACKEND", "siglip").strip().lower()
-                if os.environ.get("HIGHLIGHT_VISUAL_EMBEDDING_BACKEND", "siglip").strip().lower() in {"siglip", "wemm"}
+                os.environ.get("CHATCLIP_VISUAL_EMBEDDING_BACKEND", "siglip").strip().lower()
+                if os.environ.get("CHATCLIP_VISUAL_EMBEDDING_BACKEND", "siglip").strip().lower() in {"siglip", "wemm"}
                 else "siglip"
             ),
-            recognition_text_model=os.environ.get("HIGHLIGHT_TEXT_EMBEDDING_MODEL", "intfloat/multilingual-e5-base").strip(),
-            recognition_siglip_model=os.environ.get("HIGHLIGHT_SIGLIP_MODEL", "google/siglip2-base-patch16-224").strip(),
+            recognition_text_model=os.environ.get("CHATCLIP_TEXT_EMBEDDING_MODEL", "intfloat/multilingual-e5-base").strip(),
+            recognition_siglip_model=os.environ.get("CHATCLIP_SIGLIP_MODEL", "google/siglip2-base-patch16-224").strip(),
             recognition_wemm_model=os.environ.get(
-                "HIGHLIGHT_WEMM_MODEL", "tencent/WeMM-Embedding-2B",
+                "CHATCLIP_WEMM_MODEL", "tencent/WeMM-Embedding-2B",
             ).strip(),
-            recognition_wemm_dimension=_positive_int("HIGHLIGHT_WEMM_DIMENSION", 256),
-            recognition_wemm_video_index=_boolean("HIGHLIGHT_WEMM_VIDEO_INDEX", True),
+            recognition_wemm_dimension=_positive_int("CHATCLIP_WEMM_DIMENSION", 256),
+            recognition_wemm_video_index=_boolean("CHATCLIP_WEMM_VIDEO_INDEX", True),
             recognition_wemm_recall_threshold=_bounded_float(
-                "HIGHLIGHT_WEMM_RECALL_THRESHOLD", .18, -1.0, 1.0,
+                "CHATCLIP_WEMM_RECALL_THRESHOLD", .18, -1.0, 1.0,
             ),
             recognition_wemm_exhaustive_vlm_fallback=_boolean(
-                "HIGHLIGHT_WEMM_EXHAUSTIVE_VLM_FALLBACK", False,
+                "CHATCLIP_WEMM_EXHAUSTIVE_VLM_FALLBACK", False,
             ),
-            recognition_clap_model=os.environ.get("HIGHLIGHT_CLAP_MODEL", "laion/clap-htsat-fused").strip(),
-            recognition_grounding_model=os.environ.get("HIGHLIGHT_GROUNDING_MODEL", "IDEA-Research/grounding-dino-tiny").strip(),
-            recognition_yunet_model=Path(os.environ.get("HIGHLIGHT_YUNET_MODEL", data_root / "models" / "recognition" / "face_detection_yunet_2023mar.onnx")).resolve(),
-            recognition_sface_model=Path(os.environ.get("HIGHLIGHT_SFACE_MODEL", data_root / "models" / "recognition" / "face_recognition_sface_2021dec.onnx")).resolve(),
+            recognition_clap_model=os.environ.get("CHATCLIP_CLAP_MODEL", "laion/clap-htsat-fused").strip(),
+            recognition_grounding_model=os.environ.get("CHATCLIP_GROUNDING_MODEL", "IDEA-Research/grounding-dino-tiny").strip(),
+            recognition_yunet_model=Path(os.environ.get("CHATCLIP_YUNET_MODEL", data_root / "models" / "recognition" / "face_detection_yunet_2023mar.onnx")).resolve(),
+            recognition_sface_model=Path(os.environ.get("CHATCLIP_SFACE_MODEL", data_root / "models" / "recognition" / "face_recognition_sface_2021dec.onnx")).resolve(),
             recognition_yolox_model=Path(os.environ.get(
-                "HIGHLIGHT_YOLOX_MODEL",
+                "CHATCLIP_YOLOX_MODEL",
                 data_root / "models" / "recognition" / "object_detection_yolox_2022nov.onnx",
             )).resolve(),
             recognition_youtureid_model=Path(os.environ.get(
-                "HIGHLIGHT_YOUTUREID_MODEL",
+                "CHATCLIP_YOUTUREID_MODEL",
                 data_root / "models" / "recognition" / "person_reid_youtu_2021nov.onnx",
             )).resolve(),
-            recognition_ocr_enabled=_boolean("HIGHLIGHT_OCR_ENABLED", True),
+            recognition_ocr_enabled=_boolean("CHATCLIP_OCR_ENABLED", True),
             content_search_dialogue_v2=_boolean("CONTENT_SEARCH_DIALOGUE_V2", True),
-            active_speaker_mode=(os.environ.get("HIGHLIGHT_ACTIVE_SPEAKER_MODE", "primary").strip().lower() or "primary"),
-            talknet_worker_python=_local_path("HIGHLIGHT_TALKNET_PYTHON", data_root / "models/talknet/venv/bin/python"),
-            talknet_worker_script=_local_path("HIGHLIGHT_TALKNET_WORKER", ROOT / "tools/talknet_worker.py"),
-            talknet_repository=_local_path("HIGHLIGHT_TALKNET_REPOSITORY", data_root / "models/talknet/repository"),
-            talknet_checkpoint=_local_path("HIGHLIGHT_TALKNET_CHECKPOINT", data_root / "models/talknet/pretrain_TalkSet.model"),
-            talknet_device=os.environ.get("HIGHLIGHT_TALKNET_DEVICE", "auto").strip() or "auto",
-            talknet_timeout_seconds=_positive_float("HIGHLIGHT_TALKNET_TIMEOUT_SECONDS", 900.0),
+            active_speaker_mode=(os.environ.get("CHATCLIP_ACTIVE_SPEAKER_MODE", "primary").strip().lower() or "primary"),
+            talknet_worker_python=_local_path("CHATCLIP_TALKNET_PYTHON", data_root / "models/talknet/venv/bin/python"),
+            talknet_worker_script=_local_path("CHATCLIP_TALKNET_WORKER", ROOT / "tools/talknet_worker.py"),
+            talknet_repository=_local_path("CHATCLIP_TALKNET_REPOSITORY", data_root / "models/talknet/repository"),
+            talknet_checkpoint=_local_path("CHATCLIP_TALKNET_CHECKPOINT", data_root / "models/talknet/pretrain_TalkSet.model"),
+            talknet_device=os.environ.get("CHATCLIP_TALKNET_DEVICE", "auto").strip() or "auto",
+            talknet_timeout_seconds=_positive_float("CHATCLIP_TALKNET_TIMEOUT_SECONDS", 900.0),
         )
 
     def ensure_directories(self) -> None:
@@ -326,18 +316,14 @@ class Settings:
             validate_deployment_access(
                 self.published_bind_address,
                 self.access_token,
-                setting_name="CLIPTALK_BIND_ADDRESS",
+                setting_name="CHATCLIP_BIND_ADDRESS",
             )
 
     def validate_vision(self) -> None:
         missing = [name for name, value in (
-            ("VISION_API_KEY（或 ARK_API_KEY）", self.vision_api_key),
-            ("VISION_MODEL（或 ARK_MODEL）", self.vision_model),
-            ("VISION_BASE_URL（或 ARK_BASE_URL）", self.vision_base_url),
+            ("VISION_API_KEY", self.vision_api_key),
+            ("VISION_MODEL", self.vision_model),
+            ("VISION_BASE_URL", self.vision_base_url),
         ) if not value]
         if missing:
             raise RuntimeError(f"缺少视觉模型配置：{', '.join(missing)}")
-
-    def validate_ark(self) -> None:
-        """Compatibility alias for integrations created before VISION_* support."""
-        self.validate_vision()

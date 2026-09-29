@@ -1,11 +1,11 @@
 # AI-assisted installation / AI 辅助安装
 
 This document is the canonical execution guide for an AI coding agent that is
-asked to install, repair, start, or validate ClipTalk. Human-oriented background
+asked to install, repair, start, or validate ChatClip. Human-oriented background
 remains in [`getting-started.md`](getting-started.md) and advanced deployment
 details remain in [`deployment.md`](deployment.md).
 
-本文是 AI 编码 Agent 安装、修复、启动或验证 ClipTalk 时的唯一执行指南。
+本文是 AI 编码 Agent 安装、修复、启动或验证 ChatClip 时的唯一执行指南。
 面向普通用户的背景说明见 [`getting-started.md`](getting-started.md)，高级部署
 参数见 [`deployment.md`](deployment.md)。
 
@@ -14,7 +14,7 @@ details remain in [`deployment.md`](deployment.md).
 中文：
 
 > 阅读仓库根目录 AGENTS.md 和 docs/AI_INSTALL.md。先只读检查当前机器，说明
-> 你选择的 CPU/GPU、本机或 Docker 安装方式及影响，再完成 ClipTalk 安装与
+> 你选择的 CPU/GPU、本机或 Docker 安装方式及影响，再完成 ChatClip 安装与
 > 验证。不要覆盖已有配置、密钥、素材、模型和任务数据；需要 sudo、远程开放
 > 端口或删除数据时先询问我。最后分别汇报运行环境和模型能力是否就绪。
 
@@ -22,7 +22,7 @@ English:
 
 > Read AGENTS.md and docs/AI_INSTALL.md. Inspect the machine without changing it,
 > explain the selected local/Docker and CPU/GPU route, then install and validate
-> ClipTalk. Preserve existing configuration, credentials, media, models, and task
+> ChatClip. Preserve existing configuration, credentials, media, models, and task
 > data. Ask before sudo, remote exposure, or deletion. Report runtime readiness
 > and model-capability readiness separately.
 
@@ -55,7 +55,7 @@ Required local baseline:
 
 - x86-64 Linux or Windows WSL2.
 - Python 3.10 or 3.11.
-- Node.js 22.x.
+- Node.js 22.x (used only for the local motion-graphics renderer).
 - FFmpeg and FFprobe; FFmpeg must expose `libx264` and `drawtext`.
 - At least 6 GiB free for CPU or 10 GiB for GPU; prefer 10 GiB and 16 GiB
   respectively, before later model and media growth.
@@ -140,7 +140,7 @@ curl -fsS http://127.0.0.1:5180/api/health
 Keep the process running only when the user asked to start the application.
 Otherwise stop only the processes created by this installation attempt. Never
 kill an unrelated process occupying port 5180; report it or offer a different
-`HIGHLIGHT_PORT`.
+`CHATCLIP_PORT`.
 
 ## 3B. Docker installation / Docker 安装
 
@@ -151,7 +151,7 @@ building. The default CPU route is:
 docker compose config --quiet
 docker compose up --build -d
 docker compose ps
-docker compose logs --tail=200 cliptalk agent
+docker compose logs --tail=200 chatclip
 ```
 
 Use the GPU route only after `docker run --gpus all` or an equivalent read-only
@@ -164,14 +164,14 @@ docker compose -f docker-compose.yml -f docker-compose.gpu.yml ps
 ```
 
 Confirm health at `http://127.0.0.1:5180/api/health`. Docker data lives in the
-`cliptalk-data` named volume. Routine repair may use `docker compose down`, but
+`chatclip-data` named volume. Routine repair may use `docker compose down`, but
 must never use `docker compose down -v` because that deletes persistent project
 data. Do not prune global Docker images, volumes, or caches without a separate,
 explicit user request.
 
 Docker 默认只发布到 `127.0.0.1`，本机使用不要求访问令牌。只有用户明确要求
-远程访问时，才允许设置非回环 `CLIPTALK_BIND_ADDRESS`；此时必须同时配置至少
-16 字符的独立 `HIGHLIGHT_ACCESS_TOKEN`，并要求使用 HTTPS 反向代理。不要把
+远程访问时，才允许设置非回环 `CHATCLIP_BIND_ADDRESS`；此时必须同时配置至少
+16 字符的独立 `CHATCLIP_ACCESS_TOKEN`，并要求使用 HTTPS 反向代理。不要把
 令牌写进版本控制、文档或聊天输出。
 
 ## 4. Readiness is two-stage / 两阶段就绪标准
@@ -180,7 +180,7 @@ Runtime installation is complete only when:
 
 1. The selected installer/build completed without a hidden failing stage.
 2. FFmpeg, FFprobe, H.264 encoding, subtitle rendering, data-directory access,
-   Python dependencies, and the local Agent service pass their checks.
+   Python dependencies, and the in-process LangGraph agent runtime pass their checks.
 3. `/api/health` responds from the expected local address when the service is
    intentionally started.
 

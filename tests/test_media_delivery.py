@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -9,8 +10,8 @@ import pytest
 from app.media import analyze_rendered_media, create_social_reframe_preview, probe_video
 
 
-FFMPEG = "/usr/bin/ffmpeg"
-FFPROBE = "/usr/bin/ffprobe"
+FFMPEG = "/usr/bin/ffmpeg" if Path("/usr/bin/ffmpeg").is_file() else (shutil.which("ffmpeg") or "ffmpeg")
+FFPROBE = "/usr/bin/ffprobe" if Path("/usr/bin/ffprobe").is_file() else (shutil.which("ffprobe") or "ffprobe")
 
 
 def make_video(path: Path, *, black: bool = False, audio: bool = False) -> None:

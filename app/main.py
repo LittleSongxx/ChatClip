@@ -34,7 +34,12 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .ark_client import AnthropicCompatibleClient, VisionRequestError, create_vision_client, vision_provider_label
+from .llm import (
+    AnthropicJsonClient,
+    VisionRequestError,
+    create_vision_client,
+    vision_provider_label,
+)
 from .config import Settings
 from .vision_settings import (
     LlmConfigurationStore,
@@ -44,7 +49,7 @@ from .vision_settings import (
 from .settings_api import build_settings_router
 from .agent_api import build_agent_router
 from .assistant_interaction import validate_frozen
-from .agent_platform import AgentPlatform
+from .agent import AgentPlatform
 from .search_budget import SEARCH_BUDGET_VERSION, content_search_budget
 from .content_contract import (
     build_contract, refine_matches, verification_current, selection_binding,
@@ -498,7 +503,22 @@ vision_store = VisionConfigurationStore(settings.data_root / "vision-settings.js
     "timeoutSeconds": settings.vision_timeout_seconds,
 })
 explicit_anthropic = bool(settings.anthropic_base_url and settings.anthropic_auth_token and settings.anthropic_model)
-explicit_llm = explicit_anthropic or any(os.environ.get(name, "").strip() for name in ("LLM_API_KEY", "LLM_MODEL", "LLM_BASE_URL"))
+
+
+def _provider_for_base_url(base_url: str) -> str:
+    if "dashscope.aliyuncs.com" in base_url:
+        return "bailian"
+    if "api.deepseek.com" in base_url:
+        return "deepseek"
+    if "open.bigmodel.cn" in base_url:
+        return "bigmodel"
+    if "ark.cn-" in base_url or "volces.com" in base_url:
+        return "ark"
+    if base_url.rstrip("/") == "https://api.openai.com/v1":
+        return "openai"
+    return "openai_compatible"
+
+
 if explicit_anthropic:
     llm_default_provider = "anthropic" if "api.anthropic.com" in settings.anthropic_base_url else "anthropic_compatible"
     llm_default_key = settings.anthropic_auth_token
@@ -507,19 +527,14 @@ if explicit_anthropic:
     llm_default_thinking = ""
     llm_default_response_format = "none"
 else:
-    if "ark.cn-" in settings.llm_base_url or "volces.com" in settings.llm_base_url:
-        llm_default_provider = "ark"
-    elif settings.llm_base_url.rstrip("/") == "https://api.openai.com/v1":
-        llm_default_provider = "openai"
-    else:
-        llm_default_provider = "openai_compatible"
+    llm_default_provider = _provider_for_base_url(settings.llm_base_url)
     llm_default_key = settings.llm_api_key
     llm_default_model = settings.llm_model
     llm_default_base_url = settings.llm_base_url
     llm_default_thinking = settings.llm_thinking_type
     llm_default_response_format = "json_object"
 llm_store = LlmConfigurationStore(settings.data_root / "llm-settings.json", {
-    "mode": "independent" if explicit_llm else "reuse_vision",
+    "mode": "independent",
     "provider": llm_default_provider,
     "apiKey": llm_default_key,
     "model": llm_default_model,
@@ -530,7 +545,7 @@ llm_store = LlmConfigurationStore(settings.data_root / "llm-settings.json", {
 })
 agent_model_store = LlmConfigurationStore(settings.data_root / "agent-settings.json", {
     "mode": "independent",
-    "provider": "openai_compatible",
+    "provider": _provider_for_base_url(settings.agent_base_url),
     "apiKey": settings.agent_api_key,
     "model": settings.agent_model,
     "baseUrl": settings.agent_base_url,
@@ -543,10 +558,10 @@ agent_model_store = LlmConfigurationStore(settings.data_root / "agent-settings.j
 def agent_model_config() -> dict[str, Any]:
     """Resolve the dedicated Agent model, falling back to the verified LLM.
 
-    Pi needs a text model with Tool Calling.  Requiring users to enter the
-    same endpoint and key twice makes a configured ClipTalk installation look
-    broken at the first automatic Skill route.  A dedicated Agent connection
-    always wins; otherwise reuse the existing text-planning connection.
+    The planner needs a text model with Tool Calling.  Requiring users to
+    enter the same endpoint and key twice makes a configured ChatClip
+    installation look broken at the first automatic Skill route.  A dedicated
+    Agent connection always wins; otherwise reuse the text-planning one.
     """
     dedicated = agent_model_store.resolve()
     required = ("apiKey", "model", "baseUrl")
@@ -571,7 +586,6 @@ def agent_model_config() -> dict[str, Any]:
 
 agent_platform = AgentPlatform(
     data_root=settings.data_root,
-    service_url=settings.agent_service_url,
     model_config_resolver=agent_model_config,
     timeout_seconds=settings.agent_timeout_seconds,
 )
@@ -597,14 +611,14 @@ async def app_lifespan(_app: FastAPI):
         load_jobs()
         startup_maintenance()
         agent_platform.recover_stale_planning_requests()
-        agent_platform.restore_plugins()
         yield
     finally:
+        agent_platform.close()
         runtime_services.shutdown()
         worker_lock.close()
 
 
-app = FastAPI(title="ClipTalk Video Editor", version="2.0.0", lifespan=app_lifespan)
+app = FastAPI(title="ChatClip Video Editor", version="2.0.0", lifespan=app_lifespan)
 
 
 def _api_recovery_action(status_code: int, code: str = "") -> str:
@@ -691,7 +705,7 @@ async def structured_validation_error(request: Request, error: RequestValidation
 
 @app.exception_handler(Exception)
 async def structured_internal_error(request: Request, error: Exception) -> JSONResponse:
-    logging.getLogger("cliptalk").exception(
+    logging.getLogger("chatclip").exception(
         "unhandled_api_error",
         extra={"structured": {
             "requestId": str(getattr(request.state, "request_id", "")),
@@ -723,7 +737,7 @@ app.include_router(build_settings_router(
     vision_store=vision_store,
     llm_store=llm_store,
     agent_store=agent_model_store,
-    agent_probe=lambda model: agent_platform.client.probe(model),
+    agent_probe=agent_platform.probe,
     effective_agent_model=agent_model_config,
     agent_probe_record=settings.data_root / "agent/agent-probe.json",
     allow_private_model_endpoints=settings.allow_private_model_endpoints,
@@ -798,7 +812,7 @@ workflow_intent_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
 
 def report_client_error(report: ClientErrorReportRequest) -> Response:
-    logging.getLogger("cliptalk").error(
+    logging.getLogger("chatclip").error(
         "client_runtime_error",
         extra={"structured": client_error_log_fields(report)},
     )
@@ -808,7 +822,7 @@ def report_client_error(report: ClientErrorReportRequest) -> Response:
 @app.middleware("http")
 async def protect_and_limit_requests(request: Request, call_next):
     path = request.url.path
-    header_token = request.headers.get("X-Highlight-Token")
+    header_token = request.headers.get("X-ChatClip-Token")
     cookie_token = request.cookies.get("highlight_session")
     authenticated_by_header = bool(
         settings.access_token and access_token_matches(header_token, settings.access_token)
@@ -903,7 +917,7 @@ def create_llm_client_for_job(job: dict[str, Any]) -> Any:
     except SecurityConfigurationError as error:
         raise RuntimeError(f"剪辑规划模型接口被安全策略拒绝：{error}") from error
     if configured.get("protocol") == "anthropic":
-        return AnthropicCompatibleClient(
+        return AnthropicJsonClient(
             auth_token=str(configured["apiKey"]),
             model=str(configured["model"]),
             base_url=str(configured["baseUrl"]),
@@ -1891,7 +1905,7 @@ def _sync_output_manifest(job: dict[str, Any]) -> None:
         try:
             bind_cover_to_output_version(job, cover, active_version)
         except MediaError as error:
-            logging.getLogger("cliptalk").warning("无法自动绑定当前封面到新成片：%s", error)
+            logging.getLogger("chatclip").warning("无法自动绑定当前封面到新成片：%s", error)
     output_directory = Path(str(job.get("outputDirectory") or ""))
     if not output_directory:
         return
@@ -3301,7 +3315,7 @@ def _request_audit_context(request: Request, *, source: str = "user") -> dict[st
     return {
         "requestId": str(getattr(request.state, "request_id", "") or uuid.uuid4().hex),
         "source": source,
-        "session": str(request.headers.get("X-ClipTalk-Session") or "")[:128],
+        "session": str(request.headers.get("X-ChatClip-Session") or "")[:128],
         "client": request.client.host if request.client else "unknown",
         "userAgent": str(request.headers.get("User-Agent") or "")[:300],
     }
@@ -20824,7 +20838,7 @@ def ensure_automatic_review_cover(
             "artifactFile": str(output.relative_to(work_root)),
             "previewUrl": f"/api/jobs/{job_id}/cover-artifacts/{variant_id}",
             "provenance": {
-                "kind": "automatic_review_cover", "renderer": "cliptalk-cover-v1",
+                "kind": "automatic_review_cover", "renderer": "chatclip-cover-v1",
                 "editSessionId": session_id,
                 "editSessionRevision": int(requested_revision),
                 "createdAt": now_iso(),
@@ -20964,7 +20978,7 @@ def run_agent_review_render(job_id: str, session_id: str, requested_revision: in
             job_id, session_id, requested_revision,
         )
     except Exception:
-        logging.getLogger("cliptalk").warning(
+        logging.getLogger("chatclip").warning(
             "Unable to create the automatic review cover for %s", job_id,
             exc_info=True,
         )
@@ -31728,7 +31742,7 @@ def cancel_job(job_id: str) -> dict[str, Any]:
 
 
 def create_job_delete_intent(job_id: str, http_request: Request) -> dict[str, Any]:
-    session_id = str(http_request.headers.get("X-ClipTalk-Session") or "").strip()
+    session_id = str(http_request.headers.get("X-ChatClip-Session") or "").strip()
     if not session_id:
         raise HTTPException(400, "缺少客户端会话标识，请刷新页面后重试")
     with jobs_lock:
@@ -31759,7 +31773,7 @@ def create_job_delete_intent(job_id: str, http_request: Request) -> dict[str, An
 
 def delete_job(job_id: str, payload: DeleteJobRequest, http_request: Request) -> dict[str, Any]:
     context = _request_audit_context(http_request)
-    session_id = str(http_request.headers.get("X-ClipTalk-Session") or "").strip()
+    session_id = str(http_request.headers.get("X-ChatClip-Session") or "").strip()
     now = time.monotonic()
     with delete_intents_lock:
         intent = delete_intents.pop(payload.deleteIntent, None)
@@ -34942,7 +34956,7 @@ def dispatch_agent_tool(
                         "artifactFile": str(output.relative_to(work_root)),
                         "previewUrl": f"/api/jobs/{job_id}/cover-artifacts/{variant_id}",
                         "provenance": {
-                            "kind": "source_frame_composite", "renderer": "cliptalk-cover-v1",
+                            "kind": "source_frame_composite", "renderer": "chatclip-cover-v1",
                             "createdAt": now_iso(),
                         },
                     })
@@ -36561,9 +36575,9 @@ def dispatch_agent_tool(
                 build_motion_graphics_html(
                     title=title,
                     subtitle=subtitle,
-                    label="ClipTalk",
+                    label="ChatClip",
                     aspect=aspect,
-                    theme=str(arguments.get("theme") or "cliptalk"),
+                    theme=str(arguments.get("theme") or "chatclip"),
                 ),
                 encoding="utf-8",
             )
@@ -36629,9 +36643,9 @@ def dispatch_agent_tool(
             "future": future, "cancel": lambda: cancel_job(job_id),
         }
     if tool_name == "export_editing_draft":
-        export_format = str(arguments.get("format") or "cliptalk-json").strip().lower()
-        if export_format not in {"cliptalk-json", "jianying-bridge"}:
-            export_format = "cliptalk-json"
+        export_format = str(arguments.get("format") or "chatclip-json").strip().lower()
+        if export_format not in {"chatclip-json", "jianying-bridge"}:
+            export_format = "chatclip-json"
         with jobs_lock:
             current_snapshot = copy.deepcopy(jobs.get(job_id) or snapshot)
         has_content = bool(
@@ -36651,7 +36665,7 @@ def dispatch_agent_tool(
             "downloadUrl": f"/api/jobs/{job_id}/draft-exports/{draft_name}",
             "mode": "timeline" if has_content else "source-only",
             "message": (
-                "已导出 ClipTalk 本地草稿包；当前不会直接写入剪映目录。"
+                "已导出 ChatClip 本地草稿包；当前不会直接写入剪映目录。"
                 if has_content
                 else "当前还没有时间线或成片，已导出仅包含源素材与任务元数据的本地草稿包。"
             ),

@@ -1,6 +1,6 @@
-(function createClipTalkApi(global) {
-  const storageKey = "cliptalk_access_token";
-  const sessionKey = "cliptalk_browser_session";
+(function createChatClipApi(global) {
+  const storageKey = "chatclip_access_token";
+  const sessionKey = "chatclip_browser_session";
   let sessionAccessToken = global.sessionStorage.getItem(storageKey) || "";
   let browserSession = global.sessionStorage.getItem(sessionKey) || "";
 
@@ -101,8 +101,8 @@
     ) {
       headers.set("Content-Type", "application/json");
     }
-    if (sessionAccessToken) headers.set("X-Highlight-Token", sessionAccessToken);
-    headers.set("X-ClipTalk-Session", browserSession);
+    if (sessionAccessToken) headers.set("X-ChatClip-Token", sessionAccessToken);
+    headers.set("X-ChatClip-Session", browserSession);
     return headers;
   }
 
@@ -198,7 +198,7 @@
     global.sessionStorage.removeItem(storageKey);
   }
 
-  global.ClipTalkApi = Object.freeze({
+  global.ChatClipApi = Object.freeze({
     request, requestResponse, requestJson, requestBlob, clearAccessToken, ApiError,
     createResponseError, formatErrorMessage, recoveryLabels,
   });

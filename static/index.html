@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#f3f3f0" />
     <meta name="description" content="使用多模态分析发现视频高光，或按描述查找并截取指定内容。" />
-    <title>ClipTalk</title>
-    <link rel="icon" type="image/png" href="/static/assets/cliptalk-icon.png?v=20260812-transparent-1" />
+    <title>ChatClip</title>
+    <link rel="icon" type="image/png" href="/static/assets/chatclip-icon.png?v=20260812-transparent-1" />
     <link rel="preload" href="/static/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin />
     <script src="/static/theme-runtime.js?v=20260917-default-light-1"></script>
     <link rel="stylesheet" href="/static/generative-loaders.css?v=20260909-theme-cleanup-1" />
@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="/static/agent-workspace.css?v=20260923-plan-handoff-1" />
     <link rel="stylesheet" href="/static/secondary-editor-focus.css?v=20260921-cascade-cleanup-1" />
     <link rel="stylesheet" href="/static/theme.css?v=20260921-interface-type-1" />
-    <link rel="stylesheet" href="/static/cliptalk-tokens.css?v=20260910-ui-consistency-3" />
+    <link rel="stylesheet" href="/static/chatclip-tokens.css?v=20260910-ui-consistency-3" />
     <link rel="stylesheet" href="/static/workbench.css?v=20260923-quality-review-2" />
     <link rel="stylesheet" href="/static/interface-type.css?v=20260924-interface-type-2" />
   </head>
@@ -26,11 +26,11 @@
     <a class="skip-link" href="#workspace">跳到剪辑工作区</a>
     <div class="ambient-grid" aria-hidden="true"></div>
     <button id="mobileNavigationToggle" type="button" aria-controls="appSidebar" aria-expanded="false">菜单</button>
-    <aside id="appSidebar" class="app-sidebar" aria-label="ClipTalk 主导航">
+    <aside id="appSidebar" class="app-sidebar" aria-label="ChatClip 主导航">
       <header class="app-sidebar-brand">
         <button type="button" data-shell-view="home" aria-label="返回首页" title="首页">
-          <img src="/static/assets/cliptalk-director-icon.png?v=20260812-brand-unified-1" alt="" aria-hidden="true" />
-          <span class="app-sidebar-brand-wordmark" aria-hidden="true"><b>Clip</b><i>Talk</i></span>
+          <img src="/static/assets/chatclip-director-icon.png?v=20260812-brand-unified-1" alt="" aria-hidden="true" />
+          <span class="app-sidebar-brand-wordmark" aria-hidden="true"><b>Chat</b><i>Clip</i></span>
         </button>
       </header>
       <nav class="app-sidebar-primary" aria-label="主要功能">
@@ -81,7 +81,7 @@
     <main id="workspace" class="studio home-mode">
       <section id="homeView" class="home-view" data-home-state="loading" aria-label="首页" aria-busy="true">
         <header class="home-heading">
-          <div><small>ClipTalk 工作台</small><h1><span class="sr-only">开始剪辑 · </span>开始一个剪辑任务</h1><p>上传素材，描述想保留的内容。生成前可以检查计划，生成后可以继续在时间轴中调整。</p></div>
+          <div><small>ChatClip 工作台</small><h1><span class="sr-only">开始剪辑 · </span>开始一个剪辑任务</h1><p>上传素材，描述想保留的内容。生成前可以检查计划，生成后可以继续在时间轴中调整。</p></div>
           <div class="home-summary hidden" aria-label="工作区统计"><span><b id="homeAssetCount">0</b><small>个视频</small></span><span><b id="homeTaskCount">0</b><small>个任务</small></span><span><b id="homeOutputCount">0</b><small>条成片</small></span></div>
         </header>
         <section class="home-create-surface">
@@ -98,7 +98,7 @@
       </nav>
       <aside id="assistantPanel" class="chat-panel glass-panel">
         <header class="panel-header">
-          <div class="director"><img class="director-brand-icon" src="/static/assets/cliptalk-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><strong>剪辑助理</strong><small><i id="directorDot"></i><b id="directorState">等待素材</b></small></div></div>
+          <div class="director"><img class="director-brand-icon" src="/static/assets/chatclip-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><strong>剪辑助理</strong><small><i id="directorDot"></i><b id="directorState">等待素材</b></small></div></div>
           <button id="assistantPanelToggle" class="assistant-panel-toggle" type="button" aria-expanded="true" aria-controls="chatMessages" title="收起 AI 助手"><span aria-hidden="true">‹</span><b>助手</b></button>
           <ol id="directorStageNav" class="director-stage-flow" aria-label="智能剪辑流程">
             <li data-director-flow="brief"><span class="stage-segment" aria-hidden="true"><i></i></span><div><strong>准备</strong><small>确认要求并准备媒体</small></div></li>
@@ -459,7 +459,7 @@
     </main>
     <button id="agentPlanDrawerScrim" class="agent-plan-drawer-scrim hidden" type="button" aria-label="关闭计划详情"></button>
     <aside id="agentPlanDrawer" class="agent-plan-drawer hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-label="Agent 计划详情" data-overlay-state="closed" inert>
-      <header><div class="agent-plan-drawer-brand"><img src="/static/assets/cliptalk-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><small id="agentPlanDrawerKicker">智能剪辑计划</small><strong id="agentPlanDrawerTitle">计划详情</strong></div></div><button id="agentPlanDrawerClose" type="button" aria-label="关闭计划详情">×</button></header>
+      <header><div class="agent-plan-drawer-brand"><img src="/static/assets/chatclip-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><small id="agentPlanDrawerKicker">智能剪辑计划</small><strong id="agentPlanDrawerTitle">计划详情</strong></div></div><button id="agentPlanDrawerClose" type="button" aria-label="关闭计划详情">×</button></header>
       <nav role="tablist" aria-label="计划详情页签"><button class="active" role="tab" type="button" data-agent-drawer-tab="plan" aria-controls="agentPlanDrawerPlan" aria-selected="true">计划</button><button role="tab" type="button" data-agent-drawer-tab="activity" aria-controls="agentPlanDrawerActivity" aria-selected="false">活动</button></nav>
       <section id="agentPlanDrawerPlan" class="agent-plan-drawer-panel" role="tabpanel" data-agent-drawer-panel="plan"></section>
       <section id="agentPlanDrawerActivity" class="agent-plan-drawer-panel hidden" role="tabpanel" data-agent-drawer-panel="activity" aria-live="polite"></section>
@@ -763,7 +763,7 @@
           <header><div><h3 id="localCapabilitiesTitle">人物说话识别</h3><p>默认安装 TalkNet，用于区分人物正在讲话还是仅出现在画面中。</p></div><button id="checkLocalCapabilities" type="button">检查能力</button></header>
           <p id="localCapabilityStatus" role="status" aria-live="polite">正在读取安装状态</p>
           <p id="localCapabilityDetail">检查不会修改素材，也不会下载或安装软件。</p>
-          <details><summary>安装与修复说明</summary><p>在运行 ClipTalk 的电脑或服务器上，进入项目目录执行：</p><code>python3 tools/setup.py</code><p>该命令默认安装 TalkNet。仅修复人物说话识别时可执行：</p><code>python3 tools/install_talknet.py</code><p>需要 Python 3.10–3.11。脚本会保留现有配置；没有可用 GPU 时使用 CPU，长视频可能较慢。安装后重启服务并重新检查。</p></details>
+          <details><summary>安装与修复说明</summary><p>在运行 ChatClip 的电脑或服务器上，进入项目目录执行：</p><code>python3 tools/setup.py</code><p>该命令默认安装 TalkNet。仅修复人物说话识别时可执行：</p><code>python3 tools/install_talknet.py</code><p>需要 Python 3.10–3.11。脚本会保留现有配置；没有可用 GPU 时使用 CPU，长视频可能较慢。安装后重启服务并重新检查。</p></details>
         </section>
         <details class="runtime-settings-summary">
           <summary><span><strong>运行环境</strong><small>按需查看模型、计算设备和本地渲染状态</small></span></summary>
@@ -835,8 +835,7 @@
     <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
     <dialog id="agentRegistryDialog" class="agent-registry-dialog" aria-labelledby="agentRegistryTitle">
       <form method="dialog" class="agent-registry-shell">
-        <header><div><small>Agent 能力</small><h2 id="agentRegistryTitle">Skills 与 Plugins</h2><p>Skill 负责拆解方法；Plugin 是在 Agent 进程内运行的受信任代码。</p></div><button value="cancel" aria-label="关闭">×</button></header>
-        <nav><button type="button" data-agent-registry-tab="skills" class="active">Skills</button><button type="button" data-agent-registry-tab="plugins">Plugins</button></nav>
+        <header><div><small>Agent 能力</small><h2 id="agentRegistryTitle">Skills</h2><p>Skill 负责拆解方法与质量标准，由平台托管步骤顺序与安全约束。</p></div><button value="cancel" aria-label="关闭">×</button></header>
         <section id="agentRegistryContent" class="agent-registry-content"></section>
       </form>
     </dialog>

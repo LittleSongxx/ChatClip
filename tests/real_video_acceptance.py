@@ -10,7 +10,7 @@ Creates NEW jobs, consumes model quota, retains jobs and downloaded review MP4s.
 Never uses cached job fixtures or bypasses review gates. Run against a local
 development service. Reference-voice identity matching and faces are not tested.
 Ground truth for topic/voice relevance still requires human review.
-Authentication, when needed: CLIPTALK_TEST_TOKEN environment variable.
+Authentication, when needed: CHATCLIP_TEST_TOKEN environment variable.
 """
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def verify_media(path: Path, ffmpeg: str, ffprobe: str, expected: float | None) 
 class Runner:
     def __init__(self, args, directory):
         self.args, self.directory = args, directory
-        token = os.environ.get("CLIPTALK_TEST_TOKEN", "")
+        token = os.environ.get("CHATCLIP_TEST_TOKEN", "")
         self.client = httpx.Client(base_url=args.base_url.rstrip("/"), timeout=180,
                                    headers={"Authorization": f"Bearer {token}"} if token else {})
         if args.in_process:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download and validate the speech models used by ClipTalk.
+"""Download and validate the speech models used by ChatClip.
 
 Run this once after installing requirements-cpu.txt or requirements-gpu.txt. FunASR performs
 the actual ModelScope downloads; loading every configured component also
@@ -24,18 +24,18 @@ from app.speech import _sensevoice_instance  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="下载并验证 ClipTalk 的 SenseVoice、VAD 和可选说话人模型",
+        description="下载并验证 ChatClip 的 SenseVoice、VAD 和可选说话人模型",
     )
     parser.add_argument(
         "--device",
         default="",
-        help="cpu、cuda:0 或 auto；默认读取 HIGHLIGHT_SENSEVOICE_DEVICE",
+        help="cpu、cuda:0 或 auto；默认读取 CHATCLIP_SENSEVOICE_DEVICE",
     )
     parser.add_argument(
         "--cache",
         type=Path,
         default=None,
-        help="模型缓存目录；默认读取 HIGHLIGHT_SPEECH_MODEL_CACHE",
+        help="模型缓存目录；默认读取 CHATCLIP_SPEECH_MODEL_CACHE",
     )
     parser.add_argument(
         "--with-speakers",
@@ -57,7 +57,7 @@ def main() -> int:
     if diarization:
         components.append(settings.sensevoice_spk_model)
 
-    print("ClipTalk speech model preparation")
+    print("ChatClip speech model preparation")
     print(f"  cache: {cache}")
     print(f"  requested device: {device}")
     print(f"  free disk: {free_gib:.1f} GiB")

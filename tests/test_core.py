@@ -13,7 +13,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from app.ark_client import ArkRequestError, ArkVisionClient, OpenAICompatibleVisionClient, parse_json_object
+from app.llm import VisionRequestError, parse_json_object
+from app.llm.client import OpenAICompatibleVisionClient
 from app.config import Settings
 from app.editing_techniques import (
     composition_effective_duration,
@@ -40,6 +41,7 @@ from app.composition_review import (
 from app.composition_assets import validate_render_selections
 from app.vision_settings import LlmConfigurationStore, VisionConfigurationStore, discover_llm_models, discover_models
 from app.main import (
+
     analysis_cache_reuse_allowed,
     apply_timeline_history_state,
     automatic_composition_signature,
@@ -64,6 +66,10 @@ from app.main import (
     stage_progress_for,
     structured_progress,
 )
+
+import shutil
+FFMPEG_BIN = "/usr/bin/ffmpeg" if Path("/usr/bin/ffmpeg").is_file() else (shutil.which("ffmpeg") or "ffmpeg")
+FFPROBE_BIN = "/usr/bin/ffprobe" if Path("/usr/bin/ffprobe").is_file() else (shutil.which("ffprobe") or "ffprobe")
 from app.media import (
     MediaError,
     SampledFrame,
@@ -318,12 +324,12 @@ class JsonParsingTests(unittest.TestCase):
         self.assertEqual(parse_json_object('answer\n```json\n{"candidates": []}\n```')["candidates"], [])
 
     def test_rejects_non_json(self) -> None:
-        with self.assertRaises(ArkRequestError) as raised:
+        with self.assertRaises(VisionRequestError) as raised:
             parse_json_object("not json")
         self.assertTrue(raised.exception.retryable)
 
     def test_non_retryable_error_defaults_to_false(self) -> None:
-        self.assertFalse(ArkRequestError("bad request").retryable)
+        self.assertFalse(VisionRequestError("bad request").retryable)
 
 
 class ChatTimeRangeTests(unittest.TestCase):
@@ -1253,26 +1259,6 @@ class PublicJobPayloadTests(unittest.TestCase):
         self.assertNotIn("00:08:04", cleaned[0])
         self.assertNotIn("7.52秒", cleaned[1])
 
-    def test_ark_sends_distinct_system_and_user_messages(self) -> None:
-        response = MagicMock(status_code=200)
-        response.json.return_value = {
-            "choices": [{"message": {"content": '{"ok":true}'}}],
-            "usage": {"total_tokens": 3},
-        }
-        http_client = MagicMock()
-        http_client.post.return_value = response
-        context = MagicMock()
-        context.__enter__.return_value = http_client
-        with patch("app.ark_client.httpx.Client", return_value=context):
-            client = ArkVisionClient(api_key="test", model="vlm", base_url="https://example.test")
-            result = client.complete_json("USER PROMPT", system_prompt="SYSTEM PROMPT")
-        payload = http_client.post.call_args.kwargs["json"]
-        self.assertEqual(payload["messages"], [
-            {"role": "system", "content": "SYSTEM PROMPT"},
-            {"role": "user", "content": "USER PROMPT"},
-        ])
-        self.assertTrue(result["ok"])
-
     def test_vision_settings_override_legacy_ark_configuration(self) -> None:
         with patch.dict(os.environ, {
             "VISION_PROVIDER": "openai_compatible",
@@ -1290,28 +1276,6 @@ class PublicJobPayloadTests(unittest.TestCase):
         self.assertEqual(settings.vision_thinking_type, "")
         self.assertEqual(settings.vision_response_format, "none")
 
-    def test_generic_vision_client_can_omit_provider_extensions(self) -> None:
-        response = MagicMock(status_code=200)
-        response.json.return_value = {"choices": [{"message": {"content": '{"ok":true}'}}]}
-        http_client = MagicMock()
-        http_client.post.return_value = response
-        context = MagicMock()
-        context.__enter__.return_value = http_client
-        with patch("app.ark_client.httpx.Client", return_value=context):
-            client = OpenAICompatibleVisionClient(
-                api_key="test",
-                model="generic-vlm",
-                base_url="https://example.test/v1/chat/completions",
-                thinking_type="",
-                response_format="none",
-            )
-            result = client.complete_json("PROMPT")
-        payload = http_client.post.call_args.kwargs["json"]
-        self.assertNotIn("thinking", payload)
-        self.assertNotIn("response_format", payload)
-        self.assertEqual(client.url, "https://example.test/v1/chat/completions")
-        self.assertTrue(result["ok"])
-
     def test_discovers_and_prioritizes_probable_visual_models(self) -> None:
         response = MagicMock(status_code=200)
         response.json.return_value = {"data": [
@@ -1319,7 +1283,7 @@ class PublicJobPayloadTests(unittest.TestCase):
             {"id": "gpt-4.1", "owned_by": "provider"},
             {"id": "custom-vlm", "owned_by": "team"},
         ]}
-        with patch("app.vision_settings.httpx.get", return_value=response) as request:
+        with patch("app.llm.providers.httpx.get", return_value=response) as request:
             models = discover_models(api_key="secret", base_url="https://example.test/v1", provider="openai")
         self.assertEqual(request.call_args.args[0], "https://example.test/v1/models")
         self.assertEqual([item["id"] for item in models], ["custom-vlm", "gpt-4.1"])
@@ -1332,7 +1296,7 @@ class PublicJobPayloadTests(unittest.TestCase):
             {"id": "doubao-vision", "status": "Active", "modalities": {"input_modalities": ["text", "image", "video"]}},
             {"id": "old-vision", "status": "Shutdown", "modalities": {"input_modalities": ["image"]}},
         ]}
-        with patch("app.vision_settings.httpx.get", return_value=response):
+        with patch("app.llm.providers.httpx.get", return_value=response):
             models = discover_models(api_key="secret", base_url="https://example.test/v1", provider="ark")
         self.assertEqual([item["id"] for item in models], ["doubao-vision"])
         self.assertTrue(models[0]["supportsImage"])
@@ -1364,7 +1328,7 @@ class PublicJobPayloadTests(unittest.TestCase):
             {"id": "video-generation-model", "modalities": {"input_modalities": ["text"], "output_modalities": ["video"]}},
             {"id": "reasoning-model", "modalities": {"input_modalities": ["text"], "output_modalities": ["text"]}},
         ]}
-        with patch("app.vision_settings.httpx.get", return_value=response) as request:
+        with patch("app.llm.providers.httpx.get", return_value=response) as request:
             models = discover_llm_models(
                 api_key="secret", base_url="https://example.test/v1",
                 provider="openai_compatible", protocol="openai",
@@ -1375,7 +1339,7 @@ class PublicJobPayloadTests(unittest.TestCase):
     def test_anthropic_model_discovery_uses_native_headers(self) -> None:
         response = MagicMock(status_code=200)
         response.json.return_value = {"data": [{"id": "claude-sonnet", "display_name": "Claude Sonnet"}]}
-        with patch("app.vision_settings.httpx.get", return_value=response) as request:
+        with patch("app.llm.providers.httpx.get", return_value=response) as request:
             models = discover_llm_models(
                 api_key="anthropic-secret", base_url="https://api.anthropic.com",
                 provider="anthropic", protocol="anthropic",
@@ -1387,7 +1351,7 @@ class PublicJobPayloadTests(unittest.TestCase):
     def test_ark_anthropic_compatibility_uses_ark_model_catalog(self) -> None:
         response = MagicMock(status_code=200)
         response.json.return_value = {"data": [{"id": "doubao-seed-evolving"}]}
-        with patch("app.vision_settings.httpx.get", return_value=response) as request:
+        with patch("app.llm.providers.httpx.get", return_value=response) as request:
             models = discover_llm_models(
                 api_key="ark-secret", base_url="https://ark.cn-beijing.volces.com/api/compatible",
                 provider="anthropic_compatible", protocol="anthropic",
@@ -1799,20 +1763,21 @@ class JobCancellationTests(unittest.TestCase):
 
 class ModelClientCancellationTests(unittest.TestCase):
     def test_cancelled_vision_request_does_not_retry(self) -> None:
-        client = OpenAICompatibleVisionClient(
-            api_key="secret", model="vision-model", base_url="https://vision.example/v1",
-        )
-        transport = MagicMock()
-        context = MagicMock()
-        context.__enter__.return_value = transport
-        transport.post.side_effect = lambda *_args, **_kwargs: (
-            client.cancel(), (_ for _ in ()).throw(httpx.ReadError("closed by cancellation"))
-        )[1]
-        with patch("app.ark_client.httpx.Client", return_value=context) as factory:
-            with self.assertRaisesRegex(ArkRequestError, "已取消"):
+        model = MagicMock()
+        with patch("app.llm.client.create_chat_model", return_value=model) as factory:
+            client = OpenAICompatibleVisionClient(
+                api_key="secret", model="vision-model", base_url="https://vision.example/v1",
+            )
+
+            def invoke(_messages):
+                client.cancel()
+                raise httpx.ReadError("closed by cancellation")
+
+            model.bind.return_value.invoke.side_effect = invoke
+            with self.assertRaisesRegex(VisionRequestError, "已取消"):
                 client.complete_json("analyze")
         self.assertEqual(factory.call_count, 1)
-        transport.close.assert_called_once_with()
+        self.assertEqual(model.bind.return_value.invoke.call_count, 1)
 
 
 class AutomaticCompositionSafetyTests(unittest.TestCase):
@@ -3651,7 +3616,7 @@ class MediaIntegrationTests(unittest.TestCase):
             source = root / "boundary-source.mp4"
             output = root / "boundary-output.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "color=c=red:size=160x90:rate=30:duration=1",
                 "-f", "lavfi", "-i", "color=c=blue:size=160x90:rate=30:duration=1",
                 "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]",
@@ -3660,13 +3625,13 @@ class MediaIntegrationTests(unittest.TestCase):
             expected = render_composition(
                 source, output,
                 segments=[{"start": 0.0, "end": 1.0, "transitionIn": {"type": "cut"}}],
-                has_audio=False, ffmpeg="/usr/bin/ffmpeg", strict_source_boundaries=True,
+                has_audio=False, ffmpeg=FFMPEG_BIN, strict_source_boundaries=True,
             )
             self.assertLess(exclusive_render_duration(1.0, strict=True), 1.0)
             self.assertEqual(exclusive_render_duration(1.0, strict=False), 1.0)
             last_frame = root / "last-frame.jpg"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(output),
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error", "-i", str(output),
                 "-vf", r"select=eq(n\,29)", "-frames:v", "1", "-y", str(last_frame),
             ], check=True)
             with Image.open(last_frame) as image:
@@ -3758,12 +3723,12 @@ class MediaIntegrationTests(unittest.TestCase):
             root = Path(directory)
             source = root / "source.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=8",
                 "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=16000",
                 "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-y", str(source),
             ], check=True)
-            pipeline = HighlightPipeline(client=MagicMock(), ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+            pipeline = HighlightPipeline(client=MagicMock(), ffmpeg=FFMPEG_BIN, ffprobe=FFPROBE_BIN)
             with patch("app.pipeline.analyze_speech", side_effect=RuntimeError("sensevoice unavailable")):
                 with self.assertRaises(ModelDecisionRequired) as raised:
                     pipeline.run(
@@ -3786,18 +3751,18 @@ class MediaIntegrationTests(unittest.TestCase):
                 self, prompt: str, image_path: Path, *, maximum_tokens: int = 0, system_prompt: str = "",
             ) -> dict:
                 self.system_prompt = system_prompt
-                raise ArkRequestError("classification unavailable", retryable=True)
+                raise VisionRequestError("classification unavailable", retryable=True)
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / "source.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=8",
                 "-t", "5", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(source),
             ], check=True)
             client = FailingClassificationClient()
-            pipeline = HighlightPipeline(client=client, ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+            pipeline = HighlightPipeline(client=client, ffmpeg=FFMPEG_BIN, ffprobe=FFPROBE_BIN)
             with self.assertRaises(ModelDecisionRequired) as raised:
                 pipeline.run(
                     source=source, work_directory=root / "work", output_directory=root / "outputs",
@@ -3844,7 +3809,7 @@ class MediaIntegrationTests(unittest.TestCase):
                     ], "_usage": {}}
                 if '"event_groups"' in prompt:
                     if self.fail_director:
-                        raise ArkRequestError("director unavailable", retryable=True)
+                        raise VisionRequestError("director unavailable", retryable=True)
                     return {"event_groups": [{
                         "title": "完整动作事件", "summary": "由环境和行动两个镜头组成", "score": 96,
                         "moments": [
@@ -3870,12 +3835,12 @@ class MediaIntegrationTests(unittest.TestCase):
             root = Path(directory)
             source = root / "source.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=12",
                 "-t", "8", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(source),
             ], check=True)
             client = FakeVisionClient()
-            pipeline = HighlightPipeline(client=client, ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe")
+            pipeline = HighlightPipeline(client=client, ffmpeg=FFMPEG_BIN, ffprobe=FFPROBE_BIN)
             arguments = {
                 "source": source, "work_directory": root / "work", "output_directory": root / "outputs",
                 "count": 2, "target_seconds": 8, "theme": "动作", "progress": lambda *_: None,
@@ -3912,20 +3877,20 @@ class MediaIntegrationTests(unittest.TestCase):
             source = root / "source.mp4"
             output = root / "clip.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25",
                 "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
                 "-t", "3", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-y", str(source),
             ], check=True)
-            info = probe_video(source, "/usr/bin/ffprobe")
+            info = probe_video(source, FFPROBE_BIN)
             self.assertGreater(info.duration, 2.8)
             self.assertTrue(info.has_audio)
             validate_video_decodable_coverage(
-                source, duration=info.duration, ffmpeg="/usr/bin/ffmpeg",
+                source, duration=info.duration, ffmpeg=FFMPEG_BIN,
             )
             waveform_progress: list[tuple[float, float, float]] = []
             waveform = extract_audio_waveform(
-                source, ffmpeg="/usr/bin/ffmpeg", bins=200, duration=info.duration,
+                source, ffmpeg=FFMPEG_BIN, bins=200, duration=info.duration,
                 progress_callback=lambda fraction, processed, total: waveform_progress.append((fraction, processed, total)),
             )
             self.assertGreater(len(waveform["peaks"]), 100)
@@ -3943,7 +3908,7 @@ class MediaIntegrationTests(unittest.TestCase):
             shared_frames = root / "coarse-frames"
             partial_counts: list[int] = []
             sprite_metadata = create_timeline_thumbnail_sprite(
-                source, sprite, duration=info.duration, ffmpeg="/usr/bin/ffmpeg", frame_count=12, columns=4,
+                source, sprite, duration=info.duration, ffmpeg=FFMPEG_BIN, frame_count=12, columns=4,
                 partial_output=partial_sprite,
                 partial_callback=lambda metadata: partial_counts.append(len(metadata["items"])),
                 frames_directory=shared_frames,
@@ -3961,7 +3926,7 @@ class MediaIntegrationTests(unittest.TestCase):
             self.assertEqual(len(cached_frames), len(sprite_metadata["items"]))
             detail_directory = root / "detail-frames"
             detail_frames = extract_frames_at_times(
-                source, detail_directory, [0.25, 1.0, 2.0], ffmpeg="/usr/bin/ffmpeg",
+                source, detail_directory, [0.25, 1.0, 2.0], ffmpeg=FFMPEG_BIN,
             )
             reused_detail_frames = extract_frames_at_times(
                 source, detail_directory, [0.25, 1.0, 2.0], ffmpeg="/definitely/missing/ffmpeg",
@@ -3971,16 +3936,16 @@ class MediaIntegrationTests(unittest.TestCase):
                 [(item.path.name, item.time) for item in detail_frames],
             )
             proxy = root / "proxy.mp4"
-            create_preview_proxy(source, proxy, has_audio=True, ffmpeg="/usr/bin/ffmpeg")
-            proxy_info = probe_video(proxy, "/usr/bin/ffprobe")
+            create_preview_proxy(source, proxy, has_audio=True, ffmpeg=FFMPEG_BIN)
+            proxy_info = probe_video(proxy, FFPROBE_BIN)
             self.assertAlmostEqual(proxy_info.duration, info.duration, delta=.3)
-            render_clip(source, output, start=0.5, end=2.0, has_audio=True, ffmpeg="/usr/bin/ffmpeg")
+            render_clip(source, output, start=0.5, end=2.0, has_audio=True, ffmpeg=FFMPEG_BIN)
             rendered = validate_rendered_clip(
                 output,
                 expected_duration=1.5,
                 expect_audio=True,
-                ffmpeg="/usr/bin/ffmpeg",
-                ffprobe="/usr/bin/ffprobe",
+                ffmpeg=FFMPEG_BIN,
+                ffprobe=FFPROBE_BIN,
             )
             self.assertAlmostEqual(rendered.duration, 1.5, delta=0.3)
             self.assertTrue(rendered.has_audio)
@@ -3993,12 +3958,12 @@ class MediaIntegrationTests(unittest.TestCase):
                     {"start": 1.5, "end": 2.7, "transitionIn": {"type": "dissolve", "duration": .18}},
                 ],
                 has_audio=True,
-                ffmpeg="/usr/bin/ffmpeg",
+                ffmpeg=FFMPEG_BIN,
                 progress_callback=composition_progress.append,
             )
             composed = validate_rendered_clip(
                 composition, expected_duration=expected, expect_audio=True,
-                ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe",
+                ffmpeg=FFMPEG_BIN, ffprobe=FFPROBE_BIN,
             )
             self.assertAlmostEqual(composed.duration, 2.02, delta=.3)
             self.assertTrue(composition_progress)
@@ -4020,7 +3985,7 @@ class MediaIntegrationTests(unittest.TestCase):
             ]
             advanced_expected = render_composition(
                 source, advanced, segments=advanced_segments, has_audio=True,
-                ffmpeg="/usr/bin/ffmpeg",
+                ffmpeg=FFMPEG_BIN,
                 preview_width=160,
                 subtitle_cues=[{
                     "id": "advanced-cue", "start": .1, "end": 1.6,
@@ -4036,7 +4001,7 @@ class MediaIntegrationTests(unittest.TestCase):
             )
             advanced_info = validate_rendered_clip(
                 advanced, expected_duration=advanced_expected, expect_audio=True,
-                ffmpeg="/usr/bin/ffmpeg", ffprobe="/usr/bin/ffprobe",
+                ffmpeg=FFMPEG_BIN, ffprobe=FFPROBE_BIN,
             )
             self.assertAlmostEqual(
                 advanced_info.duration, composition_effective_duration(advanced_segments), delta=.3,
@@ -4051,12 +4016,12 @@ class MediaIntegrationTests(unittest.TestCase):
             source = root / "portrait-source.mp4"
             proxy = root / "portrait-proxy.mp4"
             subprocess.run([
-                "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+                FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
                 "-f", "lavfi", "-i", "color=c=navy:size=540x1350:rate=5",
                 "-t", "0.4", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", "-y", str(source),
             ], check=True)
-            create_preview_proxy(source, proxy, has_audio=False, ffmpeg="/usr/bin/ffmpeg")
-            info = probe_video(proxy, "/usr/bin/ffprobe")
+            create_preview_proxy(source, proxy, has_audio=False, ffmpeg=FFMPEG_BIN)
+            info = probe_video(proxy, FFPROBE_BIN)
             self.assertGreater(info.height, info.width)
             self.assertLessEqual(max(info.width, info.height), 1280)
             self.assertEqual(info.height, 1280)

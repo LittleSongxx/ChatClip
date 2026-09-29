@@ -35,11 +35,11 @@ def download(url: str, target: Path) -> None:
 def prefetch_huggingface(cache: Path, include_audio: bool, include_grounding: bool) -> None:
     from transformers import AutoModel, AutoProcessor
 
-    models = [os.getenv("HIGHLIGHT_SIGLIP_MODEL", "google/siglip2-base-patch16-224")]
+    models = [os.getenv("CHATCLIP_SIGLIP_MODEL", "google/siglip2-base-patch16-224")]
     if include_audio:
-        models.append(os.getenv("HIGHLIGHT_CLAP_MODEL", "laion/clap-htsat-fused"))
+        models.append(os.getenv("CHATCLIP_CLAP_MODEL", "laion/clap-htsat-fused"))
     if include_grounding:
-        models.append(os.getenv("HIGHLIGHT_GROUNDING_MODEL", "IDEA-Research/grounding-dino-tiny"))
+        models.append(os.getenv("CHATCLIP_GROUNDING_MODEL", "IDEA-Research/grounding-dino-tiny"))
     for model_id in models:
         print(f"preparing: {model_id}")
         AutoProcessor.from_pretrained(model_id, cache_dir=str(cache))

@@ -1,89 +1,33 @@
 <div align="center">
 
-<!-- 👇 在这里替换你的封面 Banner -->
+<img src="./assets/banner_zh.png" alt="ChatClip Banner" width="100%" />
 
-<img src="./assets/banner_zh.png" alt="ClipTalk Banner" width="100%" />
-
-# ClipTalk ✂️
+# ChatClip ✂️
 
 ### 一个通过对话完成视频剪辑的 AI Agent
 
 **只需要说出来，视频就剪好了。**
 
-[English](./README.md) · **简体中文** 
+`FastAPI` `LangGraph` `LangChain` `SenseVoice` `FFmpeg`
 
+[English](./README.md) · **简体中文**
 </div>
 
 ---
 
-## 📰 最新动态
+## 💡 ChatClip 是什么？
 
-* **[2026-09-11]** 🛠️ 完成本地引导式安装、独立 Agent 服务与 Docker Compose 部署。
-* **[2026-09-10]** 🎤 接入 **TalkNet 主动说话人检测**，支持区分“正在讲话”和“仅出现在画面中”，并提供 CPU/GPU 自动适配与不可用时的明确降级提示。
-* **[2026-09-09]** 🎨 重设计横屏与竖屏剪辑工作区，完善不同画幅下的预览布局、时间线空间利用和明暗主题适配。
-* **[2026-09-08]** 🤖 新增可审阅的对话式剪辑 Agent，支持先生成并确认剪辑计划，再调用受控工具执行，并交付可预览、可修改的版本。
-* **[2026-08-28]** 🎬 全面升级 **多模态视频剪辑工作区**：支持复用内容检索结果、按人物/说话人剪辑、声纹定位，以及可继续精剪的成片时间线；同时简化 CPU/GPU 部署。
-* **[2026-08-20]** 🎯 新增 **人脸匹配剪辑** 与 **话题分割剪辑**，支持按目标人物检索和按指定话题提取片段。
-* **[2026-08-12]** 🚀 优化时间轴显示，并新增 **竖屏创作模式** 切换支持。
-* **[2026-07-20]** ✨ 新增 **高光剪辑 Agent**，支持自动提取视频高光片段。
-* **[2026-07-10]** 🎉 ClipTalk 正式 **开源**！
+ChatClip 是一个**AI 视频剪辑 Agent**。你不需要在时间线上拖动素材、也不需要逐帧翻看几个小时的素材——只需要用自然语言描述你想要的成片，剩下的交给它：
 
-<!-- 后续更新持续追加到这里 -->
-
----
-
-## 🗺️ Roadmap
-
-ClipTalk 正在持续迭代，希望打造一个更强大的对话式视频剪辑体验。
-
-* [x] 💬 **对话式剪辑基础设施**
-* [x] ⚡ **高光剪辑 Agent**
-* [x] 👤 **人脸匹配剪辑** — 找到视频中的目标人物，并提取其出现在画面中的所有片段。
-* [x] 🔊 **声纹识别剪辑** — 通过声纹识别目标说话人，并提取该人物讲话的片段。
-* [x] 🧭 **话题分割剪辑** — 理解视频内容，并围绕指定话题自动提取相关片段。
-* [x] 🎞️ **可二次编辑时间轴** — 对 AI 自动生成的剪辑结果继续在时间轴中进行精细调整和二次编辑。
-
----
-
-## 🌟 效果展示 — 一句话，完成一次剪辑
-
-> 只需要一句自然语言指令，ClipTalk 即可完成真实的视频剪辑任务。
->
-> <!-- 在这里添加 GIF 对比：原始素材 → 用户指令 → 剪辑结果 -->
-<div align="center">
-<table>
-  <tr>
-    <td align="center"><b>📰 新闻与资讯高光</b><br/><img src="./assets/cases/news-broadcast.gif" width="240"/></td>
-    <td align="center"><b>🧵 DIY 与手工教程</b><br/><img src="./assets/cases/diy-craft.gif" width="240"/></td>
-    <td align="center"><b>📦 产品介绍</b><br/><img src="./assets/cases/product.gif" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>🏢 生活 Vlog</b><br/><img src="./assets/cases/meeting.gif" width="240"/></td>
-    <td align="center"><b>🔥 直播 PK 情绪高光</b><br/><img src="./assets/cases/music.gif" alt="AI 剪辑的直播 PK 情绪高光" width="240"/></td>
-    <td align="center"><b>⚽ 体育赛事高光</b><br/><img src="./assets/cases/sports.gif" width="240"/></td>
-  </tr>
-</table>
-</div>
-
----
-
-## 💡 什么是 ClipTalk？
-
-ClipTalk 是一个 **AI 视频剪辑 Agent**。
-
-你不需要在时间轴上反复拖拽素材，也不需要在几个小时的视频中来回寻找片段。你只需要用自然语言描述自己想要什么，Agent 就可以自动完成整个剪辑流程：
-
-**理解视频内容 → 定位目标内容 → 规划剪辑方案 → 执行剪辑 → 输出最终片段。**
+**理解素材 → 定位目标内容 → 规划剪辑 → 执行剪辑 → 交付成片。**
 
 <div align="center">
-  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ClipTalk conversational highlight editing workflow" width="900" />
+  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ChatClip 对话式高光剪辑工作流" width="900" />
   <br />
-  <sub><b>“把最精彩的部分剪成一个高光视频。”</b> — ClipTalk 会自动分析视频内容、展示事件时间轴，并生成多个 AI 剪辑版本。</sub>
+  <sub><b>“把最精彩的部分剪成高光集锦。”</b>——ChatClip 分析素材、给出事件时间线，并交付 AI 剪辑版本。</sub>
 </div>
 
-<br />
-
-> 上传一个 1 小时的视频，告诉 ClipTalk 你想要哪些内容，让它自动理解素材、规划剪辑并输出最终视频。
+Agent 的每一个动作都是**计划门控**的：执行任何操作前，它会先给出一份可审计的剪辑计划（包括它对你目标的理解）。时间线草案、字幕校对、封面、正式导出都需要你的明确确认——Agent 绝不会悄悄发布或删除媒体。
 
 ---
 
@@ -91,76 +35,73 @@ ClipTalk 是一个 **AI 视频剪辑 Agent**。
 
 ### 💬 对话式剪辑
 
-只需要描述你想要什么，就可以完成视频剪辑。
+从“把最精彩的部分剪成高光”到“把介绍定价的部分剪出来”——自然语言直接变成剪辑动作。还可以用“再短一点”“从讲定价的地方开始”这样的追问继续修改。
 
-从：
+### 🎯 四大剪辑能力
 
-*“把最精彩的部分剪成一个高光视频”*
+* **⚡ 高光提取** — 自动从长视频中识别并提取最有价值的片段。
+* **🧭 话题剪辑** — 围绕指定话题定位并提取相关片段。
+* **👤 人脸匹配剪辑** — 找到目标人物，提取其出镜片段。
+* **🔊 声纹剪辑** — 通过声纹识别目标说话人，提取其发言片段。
 
-到：
+### 🛠️ 可扩展的技能系统
 
-*“把介绍 XX 产品的部分剪出来”*
+内置 24 个 **Skill**（SKILL.md 策略文档），沉淀剪辑方法论——短视频 Hook 编排、字幕返修、封面生成、社媒画幅转换、交付质检等。技能可在界面中管理，也支持用自然语言生成新技能。
 
-ClipTalk 可以直接把自然语言指令转换成具体的剪辑操作。
+---
 
-你还可以通过多轮对话继续调整结果，例如：
+## 🧠 架构
 
-*“再短一点”*
+单个 FastAPI 进程承载一切——**没有独立的 Agent 子服务**：
 
-或者：
+```
+static/（原生 JS 单页应用）──HTTP/SSE──▶  app/*_api.py（薄路由层）
+                                              │
+      app/agent/  LangGraph 编排域            │  app/llm/  LangChain 模型层
+      规划器 · 编译器 · 人工门                │  Provider 工厂 · JSON 客户端
+      （interrupt / Command 恢复）            │
+                                              │
+                   app/main.py  媒体内核（分析 · 内容检索 · 语音 ·
+                   识别 · FFmpeg 渲染 · 封面 · 质检）经 DI 缝注入
+```
 
-*“从讲价格的地方开始。”*
+* **LangGraph 状态机**驱动 计划 → 审批 → 步骤执行 → 重规划。计划审批、结构化审核确认、后台渲染/分析等待都是框架级 `interrupt()` 暂停点，由 `Command(resume=...)` 恢复。
+* **确定性编译器** — 内置技能的步骤骨架由事实编译而来（不由模型发明），规划模型只贡献策略。
+* **安全语义** — 导出/删除永不自动执行；身份/审核步骤必须经用户结构化确认；审批与内容哈希绑定。
 
-### 🎯 四大核心剪辑能力
+完整说明：[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Agent 内部细节：[`docs/agent-platform.md`](./docs/agent-platform.md)
 
-* **⚡ 高光切片提取** — 自动理解长视频内容，识别其中最有价值的时刻，并生成精炼的高光片段。
+---
 
-* **👤 人脸匹配剪辑** — 找到视频中的目标人物，并自动提取其出现在画面中的片段。
+## 🤖 模型
 
-* **🧭 话题分割剪辑** — 根据指定话题定位并提取相关内容，例如 *“把讲解 XX 产品的片段剪出来。”*
+三个远程模型角色，已预填推荐的国产模型主线——**只需两个账号**：
 
-* **🔊 声纹识别剪辑** — 通过声纹识别指定说话人，并自动提取该人物讲话的所有片段。
+| 角色 | 主推荐 | 降级候选 |
+|---|---|---|
+| 视觉（VLM） | `qwen3-vl-max` @ 阿里云百炼 | `doubao-seed-2.0` @ 火山方舟 |
+| 剪辑规划 | `deepseek-flash`（DeepSeek-V4.1-Flash）@ DeepSeek | `qwen3.8-max` @ 百炼 |
+| Agent（工具调用） | `qwen3.8-max` @ 阿里云百炼 | `glm-4.6` @ 智谱 BigModel |
+
+* **本地多模态能力 · 已包含** — SenseVoice 语音识别（可选 whisper 降级）、SigLIP/E5/CLAP 向量、OCR、匿名人物识别；权重首次使用时下载。TalkNet 主动说话人检测为可选安装。
+* 通过 `.env`（见 [`.env.example`](./.env.example)）或页面 **设置** 配置；Agent 模型保存前必须通过真实工具调用探测。
 
 ---
 
 ## 🚀 快速开始
 
-也可以将仓库交给 Codex、Claude Code 或 Gemini，并让其按照 [AI 辅助安装指南](docs/AI_INSTALL.md) 自动检查、安装和验证；Codex 会自动读取根目录 [AGENTS.md](AGENTS.md)。
-
-需要 Linux x86_64（Windows 可使用 WSL2）、Python 3.10–3.11、FFmpeg/ffprobe、curl 和中文字体。Debian/Ubuntu 可执行：
+环境要求：x86-64 Linux/WSL2 · Python 3.10–3.11 · Node.js 22（仅本地图文动效渲染需要）· 带 `libx264` + `drawtext` 的 FFmpeg/FFprobe · 磁盘 ≥10 GiB。
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ffmpeg curl fonts-wqy-zenhei
+git clone https://github.com/LittleSongxx/ChatClip.git
+cd ChatClip
+
+python3 tools/setup.py --profile auto   # 统一安装器（自动选择 CPU/GPU）
+cp .env.example .env                    # 填入你的 API Key（CHATCLIP_* 变量）
+./start.sh                              # http://127.0.0.1:5180
 ```
 
-安装完整 CPU 运行环境并启动 ClipTalk：
-
-```bash
-git clone https://github.com/GML-MMGroup/ClipTalk.git
-cd ClipTalk
-
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements-cpu.txt
-
-# 首次使用人物/内容识别前建议执行
-python3 tools/prepare_recognition_models.py --data-root data
-python3 tools/doctor.py --profile cpu
-
-./start.sh
-```
-
-使用兼容驱动的 NVIDIA 主机时，将 `requirements-cpu.txt` 替换为 `requirements-gpu.txt`，安装后运行 `python3 tools/doctor.py --profile cuda`。
-
-### 模型职责
-
-* **VLM · 必需** — 理解画面、发现事件并精修镜头边界。
-* **LLM · 可选** — 规划镜头取舍、顺序和不同成片方向；可以直接复用 VLM。
-* **本地多模态能力 · 已包含** — SenseVoice、OCR、图文/声音向量和匿名人物识别；模型权重在本地准备或首次使用时下载。
-
-打开终端输出的访问地址，在 **Settings** 中配置 VLM，并按需配置独立 LLM；然后上传视频并描述剪辑要求。
+打开终端输出的地址，在 **设置** 中把 API Key 填入预选模型，然后上传视频、描述你的剪辑要求。
 
 ---
 
@@ -169,44 +110,42 @@ python3 tools/doctor.py --profile cpu
 ### 🐳 Docker
 
 ```bash
-git clone https://github.com/GML-MMGroup/ClipTalk.git
-cd ClipTalk
-cp .env.example .env
-docker compose up --build
+cp .env.example .env   # 填入模型 Key
+docker compose up --build -d          # CPU
+# GPU（需 NVIDIA Container Toolkit）：
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
 ```
 
-打开终端实际输出的访问地址，然后在 **Settings** 中配置视觉模型和剪辑规划模型。
+Docker 默认只发布到 `127.0.0.1`。远程访问时需设置 `CHATCLIP_BIND_ADDRESS=0.0.0.0` **并同时**配置强 `CHATCLIP_ACCESS_TOKEN`，前置带身份验证的 HTTPS 反向代理。
 
 ### 🔧 可选配置
 
-- **NVIDIA GPU：** 原生环境安装 `requirements-gpu.txt`；Docker 环境安装 NVIDIA Container Toolkit 后，运行 `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build`。
-- **本地模型：** SenseVoice 权重会在首次使用时下载；运行 `python3 tools/prepare_recognition_models.py --data-root data` 可准备人物/内容识别资源。
-- **环境变量：** 查看 [`.env.example`](./.env.example)。请勿提交 `.env` 或 API Key。
-
-<details>
-<summary><strong>远程部署与安全</strong></summary>
-
-远程访问时，原生部署设置 `HIGHLIGHT_HOST=0.0.0.0`，Docker 设置 `CLIPTALK_BIND_ADDRESS=0.0.0.0`。同时配置高强度的 `HIGHLIGHT_ACCESS_TOKEN`、开放实际使用的端口；若面向公网，请使用带身份验证的 HTTPS 反向代理。
-
-</details>
+* **NVIDIA GPU** — 本机安装 `requirements-gpu.txt`，用 `python3 tools/doctor.py --profile cuda` 验证。
+* **TalkNet 主动说话人检测** — 本机安装器默认安装，在页面能力面板查看状态。
+* **本地模型预热** — `python3 tools/prepare_recognition_models.py --data-root data`。
+* **全部环境变量** — [`docs/environment.example`](./docs/environment.example)。
 
 ---
-## 🤝 贡献
 
-欢迎提交 Pull Request，为 AdCraft 贡献代码、功能改进、Bug 修复或其他优化，并成为项目贡献者。
+## ✅ 验证
 
+```bash
+python -m pytest -q                 # 后端测试（1300+ 项）
+npm run test:frontend               # 浏览器/契约测试
+python3 tools/check_repository.py --mode deployment
+python3 tools/doctor.py             # 环境体检
+```
 
-## 💬 联系我们
+---
 
-如果你有任何问题、建议、合作意向或其他需求，欢迎通过邮件联系我们：
+## 📄 许可
 
-马飞 — mafei@gml.ac.cn
-徐洪波 — xuhongbo@gml.ac.cn
+本项目基于[非商业署名许可](./LICENSE)发布。
 
 <div align="center">
 
-⭐ 如果 ClipTalk 对你有帮助，欢迎给我们一个 Star！
+⭐ 如果 ChatClip 对你有用，欢迎点一个 Star！
 
-Made with ❤️ by GML-MMGroup
+Made with ❤️ by [LittleSongxx](https://github.com/LittleSongxx)
 
 </div>

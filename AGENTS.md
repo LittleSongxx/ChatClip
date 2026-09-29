@@ -1,4 +1,4 @@
-# ClipTalk Agent Instructions
+# ChatClip Agent Instructions
 
 本文件是仓库级 Agent 约定。安装与部署任务必须继续阅读
 [`docs/AI_INSTALL.md`](docs/AI_INSTALL.md)，不要根据经验另写一套安装流程。

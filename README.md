@@ -1,87 +1,33 @@
 <div align="center">
 
-<!-- 👇 Replace this with your cover banner -->
+<img src="./assets/banner.png" alt="ChatClip Banner" width="100%" />
 
-<img src="./assets/banner.png" alt="ClipTalk Banner" width="100%" />
-
-# ClipTalk ✂️
+# ChatClip ✂️
 
 ### An AI Agent That Edits Videos Through Conversation
 
 **Just say it. It's edited.**
 
+`FastAPI` `LangGraph` `LangChain` `SenseVoice` `FFmpeg`
 
-**English** · [简体中文](./README_zh.md) 
+**English** · [简体中文](./README_zh.md)
 </div>
 
 ---
 
-## 📰 News
+## 💡 What is ChatClip?
 
-* **[2026-09-11]** 🛠️ Added guided local setup, a standalone Agent service, and Docker Compose deployment.
-* **[2026-09-10]** 🎤 Integrated **TalkNet active-speaker detection** to distinguish speaking from visual presence, with automatic CPU/GPU selection and explicit fallback notices.
-* **[2026-09-09]** 🎨 Redesigned the landscape and portrait editing workspaces, improving preview layouts, timeline space usage, and light/dark theme support across aspect ratios.
-* **[2026-09-08]** 🤖 Added a reviewable conversational editing Agent that presents its editing plan before executing controlled tools and delivering previewable, revisable versions.
-* **[2026-08-28]** 🎬 Upgraded the **multimodal editing workspace** with reusable content-search results, person/speaker workflows, voiceprint-based clipping, and an editable fine-cut timeline; also streamlined CPU/GPU deployment.
-* **[2026-08-20]** 🎯 Added **Face-Matched Editing** and **Topic-Based Editing**, enabling target-person retrieval and topic-driven clip extraction.
-* **[2026-08-12]** 🚀 Optimized the timeline display and added support for switching to **vertical creation mode**.
-* **[2026-07-20]** ✨ Added the **Highlight Editing Agent** for automatic highlight clip extraction.
-* **[2026-07-10]** 🎉 ClipTalk is now **open-source**!
-
-<!-- Keep adding future updates here -->
-
----
-
-## 🗺️ Roadmap
-
-ClipTalk is actively evolving toward a more powerful conversational video editing experience.
-
-* [x] 💬 **Conversational Editing Infrastructure**
-* [x] ⚡ **Highlight Editing Agent**
-* [x] 👤 **Face-Matched Editing** — Find a target person and extract the segments where they appear on screen.
-* [x] 🔊 **Voiceprint-Based Editing** — Identify a target speaker and extract the segments where they are speaking.
-* [x] 🧭 **Topic-Based Editing** — Understand the content and extract segments around a specific topic.
-* [x] 🎞️ **Editable Timeline** — Further edit and fine-tune AI-generated results directly on the timeline.
-
-
----
-
-## 🌟 Showcase — One Sentence, One Edit
-
-> Real editing tasks completed by ClipTalk with a single instruction.
->
-> <!-- Add GIF comparisons here: source video → instruction → result -->
-
-<table>
-  <tr>
-    <td align="center"><b>📰 News &amp; Broadcast Highlights</b><br/><img src="./assets/cases/news-broadcast.gif" width="240"/></td>
-    <td align="center"><b>🧵 DIY &amp; Craft Tutorials</b><br/><img src="./assets/cases/diy-craft.gif" width="240"/></td>
-    <td align="center"><b>📦 Product Demos</b><br/><img src="./assets/cases/product.gif" width="240"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>🏢 Lifestyle Vlogs</b><br/><img src="./assets/cases/meeting.gif" width="240"/></td>
-    <td align="center"><b>🔥 Live PK Reaction Highlights</b><br/><img src="./assets/cases/music.gif" alt="AI-edited live PK reaction highlights" width="240"/></td>
-    <td align="center"><b>⚽ Sports Highlights</b><br/><img src="./assets/cases/sports.gif" width="240"/></td>
-  </tr>
-</table>
-
----
-
-## 💡 What is ClipTalk?
-
-ClipTalk is an **AI video-editing agent**. You don't drag clips on a timeline or scrub through hours of footage — you just describe what you want in natural language, and the agent handles the entire process:
+ChatClip is an **AI video-editing agent**. You don't drag clips on a timeline or scrub through hours of footage — you describe what you want in natural language, and the agent handles the entire process:
 
 **understanding the footage → locating the target content → planning the edit → executing cuts → delivering the final clips.**
 
 <div align="center">
-  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ClipTalk conversational highlight editing workflow" width="900" />
+  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ChatClip conversational highlight editing workflow" width="900" />
   <br />
-  <sub><b>“Make a highlight from the best moments.”</b> — ClipTalk analyzes the footage, presents the event timeline, and delivers multiple AI-edited versions.</sub>
+  <sub><b>"Make a highlight from the best moments."</b> — ChatClip analyzes the footage, presents the event timeline, and delivers AI-edited versions.</sub>
 </div>
 
-<br />
-
-> Upload a 1-hour video, describe the moments you want, and let ClipTalk understand the footage, plan the edit, and deliver the finished clips.
+Every agent action is **plan-gated**: the agent presents an auditable editing plan (with its understanding of your goal) before executing anything. Timeline drafts, subtitle reviews, covers, and formal exports each require your explicit confirmation — the agent never silently publishes or deletes media.
 
 ---
 
@@ -89,62 +35,73 @@ ClipTalk is an **AI video-editing agent**. You don't drag clips on a timeline or
 
 ### 💬 Conversational Editing
 
-Edit videos simply by describing what you want.
-
-From *“make a highlight of the best moments”* to *“cut out the part where they introduce Product X”*, ClipTalk turns natural-language instructions directly into editing actions.
-
-You can also refine the result through follow-up instructions such as *“make it shorter”* or *“start from the part about pricing”*.
+From *"make a highlight of the best moments"* to *"cut out the part where they introduce pricing"* — natural language becomes editing actions. Refine results with follow-ups such as *"make it shorter"* or *"start from the part about pricing"*.
 
 ### 🎯 Four Core Editing Capabilities
 
-* **⚡ Highlight Extraction** — Automatically identify and extract the most valuable moments from long-form footage to create concise highlight clips.
+* **⚡ Highlight Extraction** — automatically identify and extract the most valuable moments from long-form footage.
+* **🧭 Topic-Based Editing** — locate and extract clips around a specific topic.
+* **👤 Face-Matched Editing** — find a target person and extract the segments where they appear on screen.
+* **🔊 Voiceprint-Based Editing** — identify a target speaker by voiceprint and extract the segments where they speak.
 
-* **👤 Face-Matched Editing** — Find a target person in the video and extract the segments where that person appears on screen.
+### 🛠️ Extensible Skill System
 
-* **🧭 Topic-Based Editing** — Locate and extract clips around a specific topic, such as *“cut out the parts where they explain Product X.”*
+24 built-in **Skills** (SKILL.md policy documents) encode editing know-how — short-form hook direction, subtitle revision, cover art, social reframing, delivery QC. Skills are managed in the UI; new ones can be generated from a natural-language description.
 
-* **🔊 Voiceprint-Based Editing** — Identify a specific speaker by voiceprint and extract the segments where that person is speaking.
+---
+
+## 🧠 Architecture
+
+One FastAPI process hosts everything — there is **no separate agent service**:
+
+```
+static/ (vanilla JS SPA)  ──HTTP/SSE──▶  app/*_api.py (thin routes)
+                                            │
+        app/agent/  LangGraph orchestration │  app/llm/  LangChain model layer
+        planner · compiler · human gates    │  provider factory · JSON client
+        (interrupt / Command resume)        │
+                                            │
+                     app/main.py  media kernel (analysis · search · speech ·
+                     recognition · FFmpeg rendering · covers · QC) via DI seam
+```
+
+* **LangGraph state machine** drives plan → approval → step execution → replan. Plan approval, structured review confirmations, and background render/analysis operations are framework-level `interrupt()` pauses resumed by `Command(resume=...)`.
+* **Deterministic compiler** — for built-in skills the step skeleton is compiled from facts (not invented by the model); the planning model contributes strategy only.
+* **Safety semantics** — exports/deletes never run autonomously, identity/review steps gate on structured user confirmation, and approvals are bound to a content hash.
+
+Full details: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · agent internals: [`docs/agent-platform.md`](./docs/agent-platform.md)
+
+---
+
+## 🤖 Models
+
+Three remote roles, pre-filled with the recommended domestic (CN) model line — **only two accounts needed**:
+
+| Role | Recommended | Fallback candidate |
+|---|---|---|
+| Vision (VLM) | `qwen3-vl-max` @ Alibaba Bailian | `doubao-seed-2.0` @ Volcengine Ark |
+| Editing planner | `deepseek-flash` (DeepSeek-V4.1-Flash) @ DeepSeek | `qwen3.8-max` @ Bailian |
+| Agent (tool calling) | `qwen3.8-max` @ Alibaba Bailian | `glm-4.6` @ Zhipu BigModel |
+
+* **Local multimodal stack · included** — SenseVoice ASR (optional whisper fallback), SigLIP/E5/CLAP embeddings, OCR, anonymous person recognition; weights download on first use. TalkNet active-speaker detection is an optional install.
+* Configure via `.env` (see [`.env.example`](./.env.example)) or the in-app **Settings** page; the agent model must pass a real tool-calling probe before saving.
 
 ---
 
 ## 🚀 Quick Start
 
-Prefer AI-assisted setup? Give this repository to Codex, Claude Code, or Gemini and ask it to follow the [AI installation guide](docs/AI_INSTALL.md); Codex discovers the root [AGENTS.md](AGENTS.md) automatically.
-
-Requires Linux x86_64 (or WSL2), Python 3.10–3.11, FFmpeg/ffprobe, curl, and a CJK font. On Debian/Ubuntu:
+Prerequisites: x86-64 Linux/WSL2 · Python 3.10–3.11 · Node.js 22 (only for the local motion renderer) · FFmpeg/FFprobe with `libx264` + `drawtext` · ≥10 GiB free disk.
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y ffmpeg curl fonts-wqy-zenhei
+git clone https://github.com/LittleSongxx/ChatClip.git
+cd ChatClip
+
+python3 tools/setup.py --profile auto   # guided installer (CPU/GPU auto-detect)
+cp .env.example .env                    # fill your API keys (CHATCLIP_* vars)
+./start.sh                              # http://127.0.0.1:5180
 ```
 
-Install the complete CPU runtime and start ClipTalk:
-
-```bash
-git clone https://github.com/GML-MMGroup/ClipTalk.git
-cd ClipTalk
-
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements-cpu.txt
-
-# Recommended before the first person/content recognition task
-python3 tools/prepare_recognition_models.py --data-root data
-python3 tools/doctor.py --profile cpu
-
-./start.sh
-```
-
-For an NVIDIA host with a compatible driver, install `requirements-gpu.txt` instead of `requirements-cpu.txt`, then run `python3 tools/doctor.py --profile cuda`.
-
-### Models
-
-* **VLM · Required** — understands frames, finds events, and refines shot boundaries.
-* **LLM · Optional** — plans shot selection, ordering, and alternative edits; it can reuse the VLM.
-* **Local multimodal stack · Included** — SenseVoice, OCR, visual/audio embeddings, and anonymous-person recognition; model weights are prepared locally or downloaded on first use.
-
-Open the URL printed in the terminal. In **Settings**, configure the VLM and optionally a separate LLM, then upload a video and describe the edit you want.
+Open the printed URL, paste your API keys over the pre-selected models in **Settings**, then upload a video and describe the edit you want.
 
 ---
 
@@ -153,44 +110,42 @@ Open the URL printed in the terminal. In **Settings**, configure the VLM and opt
 ### 🐳 Docker
 
 ```bash
-git clone https://github.com/GML-MMGroup/ClipTalk.git
-cd ClipTalk
-cp .env.example .env
-docker compose up --build
+cp .env.example .env   # fill model keys
+docker compose up --build -d          # CPU
+# GPU (NVIDIA Container Toolkit required):
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
 ```
 
-Open the URL printed in the terminal, then configure the vision and planning models in **Settings**.
+Docker publishes to `127.0.0.1` only. For remote access set `CHATCLIP_BIND_ADDRESS=0.0.0.0` **together with** a strong `CHATCLIP_ACCESS_TOKEN`, and put an authenticated HTTPS reverse proxy in front.
 
 ### 🔧 Optional setup
 
-- **NVIDIA GPU:** install `requirements-gpu.txt` for a native environment. For Docker, use `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build` with NVIDIA Container Toolkit installed.
-- **Local models:** SenseVoice weights download on first use; run `python3 tools/prepare_recognition_models.py --data-root data` to prepare person/content recognition assets.
-- **Environment variables:** see [`.env.example`](./.env.example). Never commit `.env` or API keys.
-
-<details>
-<summary><strong>Remote deployment and security</strong></summary>
-
-For remote access, set `HIGHLIGHT_HOST=0.0.0.0` for a native install or `CLIPTALK_BIND_ADDRESS=0.0.0.0` for Docker. Configure a strong `HIGHLIGHT_ACCESS_TOKEN`, allow the selected port, and use an authenticated HTTPS reverse proxy for internet-facing deployments.
-
-</details>
+* **NVIDIA GPU** — native: install `requirements-gpu.txt`; validate with `python3 tools/doctor.py --profile cuda`.
+* **TalkNet active-speaker detection** — installed by the local installer; verify in the in-app capability panel.
+* **Local model warm-up** — `python3 tools/prepare_recognition_models.py --data-root data`.
+* **All environment variables** — [`docs/environment.example`](./docs/environment.example).
 
 ---
-## 🤝 Contributing
 
-Pull Requests are always welcome. Contribute code, new features, bug fixes, or other improvements to AdCraft and become a project contributor.
+## ✅ Verification
 
+```bash
+python -m pytest -q                 # backend suite (1,300+ tests)
+npm run test:frontend               # browser/contract tests
+python3 tools/check_repository.py --mode deployment
+python3 tools/doctor.py             # environment check
+```
 
-## 💬 Contact
+---
 
-For questions, feedback, collaboration, or other inquiries, feel free to contact us:
+## 📄 License
 
-Ma Fei — mafei@gml.ac.cn
-Xu Hongbo — xuhongbo@gml.ac.cn
+This project is released under the [Non-Commercial Attribution License](./LICENSE).
 
 <div align="center">
 
-⭐ If you find ClipTalk useful, please give us a star!
+⭐ If you find ChatClip useful, please give it a star!
 
-Made with ❤️ by GML-MMGroup
+Made with ❤️ by [LittleSongxx](https://github.com/LittleSongxx)
 
 </div>

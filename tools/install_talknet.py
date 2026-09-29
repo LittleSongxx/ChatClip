@@ -21,7 +21,7 @@ REPOSITORY = "https://github.com/TaoRuijie/TalkNet-ASD.git"
 REVISION = "6d6821479af485e251c4991487e40573b42181b4"
 TALKSET_ID = "1AbN9fCf9IexMxEKXLQY2KYBlb-IhSEea"
 S3FD_ID = "1KafnHz7ccT-3IyddBsL5yi2xGtxAKypt"
-ADAPTER_REVISION = "cliptalk-device-v1"
+ADAPTER_REVISION = "chatclip-device-v1"
 
 
 def adapted_source(name: str, source: str) -> str:
@@ -30,16 +30,16 @@ def adapted_source(name: str, source: str) -> str:
         return source
     if name not in {"demoTalkNet.py", "talkNet.py"} or ".cuda()" not in source:
         raise ValueError(f"{name} 与已验证的上游版本不同，未修改文件。")
-    source = f"# {ADAPTER_REVISION}\nimport os\nCLIPTALK_DEVICE = os.environ.get('CLIPTALK_TALKNET_DEVICE', 'cuda')\n" + source
-    source = source.replace(".cuda()", ".to(CLIPTALK_DEVICE)")
+    source = f"# {ADAPTER_REVISION}\nimport os\nCHATCLIP_DEVICE = os.environ.get('CHATCLIP_TALKNET_DEVICE', 'cuda')\n" + source
+    source = source.replace(".cuda()", ".to(CHATCLIP_DEVICE)")
     if name == "talkNet.py":
         if "torch.load(path)" not in source:
             raise ValueError("未找到模型载入位置，未修改文件。")
-        source = source.replace("torch.load(path)", "torch.load(path, map_location=CLIPTALK_DEVICE)")
+        source = source.replace("torch.load(path)", "torch.load(path, map_location=CHATCLIP_DEVICE)")
     else:
         if "S3FD(device='cuda')" not in source:
             raise ValueError("未找到人脸检测设备配置，未修改文件。")
-        source = source.replace("S3FD(device='cuda')", "S3FD(device=CLIPTALK_DEVICE)")
+        source = source.replace("S3FD(device='cuda')", "S3FD(device=CHATCLIP_DEVICE)")
         if "--noVisualization" not in source:
             source = source.replace("args = parser.parse_args()", "parser.add_argument('--noVisualization', action='store_true')\nargs = parser.parse_args()")
             target = "\t\tvisualization(vidTracks, scores, args)"

@@ -5,20 +5,20 @@
   // 在只 eval 本文件的测试上下文中该库不可用，此时退化为等价的最小结构，
   // 保证渲染不中断（生产页面始终经由 index.html 加载 ui-states.js）。
   const ctEsc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const ctEmpty = (o) => (window.ClipTalkUIStates
-    ? window.ClipTalkUIStates.emptyStateHtml(o)
+  const ctEmpty = (o) => (window.ChatClipUIStates
+    ? window.ChatClipUIStates.emptyStateHtml(o)
     : `<div class="ct-empty${o && o.className ? ` ${o.className}` : ""}" role="status"><strong>${ctEsc(o && o.title)}</strong>${o && o.hint ? `<p>${ctEsc(o.hint)}</p>` : ""}</div>`);
   const ctPolling = (fn, ms) => {
-    const ui = window.ClipTalkUIStates;
+    const ui = window.ChatClipUIStates;
     if (ui && typeof ui.createPolling === "function") return ui.createPolling(fn, ms);
     const id = setInterval(fn, ms);
     return { interval: ms, refresh: fn, stop: () => clearInterval(id) };
   };
 
-  const ctLoading = (o) => (window.ClipTalkUIStates
-    ? window.ClipTalkUIStates.loadingStateHtml(o)
+  const ctLoading = (o) => (window.ChatClipUIStates
+    ? window.ChatClipUIStates.loadingStateHtml(o)
     : `<div class="ct-loading${o && o.className ? ` ${o.className}` : ""}" role="status" aria-live="polite"><strong>${ctEsc(o && o.label)}</strong></div>`);
-  const request = window.ClipTalkApi?.request;
+  const request = window.ChatClipApi?.request;
   if (!request) return;
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -65,7 +65,7 @@
   }
 
   function unifiedState(job) {
-    return window.ClipTalkWorkspaceState?.derivePresentation?.(job) || null;
+    return window.ChatClipWorkspaceState?.derivePresentation?.(job) || null;
   }
 
   function statusGroup(job) {
@@ -145,7 +145,7 @@
 
   function taskDisplayName(job) {
     let displayName = "";
-    try { displayName = JSON.parse(localStorage.getItem(`cliptalk-project-preferences-v1:${job?.id}`) || "{}").displayName || ""; } catch { /* Local preferences are optional. */ }
+    try { displayName = JSON.parse(localStorage.getItem(`chatclip-project-preferences-v1:${job?.id}`) || "{}").displayName || ""; } catch { /* Local preferences are optional. */ }
     const filename = String(job?.filename || "未命名视频").replace(/\.[a-z0-9]{2,5}$/i, "");
     const objective = String(
       job?.brief?.objective
@@ -205,7 +205,7 @@
     const group = statusGroup(job);
     const workflow = String(job?.request?.entryWorkflow || "") === "agent"
       ? "AI 剪辑" : (workflowLabels[workflowKind(job)] || "视频剪辑");
-    const current = String(window.ClipTalkCurrentJobId?.() || "") === String(job?.id || "");
+    const current = String(window.ChatClipCurrentJobId?.() || "") === String(job?.id || "");
     const display = taskDisplayName(job);
     const updated = formatDate(job?.updatedAt || job?.createdAt).replace("保存时间未知", "更新时间未知");
     const output = job?.primaryOutput && typeof job.primaryOutput === "object" ? job.primaryOutput : null;
@@ -229,7 +229,7 @@
   }
 
   function renderNavigationBadges() {
-    const currentId = String(window.ClipTalkCurrentJobId?.() || "");
+    const currentId = String(window.ChatClipCurrentJobId?.() || "");
     const currentTask = $("#sidebarCurrentTask");
     const sidebar = $("#appSidebar");
     sidebar?.classList.toggle("has-current-task", Boolean(currentId));
@@ -238,7 +238,7 @@
       currentTask.title = currentId ? "返回当前任务" : "暂无当前任务";
       currentTask.setAttribute("aria-label", currentId ? "返回当前任务" : "当前没有已打开的任务");
     }
-    const tasks = window.ClipTalkWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs]);
+    const tasks = window.ChatClipWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs]);
     const attention = tasks.filter((job) => ["active", "agent_planning", "action_required"].includes(statusGroup(job))).length;
     const loadedTotal = tasks.length;
     const hasUnloadedTasks = state.hasMore || state.catalogHasMore;
@@ -273,9 +273,9 @@
   function renderSidebar() {
     const root = $("#sidebarHistoryList");
     if (!root) return;
-    const currentId = String(window.ClipTalkCurrentJobId?.() || "");
+    const currentId = String(window.ChatClipCurrentJobId?.() || "");
     const visibleIds = new Set(state.sidebarJobs.map(job => String(job.id)));
-    const jobs = window.ClipTalkWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs])
+    const jobs = window.ChatClipWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs])
       .filter(job => visibleIds.has(String(job.id)) || job.executionHistory.some(record => visibleIds.has(String(record.id))))
       .filter(job => !state.homeGroup || homeGroupFor(job) === state.homeGroup)
       .filter(job => state.filter === "all" || statusGroup(job) === state.filter).sort((left, right) => {
@@ -307,7 +307,7 @@
     const root = $("#homeTaskGrid");
     const home = $("#homeView");
     if (!root || !home) return;
-    const tasks = window.ClipTalkWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs]);
+    const tasks = window.ChatClipWorkspaceState.logicalTasks([...state.catalog, ...state.sidebarJobs]);
     const projectIds = new Set(state.catalog.map((job) => String(job.sourceProjectId || job.id)));
     const taskCount = $("#homeTaskCount");
     const assetCount = $("#homeAssetCount");
@@ -432,7 +432,7 @@
     const root = $("#libraryOutputList");
     if (!root) return;
     const returnButton = $("[data-library-return]");
-    if (returnButton) returnButton.textContent = window.ClipTalkCurrentJobId?.() ? "返回当前任务" : "返回首页";
+    if (returnButton) returnButton.textContent = window.ChatClipCurrentJobId?.() ? "返回当前任务" : "返回首页";
     const query = state.libraryQuery.toLocaleLowerCase();
     const filtered = state.outputs.filter((item) => !query || [item.displayTitle, item.title, item.displayName, item.sourceFilename, item.filename]
       .some((value) => String(value || "").toLocaleLowerCase().includes(query)));
@@ -522,7 +522,7 @@
     if (next === "settings" && state.view !== "settings") {
       state.returnView = state.view;
     } else if (next === "library" && !["settings", "library"].includes(state.view)) {
-      state.returnView = window.ClipTalkCurrentJobId?.() ? "workspace" : "home";
+      state.returnView = window.ChatClipCurrentJobId?.() ? "workspace" : "home";
     }
     state.view = next;
     document.body.dataset.shellView = next;
@@ -550,7 +550,7 @@
   }
 
   function returnFromPage() {
-    const fallback = window.ClipTalkCurrentJobId?.() ? "workspace" : "home";
+    const fallback = window.ChatClipCurrentJobId?.() ? "workspace" : "home";
     showView(state.returnView || fallback, { route: true });
   }
 
@@ -616,7 +616,7 @@
     if (!jobId) return;
     try {
       await window.openHomeTask?.(jobId);
-      if (outputFilename && String(window.ClipTalkCurrentJobId?.() || "") === String(jobId)) {
+      if (outputFilename && String(window.ChatClipCurrentJobId?.() || "") === String(jobId)) {
         window.selectOutput?.(outputFilename, false);
       }
       showView("workspace", { route: false });
@@ -674,7 +674,7 @@
       } else if (view === "settings") {
         window.openSettings?.();
         showView("settings", { route: true, push: true });
-      } else if (view === "workspace" && window.ClipTalkCurrentJobId?.()) {
+      } else if (view === "workspace" && window.ChatClipCurrentJobId?.()) {
         showView("workspace", { route: true, push: true });
       } else if (view === "library") showView("library", { route: true, push: true });
       setHistoryDrawer(false);
@@ -748,7 +748,7 @@
     const taskLink = target.closest("[data-library-task]");
     if (taskLink) {
       await openTask(taskLink.dataset.libraryTask);
-      if (String(window.ClipTalkCurrentJobId?.()) === taskLink.dataset.libraryTask) {
+      if (String(window.ChatClipCurrentJobId?.()) === taskLink.dataset.libraryTask) {
         window.selectOutput?.(taskLink.dataset.libraryOutput, false);
       }
       return;
@@ -790,7 +790,7 @@
           ...(remove ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kept: true }) }),
         });
         await loadLibrary({ force: true });
-        if (String(window.ClipTalkCurrentJobId?.() || "") === String(item.jobId)) window.ClipTalkRefreshCurrentJob?.();
+        if (String(window.ChatClipCurrentJobId?.() || "") === String(item.jobId)) window.ChatClipRefreshCurrentJob?.();
         window.showToast?.(remove ? "独立保留副本已删除，无法撤销。" : "已长期保留，清理原任务不会删除此副本。");
       } catch (error) { window.showToast?.(error.message || "操作失败，请重试"); }
       finally { if (libraryAction.isConnected) libraryAction.disabled = false; }
@@ -861,13 +861,13 @@
     const routeView = params.get("view");
     if (["settings", "library"].includes(routeView)) return void showView(routeView, { route: false });
     const jobId = params.get("job");
-    if (jobId && String(window.ClipTalkCurrentJobId?.() || "") !== jobId) await openTask(jobId);
+    if (jobId && String(window.ChatClipCurrentJobId?.() || "") !== jobId) await openTask(jobId);
     else if (!jobId) { window.resetWorkspace?.(true); showView("home", { route: false }); }
     else showView("workspace", { route: false });
-    if (jobId && jobId === window.ClipTalkCurrentJobId?.() && params.get("output")) window.selectOutput?.(params.get("output"), false);
+    if (jobId && jobId === window.ChatClipCurrentJobId?.() && params.get("output")) window.selectOutput?.(params.get("output"), false);
   });
 
-  window.ClipTalkAppShell = {
+  window.ChatClipAppShell = {
     refreshCatalog,
     loadHomeTasks: refreshCatalog,
     syncCurrentJob,
@@ -876,7 +876,7 @@
     loadLibrary,
     closeHistoryDrawer: (options = {}) => setHistoryDrawer(false, options),
   };
-  window.addEventListener("cliptalk:project-name-changed", () => { renderHome(); renderSidebar(); });
+  window.addEventListener("chatclip:project-name-changed", () => { renderHome(); renderSidebar(); });
   $("#mobileNavigationToggle")?.addEventListener("click", () => {
     const open = document.body.dataset.mobileNavOpen !== "true";
     document.body.dataset.mobileNavOpen = String(open);

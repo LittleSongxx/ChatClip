@@ -115,7 +115,7 @@ async function startStubServer() {
       return;
     }
     if (url.pathname === "/api/jobs") {
-      const token = String(request.headers["x-highlight-token"] || "");
+      const token = String(request.headers["x-chatclip-token"] || "");
       response.setHeader("Content-Type", "application/json");
       if (token !== "browser-test-token") {
         requests.push({ path: url.pathname, token, method: request.method });
@@ -145,7 +145,7 @@ async function startStubServer() {
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-      requests.push({ path: url.pathname, token: String(request.headers["x-highlight-token"] || ""), method: request.method, body });
+      requests.push({ path: url.pathname, token: String(request.headers["x-chatclip-token"] || ""), method: request.method, body });
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ job: activatedJob(body) }));
       return;
@@ -154,7 +154,7 @@ async function startStubServer() {
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       const body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
-      requests.push({ path: url.pathname, token: String(request.headers["x-highlight-token"] || ""), method: request.method, body });
+      requests.push({ path: url.pathname, token: String(request.headers["x-chatclip-token"] || ""), method: request.method, body });
       response.statusCode = 201;
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify({ workspace: { id: `ws_${body.jobId || "job_agent_draft"}`, jobId: body.jobId || "job_agent_draft" } }));
@@ -386,7 +386,7 @@ test("task attention and legacy confirmation shortcuts open details instead of h
     await openAuthenticatedWorkspace(page, stub.url);
     const audit = await page.evaluate(() => {
       const opened = [];
-      window.ClipTalkAgentWorkspace = { ...window.ClipTalkAgentWorkspace,
+      window.ChatClipAgentWorkspace = { ...window.ChatClipAgentWorkspace,
         openDetails: options => { opened.push(options.section); return true; } };
       currentJob = { id: 'button_audit', filename: 'audit.mp4', taskMode: 'highlight',
         videoInfo: { duration: 60, width: 1280, height: 720 }, candidates: [], outputs: [], outputVersions: [],
@@ -402,7 +402,7 @@ test("task attention and legacy confirmation shortcuts open details instead of h
         document.querySelector('[data-focus-agent-plan]').click();
       }
       for (const actionKey of ['review_quality', 'review_action', 'retry', 'confirm_plan']) {
-        window.ClipTalkWorkspaceController.openTaskDestination({ actionKey, target: '#agentPlanDock' });
+        window.ChatClipWorkspaceController.openTaskDestination({ actionKey, target: '#agentPlanDock' });
       }
       return { opened, scroll: document.querySelector('#workspace').scrollTop };
     });
@@ -431,10 +431,10 @@ test("compact version playback and source jumps reveal preview but passive resto
       document.body.dataset.shellMode = 'workspace';
       document.querySelector('#workspace').classList.remove('home-mode', 'new-task-workbench');
       document.querySelector('#reviewView').classList.remove('hidden');
-      window.ClipTalkWorkspaceController.mount();
-      window.ClipTalkWorkspaceController.openRail('materials');
+      window.ChatClipWorkspaceController.mount();
+      window.ChatClipWorkspaceController.openRail('materials');
       selectOutput('audit.mp4', false);
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     assert.equal(await page.locator('body').getAttribute('data-ct-compact-view'), 'review');
     await page.locator('[data-ct-v4-preview-version]').click();
@@ -445,7 +445,7 @@ test("compact version playback and source jumps reveal preview but passive resto
     assert.equal(await page.locator('body').getAttribute('data-ct-compact-view'), 'preview');
     assert.equal(await page.locator('#mainVideo').isVisible(), true);
     await page.evaluate(() => {
-      window.ClipTalkWorkspaceController.openRail('materials');
+      window.ChatClipWorkspaceController.openRail('materials');
       showSource({ autoplay: false });
     });
     assert.equal(await page.locator('body').getAttribute('data-ct-compact-view'), 'review');
@@ -466,7 +466,7 @@ test("desktop project tools reclaim the topbar and restore safely on compact and
       document.body.dataset.shellMode = "workspace";
       document.querySelector("#workspace").classList.remove("home-mode", "new-task-workbench");
       document.querySelector("#reviewView").classList.remove("hidden");
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
       window.projectButtonReference = document.querySelector("#ctV4ProjectButton");
       window.notificationReference = document.querySelector("#ctV4Notifications");
       window.historyOpenCount = 0;
@@ -513,7 +513,7 @@ test("desktop project tools reclaim the topbar and restore safely on compact and
     }
     await page.evaluate(() => {
       document.querySelector("#workspace").classList.add("new-task-workbench");
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator("#ctV4Topbar #ctV4ProjectButton").count(), 1);
     assert.equal(await page.locator("#ctV4Topbar").isVisible(), false);
@@ -535,7 +535,7 @@ test("desktop project tools reclaim the topbar and restore safely on compact and
     }
     await page.evaluate(() => {
       document.querySelector("#workspace").classList.remove("new-task-workbench");
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator(".review-header #ctV4ProjectButton").isVisible(), true);
     assert.equal(await page.locator(".app-sidebar-utility #ctV4Notifications").isVisible(), true);
@@ -544,7 +544,7 @@ test("desktop project tools reclaim the topbar and restore safely on compact and
       && document.querySelector("#ctV4Notifications") === window.notificationReference), true);
     await page.evaluate(() => {
       document.body.dataset.shellView = "home";
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator(".app-sidebar-utility #ctV4Notifications").count(), 0);
     assert.equal(await page.locator("#ctV4Topbar").getAttribute("aria-hidden"), "true");
@@ -568,13 +568,13 @@ test("contextual agent state follows real task states without duplicating result
     assert.deepEqual(await page.evaluate(() => {
       const input = document.querySelector('#chatInput');
       input.setSelectionRange(1, 3);
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
       return [document.activeElement === input, input.selectionStart, input.selectionEnd, input.value];
     }), [true, 1, 3, '保留产品演示']);
     await page.evaluate(() => {
       document.querySelector("#workspace").classList.remove("new-task-workbench");
       currentJob = { id: "context-job", agentDraft: true, presentation: { key: "waiting_instruction", journeyStage: 0 } };
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator("#ctAgentContext").count(), 0);
     assert.equal(await page.locator("#ctTaskJourney progress").count(), 0);
@@ -583,9 +583,9 @@ test("contextual agent state follows real task states without duplicating result
         executionProgress: { successful: 2, skipped: 1, total: 5, currentStepTitle: "分析画面" } } };
       document.querySelector("#assistantPanel").classList.add("agent-plan-active");
       window.contextDetailCalls = [];
-      window.ClipTalkAgentWorkspace = { ...window.ClipTalkAgentWorkspace,
+      window.ChatClipAgentWorkspace = { ...window.ChatClipAgentWorkspace,
         openDetails: value => window.contextDetailCalls.push(value) };
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator("#ctAgentContext strong").textContent(), "正在理解素材");
     await page.locator("#ctTaskJourney .ct-journey-summary").click();
@@ -594,27 +594,27 @@ test("contextual agent state follows real task states without duplicating result
     assert.deepEqual(await page.evaluate(() => window.contextDetailCalls), [{ jobId: "context-job", section: "activity" }]);
     await page.evaluate(() => {
       currentJob.presentation.executionProgress.successful = 3;
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.match(await page.locator(".ct-agent-task-rows").textContent(), /已完成 3 \/ 5 项/);
     assert.equal(await page.locator("#ctTaskJourneyDetails").isVisible(), true);
     await page.evaluate(() => {
       currentJob.presentation.running = false;
       currentJob.presentation.key = "preview_review";
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator("#ctTaskJourney").isVisible(), false, "review keeps the existing action bar instead of a second status strip");
     await page.evaluate(() => {
       const card = document.createElement("article"); card.className = "cs-card";
       document.querySelector("#chatMessages").append(card);
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator("#ctAgentContext").count(), 0);
     await page.evaluate(() => {
       document.querySelector("#chatMessages .cs-card").remove();
       document.querySelector("#workspace").classList.add("new-task-workbench");
       document.querySelector("#newTaskDraftStatus").dataset.state = "empty";
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator('#ctAgentContext').count(), 0, 'new draft must not show the previous job progress');
   } finally { await browser.close(); await stub.close(); }
@@ -657,7 +657,7 @@ test("review fixes keep missing frames empty and notification clicks read-only",
       save.dataset.state = "saved";
       save.textContent = "视频分析失败";
       document.querySelector("#workspace").classList.remove("new-task-workbench");
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
       const saveLabel = document.querySelector("#ctV4SaveState b").textContent;
       return { missingFrame, actionCount, saveLabel };
     });
@@ -680,7 +680,7 @@ test("workspace loads, authenticates without URL token, and opens new-task flow"
     await page.locator("#accessTokenDialog input").fill("browser-test-token");
     await page.locator("#accessTokenDialog button[type=submit]").click();
     await page.locator('#homeView[data-home-state="empty"]').waitFor({ state: "visible" });
-    assert.equal(await page.title(), "ClipTalk");
+    assert.equal(await page.title(), "ChatClip");
     assert.equal(await page.locator(".home-summary").isVisible(), false);
     assert.equal(await page.locator("#homeTaskGrid .home-empty").count(), 0);
     assert.equal(await page.locator("#homeTaskGrid > *").count(), 1);
@@ -690,7 +690,7 @@ test("workspace loads, authenticates without URL token, and opens new-task flow"
     assert.ok(stub.requests.some((item) => item.token === ""));
     assert.ok(stub.requests.some((item) => item.token === "browser-test-token"));
     assert.equal(
-      await page.evaluate(() => sessionStorage.getItem("cliptalk_access_token")),
+      await page.evaluate(() => sessionStorage.getItem("chatclip_access_token")),
       "browser-test-token",
     );
 	    await page.locator("[data-home-create]").click();
@@ -757,7 +757,7 @@ test("workspace loads, authenticates without URL token, and opens new-task flow"
     assert.equal("targetSeconds" in durationGoalOptions, false);
     assert.equal("resultStrategy" in durationGoalOptions, false);
     const formValues = await page.evaluate(() => {
-      const form = window.ClipTalkTaskCreation.buildForm({
+      const form = window.ChatClipTaskCreation.buildForm({
         file: new File([new Uint8Array(8)], "sample.mp4", { type: "video/mp4" }),
         instruction: "找出产品演示", sourceScope: { kind: "back_half", start: 60, end: 120 },
       });
@@ -806,7 +806,7 @@ test("theme switch updates the application palette and persists the user's choic
     assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
     assert.equal(await toggle.getAttribute("aria-pressed"), "false");
     assert.equal(await toggle.locator("span").textContent(), "浅色");
-    assert.equal(await page.evaluate(() => localStorage.getItem("cliptalk-color-theme-v1")), null);
+    assert.equal(await page.evaluate(() => localStorage.getItem("chatclip-color-theme-v1")), null);
 
     const lightPalette = await page.evaluate(() => ({
       page: getComputedStyle(document.documentElement).backgroundColor,
@@ -818,7 +818,7 @@ test("theme switch updates the application palette and persists the user's choic
     assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
     assert.equal(await toggle.getAttribute("aria-pressed"), "true");
     assert.equal(await toggle.locator("span").textContent(), "深色");
-    assert.equal(await page.evaluate(() => localStorage.getItem("cliptalk-color-theme-v1")), "dark");
+    assert.equal(await page.evaluate(() => localStorage.getItem("chatclip-color-theme-v1")), "dark");
 
     const darkPalette = await page.evaluate(() => ({
       page: getComputedStyle(document.documentElement).backgroundColor,
@@ -832,7 +832,7 @@ test("theme switch updates the application palette and persists the user's choic
     assert.equal(lightPalette.themeColor, "#f3f3f0");
     await toggle.click();
     assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
-    assert.equal(await page.evaluate(() => localStorage.getItem("cliptalk-color-theme-v1")), "light");
+    assert.equal(await page.evaluate(() => localStorage.getItem("chatclip-color-theme-v1")), "light");
     await page.waitForTimeout(350);
     const homeContrast = await auditVisibleContrast(page);
     const homeTextContrast = await auditVisibleContrast(page, false);
@@ -1067,7 +1067,7 @@ test("queued content search can stop immediately and explains cancellation laten
       document.querySelector("#homeView")?.classList.add("hidden");
       renderConversation(job);
     });
-    await page.evaluate(() => window.ClipTalkTheme.apply("light"));
+    await page.evaluate(() => window.ChatClipTheme.apply("light"));
     await page.waitForTimeout(220);
     const lightProgress = await page.locator("#inlineAnalysisProgress").evaluate((panel) => ({
       beamTheme: panel.dataset.beamTheme,
@@ -1223,7 +1223,7 @@ test("integrated navigation opens a focused history drawer above its scrim", asy
     await page.route("**/api/jobs", async (route) => {
       if (
         route.request().method() !== "GET"
-        || route.request().headers()["x-highlight-token"] !== "browser-test-token"
+        || route.request().headers()["x-chatclip-token"] !== "browser-test-token"
       ) return route.fallback();
       const base = {
         sourceProjectId: "asset_shared", filename: "interview.mp4", taskMode: "content_extract",
@@ -1279,7 +1279,7 @@ test("integrated navigation opens a focused history drawer above its scrim", asy
       const width = node.getBoundingClientRect().width;
       return width === 84;
     }), "navigation width should remain readable without consuming the workspace");
-    assert.equal(await page.locator(".app-sidebar-brand-wordmark").textContent(), "ClipTalk");
+    assert.equal(await page.locator(".app-sidebar-brand-wordmark").textContent(), "ChatClip");
     assert.equal(await page.locator(".app-sidebar-brand-wordmark").isVisible(), false);
     const brandFitsRail = await page.locator(".app-sidebar-brand button").evaluate((node) => {
       const brand = node.getBoundingClientRect();
@@ -1429,8 +1429,8 @@ test("integrated navigation opens a focused history drawer above its scrim", asy
     await page.locator("#sidebarHistoryToggle").click();
     assert.equal(await page.locator("#sidebarHistoryDrawer").getAttribute("aria-hidden"), "false");
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobId = () => "task-running";
-      window.ClipTalkAppShell.syncCurrentJob({ id: "task-running" });
+      window.ChatClipCurrentJobId = () => "task-running";
+      window.ChatClipAppShell.syncCurrentJob({ id: "task-running" });
     });
     assert.equal(await page.locator("#sidebarCurrentTask").isEnabled(), true);
     assert.equal(await page.locator("#sidebarCurrentTask").isVisible(), true);
@@ -1527,7 +1527,7 @@ test("home task load failure keeps new-task entry and offers retry", async () =>
     await page.route("**/api/jobs", async (route) => {
       if (
         route.request().method() !== "GET"
-        || route.request().headers()["x-highlight-token"] !== "browser-test-token"
+        || route.request().headers()["x-chatclip-token"] !== "browser-test-token"
       ) return route.fallback();
       attempts += 1;
       await route.fulfill({
@@ -1628,7 +1628,7 @@ test("content search starts from the inline task dialog", async () => {
     await page.locator("[data-home-create]").click();
     await page.evaluate(() => openHomeTask('job_agent_draft'));
     await page.waitForFunction(() => currentJob?.id === "job_agent_draft");
-    await page.evaluate(() => window.ClipTalkTheme?.apply("light"));
+    await page.evaluate(() => window.ChatClipTheme?.apply("light"));
     await chooseQuickWorkflow(page, "content_search");
     const launchInstruction = page.locator("[data-workflow-launch-instruction]");
     assert.equal(await launchInstruction.isVisible(), true);
@@ -1841,7 +1841,7 @@ test("agent handoff opens the latest child task instead of its stale plan snapsh
         id: "agent-source", status: "completed", stage: "agent_handed_off",
         workflowKind: "content_search", taskMode: "content_extract",
       };
-      await window.ClipTalkSwitchWorkspaceJob({
+      await window.ChatClipSwitchWorkspaceJob({
         id: "agent-latest-child", filename: "stale.mp4", status: "awaiting_agent_plan",
         stage: "agent_plan_running", workflowKind: "speaker_edit", taskMode: "content_extract",
       });
@@ -3022,7 +3022,7 @@ test("editable formal output can be retained independently", async () => {
       selectOutput("formal.mp4");
     }, job);
     const button = page.locator("#saveToLibraryButton");
-    await page.evaluate(() => window.ClipTalkWorkspaceController.openRail('materials'));
+    await page.evaluate(() => window.ChatClipWorkspaceController.openRail('materials'));
     await button.waitFor({ state: "visible" });
     assert.equal(await button.textContent(), "长期保留");
     assert.equal(await button.evaluate((node) => node.parentElement.classList.contains("ct-v4-version-secondary-actions")), true);
@@ -3059,8 +3059,8 @@ test("output library badge uses actual available library records rather than tas
       status: 200, contentType: "application/json", body: JSON.stringify({ outputs: [] }),
     }));
     await page.evaluate(async () => {
-      await window.ClipTalkAppShell.refreshCatalog();
-      await window.ClipTalkAppShell.loadLibrary({ force: true });
+      await window.ChatClipAppShell.refreshCatalog();
+      await window.ChatClipAppShell.loadLibrary({ force: true });
     });
     const badge = page.locator("#sidebarOutputCount");
     assert.equal(await badge.textContent(), "0");
@@ -3092,8 +3092,8 @@ test("output library uses the cover bound to each formal output as its poster", 
     }));
 
     await page.evaluate(async () => {
-      await window.ClipTalkAppShell.showView("library", { route: false });
-      await window.ClipTalkAppShell.loadLibrary({ force: true });
+      await window.ChatClipAppShell.showView("library", { route: false });
+      await window.ChatClipAppShell.loadLibrary({ force: true });
     });
 
     const item = page.locator("#libraryOutputList .app-library-item");
@@ -3530,7 +3530,7 @@ test("subtitle review drawer supports readable cue editing and split controls", 
         id: "sub_1234567890abcdef", revision: 1, status: "draft",
         globalStyle: { preset: "clean", fontSizeRatio: .04, horizontal: "center", vertical: "bottom", offsetXRatio: 0, offsetYRatio: 0 },
         cueStyleOverrides: {},
-        correctionContext: { generatedAt: "2026-08-25T00:00:00Z", summary: "产品功能说明", terms: [{ term: "ClipTalk", evidence: "屏幕文字重复出现" }] },
+        correctionContext: { generatedAt: "2026-08-25T00:00:00Z", summary: "产品功能说明", terms: [{ term: "ChatClip", evidence: "屏幕文字重复出现" }] },
         cues: [{ id: "cue_test", outputIndex: 0, start: 0, end: 3, sourceStart: 12, sourceEnd: 15, text: "这是需要人工校对的一条字暮", originalText: "这是需要人工校对的一条字暮", suggestionStatus: "pending", suggestedText: "这是需要人工校对的一条字幕", suggestionRisk: "low", suggestionConfidence: .96, suggestionReason: "全文重复", suggestionEvidence: ["相邻字幕使用“字幕”"], showSpeakerLabel: true, speakerLabel: "说话人 B", speakerColor: "0x8FD3FF" }],
       };
       currentJob = { id: "portrait_subtitle", videoInfo: { width: 576, height: 1024 } };
@@ -3569,7 +3569,7 @@ test("subtitle review drawer supports readable cue editing and split controls", 
     assert.equal(initial.previewColor, "rgb(143, 211, 255)");
     assert.ok(initial.previewFontSize < 12, `portrait preview font should use the short edge, got ${initial.previewFontSize}`);
     assert.ok(initial.previewMaxWidth < initial.stageWidth * .4, "preview text must stay inside the contained portrait video");
-    assert.match(initial.contextText, /ClipTalk/);
+    assert.match(initial.contextText, /ChatClip/);
     assert.match(initial.safeButtonText, /1/);
     assert.match(initial.riskText, /低风险/);
     assert.ok(initial.panelBackground.match(/\d+/g).slice(0, 3).every(v => Number(v) >= 225), initial.panelBackground);
@@ -4345,7 +4345,7 @@ test("Agent timeline handoff opens its existing draft and preloads the approved 
         editSessions: [session], activeEditSessionId: session.id,
         outputVersions: [], outputs: [], candidates: [], eventGroups: [],
       };
-      return window.ClipTalkOpenAgentTimeline({ sessionId: session.id });
+      return window.ChatClipOpenAgentTimeline({ sessionId: session.id });
     });
     assert.equal(opened, true);
     assert.equal(await page.locator("#secondaryEditor").isVisible(), true);
@@ -4359,7 +4359,7 @@ test("Agent timeline handoff opens its existing draft and preloads the approved 
     await page.locator("#secondaryEditorAiForm button").click();
     await page.locator("#secondaryEditorProposal:not(.hidden)").waitFor({ state: "visible" });
     assert.equal(await page.evaluate(() => (
-      window.ClipTalkCurrentJobSnapshot().editSessions[0].pendingProposal?.id
+      window.ChatClipCurrentJobSnapshot().editSessions[0].pendingProposal?.id
     )), "proposal_agent_1");
   } finally {
     await browser.close();
@@ -5159,7 +5159,7 @@ test("Agent social review previews return to their source edit session", async (
       currentOutput = output;
       viewerMediaKind = "output";
       window.__openedAgentReviewSession = "";
-      window.ClipTalkOpenAgentTimeline = async ({ sessionId: openedId }) => {
+      window.ChatClipOpenAgentTimeline = async ({ sessionId: openedId }) => {
         window.__openedAgentReviewSession = openedId;
         return true;
       };
@@ -5548,8 +5548,8 @@ test("upload prepares preview and the selected Skill runs only after explicit se
         contentType: "application/json",
         body: JSON.stringify({
           skills: [
-            { id: "cliptalk-interview-editor", name: "cliptalk-interview-editor", status: "enabled" },
-            { id: "cliptalk-highlight-director", name: "cliptalk-highlight-director", status: "enabled" },
+            { id: "chatclip-interview-editor", name: "chatclip-interview-editor", status: "enabled" },
+            { id: "chatclip-highlight-director", name: "chatclip-highlight-director", status: "enabled" },
           ],
         }),
       });
@@ -5579,7 +5579,7 @@ test("upload prepares preview and the selected Skill runs only after explicit se
     await page.route("**/api/agent/workspaces/ws_agent/messages/stream", async (route) => {
       agentMessages.push(route.request().postDataJSON());
       const plan = {
-        id: "plan_agent", skillId: "cliptalk-interview-editor", status: "awaiting_confirmation",
+        id: "plan_agent", skillId: "chatclip-interview-editor", status: "awaiting_confirmation",
         summary: "按主题整理访谈并生成审阅预览", planHash: "a".repeat(64),
         steps: [{ id: "inspect", index: 1, title: "检查素材", tool: "inspect_workspace", expectedOutput: "素材摘要", status: "pending" }],
       };
@@ -5595,12 +5595,12 @@ test("upload prepares preview and the selected Skill runs only after explicit se
     await page.waitForFunction(() => currentJob?.id === "agent-source");
     assert.equal(await page.locator(".chat-panel").isVisible(), true);
     await page.locator("#agentSkillMenuButton").click();
-    await page.locator('#agentSkillSelect option[value="cliptalk-interview-editor"]').waitFor({ state: "attached" });
+    await page.locator('#agentSkillSelect option[value="chatclip-interview-editor"]').waitFor({ state: "attached" });
     assert.equal(
-      await page.locator('#agentSkillSelect option[value="cliptalk-interview-editor"]').textContent(),
-      "访谈剪辑 · cliptalk-interview-editor",
+      await page.locator('#agentSkillSelect option[value="chatclip-interview-editor"]').textContent(),
+      "访谈剪辑 · chatclip-interview-editor",
     );
-    await page.locator("#agentSkillSelect").selectOption("cliptalk-interview-editor");
+    await page.locator("#agentSkillSelect").selectOption("chatclip-interview-editor");
     await page.locator("#chatInput").fill("剪成三分钟访谈精华，按主题组织回答并生成字幕预览");
     await page.keyboard.press("Enter");
     // Confirmation belongs to the sticky action, not a duplicate card button.
@@ -5617,7 +5617,7 @@ test("upload prepares preview and the selected Skill runs only after explicit se
     assert.deepEqual(agentMessages[0].uiContext, { jobId: "agent-source", timeDomain: "source" });
     assert.deepEqual(agentMessages.map(({ clientMessageId, uiContext, replyToActionId, ...message }) => message), [{
       text: "剪成三分钟访谈精华，按主题组织回答并生成字幕预览",
-      skillId: "cliptalk-interview-editor",
+      skillId: "chatclip-interview-editor",
       executionMode: "autonomous_review",
     }]);
     assert.equal(stub.requests.some((item) => item.path === "/api/workflow-intent/classify"), false);
@@ -5645,7 +5645,7 @@ test("review exclusions use the shared JSON request contract", async () => {
         body: JSON.stringify({ job: { id: "job-review", reviewExcludedCandidates: [2, 4] } }),
       });
     });
-    const result = await page.evaluate(() => window.ClipTalkReviewActions.persistExclusions({
+    const result = await page.evaluate(() => window.ChatClipReviewActions.persistExclusions({
       jobId: "job-review", indices: [4, 2, 4],
     }));
     assert.deepEqual(result.job.reviewExcludedCandidates, [2, 4]);
@@ -5669,11 +5669,11 @@ test("browser runtime errors are reported once without query strings", async () 
       await route.fulfill({ status: 204, body: "" });
     });
     await page.evaluate(() => {
-      window.ClipTalkRuntimeErrors.report({
+      window.ChatClipRuntimeErrors.report({
         kind: "error", name: "ReferenceError", message: "missingName is not defined",
         stack: "ReferenceError: missingName is not defined", scriptPath: "/static/app.js?secret=1", line: 10,
       });
-      window.ClipTalkRuntimeErrors.report({
+      window.ChatClipRuntimeErrors.report({
         kind: "error", name: "ReferenceError", message: "missingName is not defined",
         stack: "ReferenceError: missingName is not defined", scriptPath: "/static/app.js?secret=1", line: 10,
       });
@@ -5833,8 +5833,8 @@ test("person workflow uses a dedicated workspace and stable source-time person t
       document.querySelector("#homeView")?.classList.add("hidden");
       switchWorkspaceJob(job);
     }, personJob);
-    await page.waitForFunction(() => Boolean(window.ClipTalkAppShell?.showView));
-    await page.evaluate(() => window.ClipTalkAppShell.showView("workspace", { route: false }));
+    await page.waitForFunction(() => Boolean(window.ChatClipAppShell?.showView));
+    await page.evaluate(() => window.ChatClipAppShell.showView("workspace", { route: false }));
     assert.equal(await page.locator("[data-open-person-workspace]").isVisible(), false);
     assert.equal(await page.locator("#reviewPanelSubjectTab").isVisible(), true);
     assert.equal(await page.locator("#reviewPanelSubjectLabel").textContent(), "画面人物");
@@ -6924,8 +6924,8 @@ test("evidence opens in the contextual review rail without the retired center re
       document.querySelector("#reviewView")?.classList.remove("hidden");
       document.querySelector("#evidencePanel")?.classList.remove("hidden", "evidence-placeholder");
       document.querySelector("#evidencePanel")?.classList.add("candidate-mode");
-      window.ClipTalkWorkspaceController?.mount?.();
-      window.ClipTalkWorkspaceController?.openEvidence?.({ load: false });
+      window.ChatClipWorkspaceController?.mount?.();
+      window.ChatClipWorkspaceController?.openEvidence?.({ load: false });
     });
     const handle = page.locator("#reviewEvidenceResizer");
     assert.equal(await handle.count(), 0);
@@ -6972,9 +6972,9 @@ test("portrait review centers a true 9:16 player and opens the split timeline on
         outputVersions: [],
         candidates: [],
       };
-      localStorage.removeItem("cliptalk-assistant-expanded:v2:portrait-workspace-smoke");
-      localStorage.removeItem("cliptalk-review-rail-expanded:v1:portrait-workspace-smoke");
-      localStorage.removeItem("cliptalk-portrait-panel-handoff:v1:portrait-workspace-smoke");
+      localStorage.removeItem("chatclip-assistant-expanded:v2:portrait-workspace-smoke");
+      localStorage.removeItem("chatclip-review-rail-expanded:v1:portrait-workspace-smoke");
+      localStorage.removeItem("chatclip-portrait-panel-handoff:v1:portrait-workspace-smoke");
       document.body.dataset.shellMode = "workspace";
       document.body.dataset.shellView = "workspace";
       studio.classList.remove("home-mode", "task-creation-mode");
@@ -6984,7 +6984,7 @@ test("portrait review centers a true 9:16 player and opens the split timeline on
       setReviewLowerPanelMode("collapsed");
       applyMediaAspect(viewerShell, 540, 960);
       syncWorkspaceState({ home: false });
-      window.ClipTalkWorkspaceController?.mount?.();
+      window.ChatClipWorkspaceController?.mount?.();
     });
     await page.waitForTimeout(450);
 
@@ -7153,7 +7153,7 @@ test("assistant panel can be resized in an active desktop workspace without caus
       currentJob = { id: "job_assistant_resize", status: "ready" };
       syncTaskCreationLayout();
       setupDirectorWorkspace();
-      window.ClipTalkWorkspaceController?.mount();
+      window.ChatClipWorkspaceController?.mount();
       document.querySelector(".chat-panel")?.classList.add("agent-plan-active");
       document.querySelector("#chatMessages").innerHTML = `
         <article class="chat-message user"><span class="avatar">你</span><div class="bubble"><small>剪辑目标</small><p>请整理产品宣传素材，保留完整上下文，并生成适合审核的竖屏社媒预览。</p></div></article>
@@ -7173,7 +7173,7 @@ test("assistant panel can be resized in an active desktop workspace without caus
     await page.mouse.up();
     const resizedWidth = await panel.evaluate((node) => node.getBoundingClientRect().width);
     assert.ok(resizedWidth >= initialWidth + 40, `active-workspace resize did not apply: ${initialWidth} -> ${resizedWidth}`);
-    assert.equal(await page.evaluate(() => Number(localStorage.getItem("cliptalk-workspace-assistant-width:v1"))), Math.round(resizedWidth));
+    assert.equal(await page.evaluate(() => Number(localStorage.getItem("chatclip-workspace-assistant-width:v1"))), Math.round(resizedWidth));
     const initialMessage = await page.locator(".chat-message.assistant").evaluate((row) => {
       const paragraph = row.querySelector("p");
       const range = document.createRange();
@@ -7299,7 +7299,7 @@ test("compact workspace uses one full-width switchable assistant, preview, or re
   try {
     await openAuthenticatedWorkspace(page, stub.url);
     await page.evaluate(() => {
-      localStorage.removeItem("cliptalk-compact-workspace-view-v1");
+      localStorage.removeItem("chatclip-compact-workspace-view-v1");
       document.body.dataset.shellMode = "workspace";
       document.body.dataset.shellView = "workspace";
       document.body.dataset.ctCompactView = "preview";
@@ -7488,7 +7488,7 @@ test("agent review samples are visible when no formal output version exists", as
       setupDirectorWorkspace();
       currentJob = job;
       window.__openedAgentReviewPreview = null;
-      window.ClipTalkOpenAgentPreview = async (item) => {
+      window.ChatClipOpenAgentPreview = async (item) => {
         window.__openedAgentReviewPreview = item;
         return true;
       };

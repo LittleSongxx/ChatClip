@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.agent_platform import AgentPlatform
+from app.agent import AgentPlatform
 from app.content_contract import build_contract, confirm_human_range, selection_binding
 from app.content_search import parse_content_intent
 from app.rendered_content_qc import assess_sample, assess_coverage, aspect_check

@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.ark_client import VisionRequestError
+from app.llm import VisionRequestError
 from app.security import (
     SecurityConfigurationError,
     access_token_matches,
@@ -22,7 +22,7 @@ from app.vision_settings import LlmConfigurationStore, VisionConfigurationStore
 def test_public_bind_requires_a_meaningful_access_token() -> None:
     validate_deployment_access("127.0.0.1", "")
     validate_deployment_access("::1", "")
-    with pytest.raises(SecurityConfigurationError, match="HIGHLIGHT_ACCESS_TOKEN"):
+    with pytest.raises(SecurityConfigurationError, match="CHATCLIP_ACCESS_TOKEN"):
         validate_deployment_access("0.0.0.0", "")
     with pytest.raises(SecurityConfigurationError, match="至少 16 字符"):
         validate_deployment_access("0.0.0.0", "too-short")

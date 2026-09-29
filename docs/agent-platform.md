@@ -1,101 +1,46 @@
-# ClipTalk Agent Platform
+# ChatClip Agent Platform
 
-ClipTalk now uses Pi as the reasoning runtime while retaining the Python media kernel. The browser talks only to FastAPI. FastAPI persists workspaces, plans, approvals, runs, and events, then calls the internal Node service for Skill routing and planning.
+ChatClip 的 Agent 编排运行在 FastAPI 进程内的 LangGraph 状态机上，媒体内核
+保持 Python 单体。浏览器只与 FastAPI 通信；系统整体结构见
+[ARCHITECTURE.md](ARCHITECTURE.md)。
 
-For immutable export specifications, operation-journal semantics, plugin approval fingerprints, and upgrade behavior, see [transactional delivery](transactional-delivery.md).
+> 2026-09 重构说明：原 Node/Pi agent-service（单提示强制工具调用 + npm 插件
+> 沙箱）已被移除。规划、技能路由、Skill 生成与能力探针由
+> `app/agent/planner.py` 以 LangChain `bind_tools` 强制调用实现；人工审批、
+> 结构化确认与后台操作等待由 `interrupt()`/`Command(resume)` 承载；插件系统
+> 不再提供，扩展机制是 SKILL.md 技能（由 `SKILL_PROFILES` 托管工作流）。
 
-## Local startup
+## 进程与所有权
 
-Start the Agent service before FastAPI when not using Docker Compose:
+- 单进程单实例：加载数据前获取 `data/.workspace-worker.lock` 排他锁；第二个
+  实例显式报错。队列所有权使用租约与心跳；恢复不会窃取活跃租约，仅在持有
+  进程锁后释放被遗弃的租约。关闭时保持锁直到后台写入器停止。
+- Agent 状态（workspaces/skills/plans/runs/events）在 `data/agent/agent.sqlite3`；
+  图控制态（interrupt 暂停点）在 `data/agent/graph.sqlite3`（SqliteSaver）。
+  业务状态以 AgentStore 为准，checkpoint 只承载图的恢复位置。
 
-```bash
-cd agent-service
-npm ci --ignore-scripts
-npm start
-```
+## 模型与凭据
 
-Configure a separate Agent model with `AGENT_*` environment variables or in Settings. Saving from the UI performs a real Pi Tool Calling probe. A model that only returns JSON text is rejected.
+- Agent 模型通过 `AGENT_*` 或页面“设置”配置；保存时执行真实的 Tool Calling
+  探针（`planner.probe`），只返回 JSON 文本的模型会被拒绝。
+- 推荐主线：视觉 qwen3-vl-max（百炼）、规划 deepseek-flash（DeepSeek）、
+  Agent qwen3.8-max（百炼）。详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+- 浏览器访问令牌（`CHATCLIP_ACCESS_TOKEN`）与模型 API Key 互相独立；密钥
+  不进入日志、文档或前端。
 
-Docker Compose starts both services and keeps port `5190` internal. Pi is pinned to `0.84.4`; upgrades should be contained inside `agent-service` and verified against the planning and streaming contracts.
+## 输出交付与持久化
 
-## Service credentials and worker ownership
-
-All Agent POST endpoints (including SSE planning, plugin activation and tool execution) require `Authorization: Bearer <CLIPTALK_AGENT_SERVICE_TOKEN>`. This is an independent service credential, not the browser access token. `/health` remains public and exposes no plugin inventory.
-
-- Docker or remote deployment: configure the same random token of at least 32 characters on FastAPI and Agent. Compose refuses to start without it. Do not publish the Agent port to the public internet.
-- Local shared-data deployment: when no token is configured, both services atomically create/read `data/agent/service-token`, with mode `0600`. Both must use the same `HIGHLIGHT_DATA_ROOT`. Do not commit, display or send this file to browsers.
-- Rotate by setting a new token on both services and restarting both. Do not substitute the user access token.
-- Run one FastAPI worker per data directory. A process lock is acquired before loading/recovering jobs; a second instance fails with an explicit error. Queue ownership uses leases and heartbeats; recovery cannot steal a live lease. Startup releases abandoned leases only after acquiring the exclusive process lock. Shutdown keeps the lock until background writers stop.
-
-Plugin approval also binds a fingerprint of the extracted source tree. The Agent resolves real paths and checks this fingerprint before and after dependency installation. Old plugin records without `treeHash` must be inspected and explicitly approved again; they are not silently trusted on restart. Plugins still execute with host-process privileges once approved; this is not an execution sandbox.
-
-## Output delivery and persistence
-
-Formal export requests identify `outputFilename` and the opaque `outputRevision` returned with that output. An old request omitting the filename is accepted only for a single-output version. Confirmation freezes the selected edit and its own subtitle settings; unrelated task progress does not invalidate it. Identical export requests return the same durable `operationId`, including after completion. Failed/cancelled operations may be retried; different files can render independently.
-
-Output `capabilities` are authoritative for keep/download/edit actions. Existing formal files remain saveable while other analysis runs. The UI consumes `presentation.journeyStage`, `attentionItems` and `availableActions` rather than mapping raw execution states again.
-
-SQLite is authoritative for jobs. Saves use a revision check and transaction; JSON is a rebuildable backup written after commit. Startup imports JSON only when the database has no record, never because a backup has a later timestamp. JSON-backup failures are logged without reporting an already-committed save as failed.
+正式导出请求携带 `outputFilename` 与随输出返回的不透明 `outputRevision`。
+确认会冻结所选编辑及其字幕设置；相同导出请求返回同一持久 `operationId`。
+输出 `capabilities` 是 keep/download/edit 动作的权威来源。SQLite 是任务的
+权威存储（revision 检查 + 事务提交），JSON 仅为可重建备份。完整交付语义见
+[transactional delivery](transactional-delivery.md)。
 
 ## Execution contract
 
-1. A source job is attached to one durable Agent workspace.
-2. Pi selects an enabled Skill unless the user explicitly selects one.
-3. Pi may only call `submit_plan` during planning. No analysis or rendering tool is available yet.
-4. FastAPI validates the returned DAG, tool names, dependencies, side-effect classes, Skill/Plugin versions, and workspace revision.
-5. Approval binds the plan hash and allowed tool set. Only then does the executor dispatch steps.
-6. Person/speaker identity, deletion, and formal export remain structured user actions. Agent execution stops at review preview.
-
-Long-running Python tools return an operation identifier and a durable `Future`. Completion advances the plan exactly once. The public event stream is available at `/api/agent/workspaces/{workspaceId}/events`; live Pi planning events are available from the POST SSE endpoint `/api/agent/workspaces/{workspaceId}/messages/stream`.
-
-## Skills
-
-Skills use the Agent Skills `SKILL.md` format. A ZIP may contain `SKILL.md` at its root or in one top-level directory. Uploaded Skills enter `validated`; generated Skills enter `draft` or `validated` after a simulated capability check. They cannot be used until enabled with the exact content hash.
-
-Skill scripts are never executed directly. If a workflow requires code that is not a core ClipTalk tool, install a Plugin and reference its declared tool.
-
-## Trusted Plugin contract
-
-Plugins run inside the Node Agent process. They are not sandboxed and must be treated as fully trusted code. Activation requires a content-hash-bound confirmation in the UI. Dependency installation uses `npm ci --ignore-scripts --omit=dev` when a lockfile exists, otherwise `npm install --ignore-scripts --omit=dev`.
-
-A Plugin ZIP contains `cliptalk-plugin.json`:
-
-```json
-{
-  "id": "example-caption-tool",
-  "version": "1.0.0",
-  "entrypoint": "index.mjs",
-  "permissions": {
-    "networkHosts": [],
-    "mediaRead": true,
-    "mediaWrite": false
-  },
-  "tools": [
-    {
-      "name": "example_caption_check",
-      "description": "Checks caption timing without exporting media.",
-      "sideEffect": "analysis",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
-      }
-    }
-  ]
-}
-```
-
-The entrypoint default export is an object, or an async factory returning an object, with executable tools:
-
-```js
-export default {
-  tools: [{
-    name: "example_caption_check",
-    async execute(argumentsValue, context) {
-      return { ok: true, workspaceId: context.workspaceId };
-    },
-  }],
-};
-```
-
-Runtime tool names must be a subset of the manifest. Approved plans pin the Plugin version; version mismatch fails the step instead of silently running changed code.
+- 执行器按依赖顺序单步运行；`identity`/`review` 步骤与导出在分步模式下经
+  `interrupt()` 请求结构化确认，确认值必须携带匹配的 jobId/stepId。
+- 返回 Future 的媒体操作进入操作门；Future 完成回调以终态恢复图线程，
+  服务重启后由 `recover_completed_operations` 结算并续跑。
+- 必需步骤失败触发最多 2 次重规划：依赖签名复用已完成步骤；minor 修订自动
+  继续，material 修订要求重新审批（新 planHash）。

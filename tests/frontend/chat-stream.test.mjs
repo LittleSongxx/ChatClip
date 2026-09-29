@@ -53,7 +53,7 @@ after(async () => {
 test("emit 创建卡片，且相同 id 重复 emit 不堆积", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({ id: "plan:1", kind: "plan-card", html: "<p>第一版</p>" });
     cs.emit({ id: "plan:1", kind: "plan-card", html: "<p>第一版</p>" });
     cs.emit({ id: "plan:2", kind: "result", html: "<p>成片</p>" });
@@ -71,7 +71,7 @@ test("emit 创建卡片，且相同 id 重复 emit 不堆积", async () => {
 test("历史恢复不增加未读也不改变滚动位置，随后实时消息正常计数", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.restore(() => {
       for (let i = 0; i < 8; i++) cs.emit({ id: `history:${i}`, html: '<p style="height:100px">历史</p>' });
     });
@@ -91,7 +91,7 @@ test("历史恢复不增加未读也不改变滚动位置，随后实时消息�
 test("操作条轮询保留焦点，禁用理由可见，回调始终使用最新状态", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     let count = 0;
     cs.action({ id: 'a', summary: '待核验', primaryLabel: '核验片段', onPrimary: () => { count = 1; } });
     const button = document.querySelector('[data-cs-action="primary"]');
@@ -114,7 +114,7 @@ test("操作条轮询保留焦点，禁用理由可见，回调始终使用最�
 test("卡片焦点离开后补写轮询内容", async () => {
   await boot();
   await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({ id: 'focused', html: '<button>旧内容</button>' });
     cs.cardElement('focused').querySelector('button').focus();
     cs.emit({ id: 'focused', html: '<p>最新内容</p>' });
@@ -126,7 +126,7 @@ test("卡片焦点离开后补写轮询内容", async () => {
 test("内容未变化时不重写 DOM，变化时才更新", async () => {
   await boot();
   const result = await page.evaluate(async () => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({ id: "plan:1", kind: "plan-card", html: "<p>稳定内容</p>" });
     const body = document.querySelector('[data-cs-id="plan:1"] .cs-card-body');
     let mutations = 0;
@@ -148,7 +148,7 @@ test("内容未变化时不重写 DOM，变化时才更新", async () => {
 test("liveUpdate 定点更新字段文本与进度条", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({
       id: "plan:9",
       kind: "executing",
@@ -173,7 +173,7 @@ test("liveUpdate 定点更新字段文本与进度条", async () => {
 test("finalize 标记定稿并移除 aria-busy", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({ id: "plan:1", kind: "executing", html: "<p>执行中</p>" });
     const before = document.querySelector('[data-cs-id="plan:1"] .cs-card-body').getAttribute("aria-busy");
     cs.finalize("plan:1");
@@ -188,7 +188,7 @@ test("finalize 标记定稿并移除 aria-busy", async () => {
 test("待处理条：登记后显示，主操作回调可触发，清除后隐藏", async () => {
   await boot();
   const result = await page.evaluate(async () => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     let fired = 0;
     cs.emit({ id: "plan:5", kind: "plan-card", html: "<p>计划</p>" });
     cs.action({ id: "plan:5", summary: "计划待确认", primaryLabel: "确认并开始", onPrimary: () => { fired += 1; } });
@@ -210,7 +210,7 @@ test("待处理条：登记后显示，主操作回调可触发，清除后隐�
 test("未读提示：非贴底时累计，回到底部后清零", async () => {
   await boot();
   const result = await page.evaluate(async () => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     const messages = document.getElementById("chatMessages");
     messages.innerHTML = "<div style='height:800px'></div>";
     messages.append(cs.hostElement());
@@ -233,7 +233,7 @@ test("未读提示：非贴底时累计，回到底部后清零", async () => {
 test("宿主被 innerHTML 摘掉后可以重新挂回（对话重绘场景）", async () => {
   await boot();
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     cs.emit({ id: "plan:1", kind: "plan-card", html: "<p>内容</p>" });
     const messages = document.getElementById("chatMessages");
     const hostRef = cs.hostElement();
@@ -254,7 +254,7 @@ test("查看详情只滚动聊天区，已可见卡片不移动任何容器", as
   await boot();
   await page.emulateMedia({ reducedMotion: "reduce" });
   const result = await page.evaluate(() => {
-    const cs = window.ClipTalkChatStream;
+    const cs = window.ChatClipChatStream;
     const panel = document.querySelector(".chat-panel");
     const shell = document.createElement("main");
     shell.style.cssText = "height:160px;overflow:hidden;padding-top:60px";
@@ -293,9 +293,9 @@ test("查看详情只滚动聊天区，已可见卡片不移动任何容器", as
 
 test("?legacyDock=1 打开逃生阀", async () => {
   await boot({ search: "?legacyDock=1" });
-  const enabled = await page.evaluate(() => window.ClipTalkChatStream.legacyDockEnabled());
+  const enabled = await page.evaluate(() => window.ChatClipChatStream.legacyDockEnabled());
   assert.equal(enabled, true);
   await boot();
-  const disabled = await page.evaluate(() => window.ClipTalkChatStream.legacyDockEnabled());
+  const disabled = await page.evaluate(() => window.ChatClipChatStream.legacyDockEnabled());
   assert.equal(disabled, false);
 });

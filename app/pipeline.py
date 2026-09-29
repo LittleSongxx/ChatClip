@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image, ImageChops, ImageStat
 
 from .edit_boundaries import annotate_candidate_boundaries
-from .ark_client import VisionModelClient
+from .llm.client import VisionModelClient
 from .algorithm_contract import CURRENT_ALGORITHM_VERSION
 from .event_groups import (
     allocate_event_group_budget,

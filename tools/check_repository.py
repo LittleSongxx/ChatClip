@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail fast when a ClipTalk commit contains local data or incomplete config."""
+"""Fail fast when a ChatClip commit contains local data or incomplete config."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ SECRET_PATTERNS = (
 MACHINE_PATH_PATTERNS = (
     re.compile(r"/data/[^/\s]+/VideoPilot"),
     re.compile(r"/home/[^/\s]+/VideoPilot"),
+    re.compile(r"/home/[^/\s]+/chatclip"),
 )
 MAX_TRACKED_BYTES = 50 * 1024 * 1024
 
@@ -97,7 +98,7 @@ def environment_names_from_shell(path: Path) -> set[str]:
     text = path.read_text(encoding="utf-8")
     names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]+)(?=[:}?])", text))
     return {name for name in names if name.startswith((
-        "HIGHLIGHT_", "VISION_", "ARK_", "LLM_", "ANTHROPIC_", "CONTENT_SEARCH_",
+        "CHATCLIP_", "VISION_", "LLM_", "ANTHROPIC_", "AGENT_", "CONTENT_SEARCH_",
     ))}
 
 
@@ -113,7 +114,6 @@ def environment_names_from_example(path: Path) -> set[str]:
 def configuration_errors(root: Path) -> list[str]:
     referenced = environment_names_from_python(root / "app" / "config.py")
     referenced.update(environment_names_from_shell(root / "start.sh"))
-    referenced.update(environment_names_from_shell(root / "restart.sh"))
     documented = environment_names_from_example(root / ".env.example")
     advanced = root / "docs" / "environment.example"
     if advanced.is_file():
@@ -182,7 +182,7 @@ def repository_errors(root: Path, *, compare_ref: str = "", mode: str = "source"
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="检查 ClipTalk Git 提交边界")
+    parser = argparse.ArgumentParser(description="检查 ChatClip Git 提交边界")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--compare-ref", default="", help="用于保护 README 和 LICENSE 的 Git 基线")
     parser.add_argument("--mode", choices=("source", "deployment"), default="source", help="源码提交或运行实例检查")

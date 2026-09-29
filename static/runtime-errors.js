@@ -1,4 +1,4 @@
-(function installClipTalkRuntimeErrors(global) {
+(function installChatClipRuntimeErrors(global) {
   const reported = new Map();
   const duplicateWindowMs = 60_000;
 
@@ -32,13 +32,13 @@
         if (now - createdAt >= duplicateWindowMs) reported.delete(entry);
       }
     }
-    global.ClipTalkApi?.requestJson("/api/client-errors", {
+    global.ChatClipApi?.requestJson("/api/client-errors", {
       method: "POST",
       body: {
         ...payload,
         pagePath: global.location.pathname,
         scriptPath: pathOnly(payload.scriptPath),
-        jobId: String(global.ClipTalkCurrentJobId?.() || ""),
+        jobId: String(global.ChatClipCurrentJobId?.() || ""),
         build: "20260821-runtime-errors-1",
       },
     }, false).catch((error) => global.console?.warn?.("浏览器错误上报失败", error));
@@ -60,5 +60,5 @@
     report({ kind: "unhandledrejection", ...errorDetails(event.reason), scriptPath: "", line: null, column: null });
   });
 
-  global.ClipTalkRuntimeErrors = Object.freeze({ report });
+  global.ChatClipRuntimeErrors = Object.freeze({ report });
 })(window);

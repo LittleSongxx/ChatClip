@@ -48,7 +48,7 @@ def test_write_editing_draft_package_is_current_task_scoped(tmp_path: Path) -> N
         destination,
     )
     payload = json.loads(destination.read_text(encoding="utf-8"))
-    assert payload["schemaVersion"] == "cliptalk-editing-draft-v1"
+    assert payload["schemaVersion"] == "chatclip-editing-draft-v1"
     assert payload["jobId"] == "job_1"
     assert payload["activeEditSessionId"] == "edit_1"
     assert payload["source"]["sourceAssetId"] == "source_a"

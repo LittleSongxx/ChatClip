@@ -5,27 +5,30 @@ from threading import Event, Thread
 
 import pytest
 
-from app.agent_platform import AgentPlatform
+from app.agent import AgentPlatform
+from app.agent.brief import editing_brief
+from app.agent.compiler import compile_profile_plan, validate_tool_arguments
+from app.agent.skills import compose_skills
 from app.job_projection import ui_presentation_snapshot
 
 
 @pytest.fixture
 def platform(tmp_path):
-    value = AgentPlatform(data_root=tmp_path, service_url="http://unused.invalid", model_config_resolver=lambda: {})
+    value = AgentPlatform(data_root=tmp_path, model_config_resolver=lambda: {})
     value.seed_skills(Path(__file__).resolve().parents[1] / "skills")
     return value
 
 
-def compile_goal(platform, text, skill_id="cliptalk-content-extractor"):
+def compile_goal(platform, text, skill_id="chatclip-content-extractor"):
     skill = platform.store.get("skills", skill_id)
     context = {"duration": 600, "speaker": {"available": True, "needsConfirmation": True}}
-    brief = platform._editing_brief(text, context)
-    skills = platform._compose_skills(skill, brief=brief, context=context)
-    return platform._compile_profile_plan({}, skill=skill, skills=skills, goal=text, context=context)
+    brief = editing_brief(text, context)
+    skills = compose_skills(skill, brief=brief, context=context, enabled_skill_for_kind=platform._enabled_skill_for_kind)
+    return compile_profile_plan({}, skill=skill, skills=skills, goal=text, context=context)
 
 
 def test_excluded_questions_do_not_invert_the_included_speaker(platform):
-    plan = compile_goal(platform, "只保留 Speaker 2 的发言，不要主持人提问", "cliptalk-speaker-editor")
+    plan = compile_goal(platform, "只保留 Speaker 2 的发言，不要主持人提问", "chatclip-speaker-editor")
     step = next(step for step in plan["steps"] if step["tool"] == "select_speakers")
     assert step["arguments"] == {"mode": "include", "label": "说话人 2"}
     assert plan["brief"]["keepQuestionContext"] is False
@@ -78,7 +81,7 @@ def test_cancelled_dispatch_cannot_resurrect_plan_or_register_an_operation(platf
     platform.store.save("runs", {"id": "run_audit", "status": "running"})
     plan = platform.store.save("plans", {
         "id": "plan_audit", "workspaceId": workspace["id"], "runId": "run_audit", "status": "running",
-        "steps": [{"id": "inspect", "tool": "inspect_workspace", "arguments": {}, "status": "running", "attempts": 1}],
+        "steps": [{"id": "inspect", "tool": "inspect_workspace", "arguments": {}, "status": "pending", "attempts": 0}],
     })
     future = Future()
     def dispatch(*_):
@@ -92,7 +95,12 @@ def test_cancelled_dispatch_cannot_resurrect_plan_or_register_an_operation(platf
             return {"actionRequired": True}
         return {"terminalStatus": "no_result"} if completion == "no_result" else {"ok": True}
     platform.configure_tool_dispatcher(dispatch)
-    thread = Thread(target=platform._execute_step, args=(plan["id"], "inspect"))
+    def run_step() -> None:
+        current = platform.store.get("plans", plan["id"])
+        step = next(item for item in current["steps"] if item["id"] == "inspect")
+        platform._execute_tool_step(current, step)
+
+    thread = Thread(target=run_step)
     thread.start()
     try:
         assert started.wait(5)
@@ -219,17 +227,17 @@ def test_activating_agent_draft_is_queued_before_worker_submission(monkeypatch, 
     {"sourceScopeEnd": float("inf")}, {"sourceScopeStart": 20, "sourceScopeEnd": 10},
 ])
 def test_invalid_source_windows_are_rejected(platform, arguments):
-    from app.agent_platform import CORE_TOOL_CATALOG
+    from app.agent.catalog import CORE_TOOL_CATALOG
     tool = next(tool for tool in CORE_TOOL_CATALOG if tool["name"] == "analyze_highlights")
     with pytest.raises(ValueError):
-        platform._validate_tool_arguments("source", tool, arguments)
+        validate_tool_arguments("source", tool, arguments)
 
 
 def test_superseded_planning_request_cannot_commit(platform):
     workspace = platform.create_workspace(job_id="isolated")
     workspace["planningRequestId"] = "old"
     platform.store.save("workspaces", {**workspace, "planningRequestId": "new"})
-    skill = platform.store.get("skills", "cliptalk-content-extractor")
+    skill = platform.store.get("skills", "chatclip-content-extractor")
     before = platform.store.list("plans")
     with pytest.raises(ValueError, match="已失效"):
         platform.persist_plan_result(workspace=workspace, skill=skill, goal="剪成30秒", result={})

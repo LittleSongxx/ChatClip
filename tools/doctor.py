@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check whether the local ClipTalk runtime is ready without changing it."""
+"""Check whether the local ChatClip runtime is ready without changing it."""
 
 from __future__ import annotations
 
@@ -144,10 +144,10 @@ def inspect_environment(profile: str = "visual") -> dict[str, Any]:
         node_version = subprocess.check_output([node, "--version"], text=True, timeout=5).strip() if node else "未安装"
     except (OSError, subprocess.SubprocessError):
         node_version = "无法运行"
-    checks.append(_result("AI 助手运行环境", "ok" if node_version.startswith("v22.") else "blocker", f"Node.js {node_version}；需要 22.x"))
-    agent_installed = (settings.root / "agent-service/node_modules/@earendil-works/pi-coding-agent").is_dir()
-    checks.append(_result("AI 助手依赖", "ok" if agent_installed else "warning",
-                          "已安装" if agent_installed else "本机启动前请运行 python3 tools/setup.py；独立部署请配置助手服务地址"))
+    checks.append(_result("本地动效渲染环境", "ok" if node_version.startswith("v22.") else "warning", f"Node.js {node_version}；需要 22.x（仅影响本地图文动效渲染）"))
+    agent_runtime_installed = importlib.util.find_spec("langgraph") is not None and importlib.util.find_spec("langchain_openai") is not None
+    checks.append(_result("Agent 运行时（LangGraph）", "ok" if agent_runtime_installed else "blocker",
+                          "已安装" if agent_runtime_installed else "缺少 langchain/langgraph 依赖；请运行 python3 tools/setup.py"))
     talknet = local_capabilities(settings, probe=False)["talknet"]
     checks.append(_result("人物说话识别", "ok" if talknet["status"] == "available" else "warning", talknet["detail"]))
     if profile in {"cpu", "cuda"}:
@@ -205,7 +205,7 @@ def inspect_environment(profile: str = "visual") -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="只读检查 ClipTalk 本机运行环境")
+    parser = argparse.ArgumentParser(description="只读检查 ChatClip 本机运行环境")
     parser.add_argument("--profile", choices=("visual", "cpu", "cuda"), default="visual")
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--strict", action="store_true", help="存在警告时也返回非零状态")
@@ -216,7 +216,7 @@ def main() -> int:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
         icons = {"ok": "✓", "warning": "!", "blocker": "×"}
-        print(f"ClipTalk 环境检查 · {args.profile}")
+        print(f"ChatClip 环境检查 · {args.profile}")
         for item in report["checks"]:
             print(f"{icons[item['status']]} {item['name']}：{item['detail']}")
         print(f"结果：{report['blockers']} 个阻断项，{report['warnings']} 个提醒")

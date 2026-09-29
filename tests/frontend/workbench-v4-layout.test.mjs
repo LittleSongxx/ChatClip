@@ -87,11 +87,11 @@ test("journey and delivery keep actions bound to the displayed version", async (
       const output = { filename: "v2.mp4", title: "竖屏正式版", duration: 87, width: 540, height: 960, segments: [{ start: 1, end: 4 }], kept: false };
       const version = { id: "v2", number: 2, outputs: [output] };
       const job = { id: "delivery-test", status: "completed", presentation: { key: "exported", journeyStage: 4, journeyDetail: "正式文件已生成" }, outputVersions: [version] };
-      window.ClipTalkCurrentJobSnapshot = () => job;
-      window.ClipTalkCurrentOutputSnapshot = () => ({ mediaKind: "source", output: null });
-      window.ClipTalkOrderedJobOutputs = () => [{ item: output, version }];
+      window.ChatClipCurrentJobSnapshot = () => job;
+      window.ChatClipCurrentOutputSnapshot = () => ({ mediaKind: "source", output: null });
+      window.ChatClipOrderedJobOutputs = () => [{ item: output, version }];
       window.reviewActions = [];
-      window.ClipTalkVersionAction = async (filename, action) => {
+      window.ChatClipVersionAction = async (filename, action) => {
         window.reviewActions.push({ filename, action });
         if (action === "keep") output.kept = true;
         return { ok: true };
@@ -99,7 +99,7 @@ test("journey and delivery keep actions bound to the displayed version", async (
       const save = document.createElement("button");
       save.id = "saveToLibraryButton";
       document.body.append(save);
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator('#ctTaskJourney [aria-current="step"]').textContent(), "5 生成与交付");
     const journeySummary = page.locator("#ctTaskJourney .ct-journey-summary");
@@ -118,7 +118,7 @@ test("journey and delivery keep actions bound to the displayed version", async (
     assert.ok(journeyGeometry.headerBottom + 1 >= journeyGeometry.journeyBottom);
     assert.ok(journeyGeometry.messagesTop + 1 >= journeyGeometry.headerBottom);
     await journeySummary.click();
-    await page.evaluate(() => window.ClipTalkWorkspaceController.openRail('materials'));
+    await page.evaluate(() => window.ChatClipWorkspaceController.openRail('materials'));
     await page.locator("[data-ct-version-edit]").click();
     const card = page.locator("#ctV4MaterialsSummary");
     assert.match(await card.textContent(), /V2.*1:27/s);
@@ -130,20 +130,20 @@ test("journey and delivery keep actions bound to the displayed version", async (
         return rect.left >= 0 && rect.right <= innerWidth;
       });
       assert.equal(fits, true);
-      await page.screenshot({ path: `/tmp/cliptalk-delivery-${theme}.png` });
+      await page.screenshot({ path: `/tmp/chatclip-delivery-${theme}.png` });
     }
     assert.equal(await page.locator("[data-ct-v4-export]").count(), 0);
     assert.deepEqual(await card.locator("footer button").allTextContents(), ["播放当前成片", "全部版本"]);
     await page.locator("#saveToLibraryButton").click();
-    await page.evaluate(() => window.ClipTalkWorkspaceController.syncMaterialsSummary());
+    await page.evaluate(() => window.ChatClipWorkspaceController.syncMaterialsSummary());
     assert.match(await card.textContent(), /已长期保留/);
     assert.deepEqual(await page.evaluate(() => window.reviewActions), [
       { filename: "v2.mp4", action: "edit" }, { filename: "v2.mp4", action: "keep" },
     ]);
     for (const [key, text] of [["failed", "任务未完成"], ["no_result", "未找到匹配内容"], ["cancelled", "已停止"]]) {
       await page.evaluate(({ key, text }) => {
-        Object.assign(window.ClipTalkCurrentJobSnapshot().presentation, { key, journeyStage: 3, journeyDetail: text, attentionItems: [{ label: text, target: "#agentPlanDock" }] });
-        window.ClipTalkWorkspaceController.mount();
+        Object.assign(window.ChatClipCurrentJobSnapshot().presentation, { key, journeyStage: 3, journeyDetail: text, attentionItems: [{ label: text, target: "#agentPlanDock" }] });
+        window.ChatClipWorkspaceController.mount();
       }, { key, text });
       assert.match(await page.locator("#ctTaskJourney p").textContent(), new RegExp(text));
       await page.locator("#ctV4Notifications").click();
@@ -283,7 +283,7 @@ test("timeline resize observer compares stable like-for-like geometry", () => {
 });
 
 test("light timeline keeps every text layer readable", async () => {
-  assert.match(appSource, /window\.addEventListener\("cliptalk:themechange"[\s\S]*?drawWaveform\(true\)/);
+  assert.match(appSource, /window\.addEventListener\("chatclip:themechange"[\s\S]*?drawWaveform\(true\)/);
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   try {
@@ -548,7 +548,7 @@ test("workspace layout follows the active media without presenting manual orient
   assert.match(appSource, /function recommendedReviewLayout\(aspect\)[\s\S]*normalized < 1 \? "portrait" : "landscape"/);
   assert.match(appSource, /function syncReviewLayoutForMedia\(aspect\)[\s\S]*nextLayout = recommendedReviewLayout\(aspect\)[\s\S]*setReviewLayout\(nextLayout, \{ source: "auto" \}\)/);
   assert.doesNotMatch(appSource, /reviewLayoutOverride/);
-  assert.doesNotMatch(appSource, /cliptalk-review-layout-v1|storedReviewLayout|rememberReviewLayout/);
+  assert.doesNotMatch(appSource, /chatclip-review-layout-v1|storedReviewLayout|rememberReviewLayout/);
   const classifierSource = appSource.match(/function recommendedReviewLayout\(aspect\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(classifierSource);
   const classify = Function(`"use strict"; ${classifierSource}; return recommendedReviewLayout;`)();
@@ -801,21 +801,21 @@ test("portrait workspace preserves conversation through completion and respects 
     }));
     await page.goto("http://portrait.test/");
     const planning = await page.evaluate(() => {
-      localStorage.removeItem("cliptalk-assistant-expanded:v2:new-task");
-      localStorage.removeItem("cliptalk-review-rail-expanded:v1:new-task");
-      localStorage.removeItem("cliptalk-portrait-panel-handoff:v1:new-task");
+      localStorage.removeItem("chatclip-assistant-expanded:v2:new-task");
+      localStorage.removeItem("chatclip-review-rail-expanded:v1:new-task");
+      localStorage.removeItem("chatclip-portrait-panel-handoff:v1:new-task");
       const workspace = document.querySelector("#workspace");
       const review = document.querySelector("#reviewView");
       review.dataset.reviewLayout = "portrait";
       document.body.dataset.shellMode = "workspace";
       document.body.dataset.workspaceState = "analysing";
-      window.ClipTalkWorkspacePanels = {
+      window.ChatClipWorkspacePanels = {
         setAssistantExpanded(expanded, { persist = false } = {}) {
           workspace.classList.toggle("assistant-collapsed", !expanded);
-          if (persist) localStorage.setItem("cliptalk-assistant-expanded:v2:new-task", String(Boolean(expanded)));
+          if (persist) localStorage.setItem("chatclip-assistant-expanded:v2:new-task", String(Boolean(expanded)));
         },
       };
-      window.ClipTalkWorkspaceController.syncPortraitPanels("analysing");
+      window.ChatClipWorkspaceController.syncPortraitPanels("analysing");
       return {
         assistantOpen: !workspace.classList.contains("assistant-collapsed"),
         railOpen: !workspace.classList.contains("review-rail-collapsed"),
@@ -825,20 +825,20 @@ test("portrait workspace preserves conversation through completion and respects 
 
     const review = await page.evaluate(() => {
       const workspace = document.querySelector("#workspace");
-      window.ClipTalkWorkspaceController.syncPortraitPanels("reviewing");
+      window.ChatClipWorkspaceController.syncPortraitPanels("reviewing");
       return {
         assistantOpen: !workspace.classList.contains("assistant-collapsed"),
         railOpen: !workspace.classList.contains("review-rail-collapsed"),
-        handoff: localStorage.getItem("cliptalk-portrait-panel-handoff:v1:new-task"),
+        handoff: localStorage.getItem("chatclip-portrait-panel-handoff:v1:new-task"),
       };
     });
     assert.deepEqual(review, { assistantOpen: true, railOpen: false, handoff: null });
 
     const manual = await page.evaluate(() => {
       const workspace = document.querySelector("#workspace");
-      window.ClipTalkWorkspacePanels.setAssistantExpanded(true, { persist: true });
-      window.ClipTalkWorkspaceController.setRailExpanded(false, { persist: true, coordinate: false });
-      window.ClipTalkWorkspaceController.syncPortraitPanels("completed");
+      window.ChatClipWorkspacePanels.setAssistantExpanded(true, { persist: true });
+      window.ChatClipWorkspaceController.setRailExpanded(false, { persist: true, coordinate: false });
+      window.ChatClipWorkspaceController.syncPortraitPanels("completed");
       return {
         assistantOpen: !workspace.classList.contains("assistant-collapsed"),
         railOpen: !workspace.classList.contains("review-rail-collapsed"),
@@ -848,7 +848,7 @@ test("portrait workspace preserves conversation through completion and respects 
 
     const switched = await page.evaluate(() => {
       const workspace = document.querySelector("#workspace");
-      window.ClipTalkWorkspaceController.setRailExpanded(true, { persist: true });
+      window.ChatClipWorkspaceController.setRailExpanded(true, { persist: true });
       return {
         assistantOpen: !workspace.classList.contains("assistant-collapsed"),
         railOpen: !workspace.classList.contains("review-rail-collapsed"),
@@ -1019,7 +1019,7 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
       document.querySelector("#clipTime").textContent = "00:05 → 00:12 · 7.0 秒";
       window.boundaryShortcutClicks = 0;
       document.querySelector("#contentBoundaryEntryButton").addEventListener("click", () => { window.boundaryShortcutClicks += 1; });
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     await page.waitForFunction(() => document.body.dataset.ctV4RailTab === "properties");
     assert.equal(await page.locator('[data-ct-v4-rail="properties"]').isVisible(), true);
@@ -1048,7 +1048,7 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
 
     await page.evaluate(() => {
       document.querySelector("#evidencePanel").classList.add("evidence-placeholder");
-      window.ClipTalkWorkspaceController.mount();
+      window.ChatClipWorkspaceController.mount();
     });
     assert.equal(await page.locator('[data-ct-v4-rail="properties"]').isVisible(), false);
     assert.equal(await page.locator("body").getAttribute("data-ct-v4-rail-tab"), "materials");
@@ -1061,8 +1061,8 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
     assert.equal(await page.locator("#ctV4OutputAspectStatus").isVisible(), false);
     assert.equal(await page.locator("#ctV4ReframeFit").isVisible(), false);
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "9:16" } });
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "9:16" } });
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator("#ctV4ReframeFit").isVisible(), true);
     const lightProjectSettings = await page.evaluate(() => ({
@@ -1089,15 +1089,15 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
 
     await page.evaluate(() => {
       window.__savedOutputAspect = "";
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_current", filename: "source.mp4",
         projectSettings: { outputAspect: "9:16" }, outputs: [],
       });
-      window.ClipTalkOrderedJobOutputs = () => [];
-      window.ClipTalkUpdateProjectSettings = async ({ outputAspect }) => {
+      window.ChatClipOrderedJobOutputs = () => [];
+      window.ChatClipUpdateProjectSettings = async ({ outputAspect }) => {
         window.__savedOutputAspect = outputAspect;
       };
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator('[data-ct-v4-output-aspect="9:16"]').getAttribute("aria-pressed"), "true");
     assert.equal(await page.locator("#ctV4OutputAspectStatus").isVisible(), false);
@@ -1109,9 +1109,9 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
         id: "job_current", filename: "source.mp4",
         projectSettings: { outputAspect: "9:16" },
       };
-      window.ClipTalkCurrentJobSnapshot = () => job;
-      window.ClipTalkOrderedJobOutputs = () => [{ item: { width: 1920, height: 1080 } }];
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipCurrentJobSnapshot = () => job;
+      window.ChatClipOrderedJobOutputs = () => [{ item: { width: 1920, height: 1080 } }];
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     await page.locator('[data-ct-v4-rail="materials"]').click();
     await page.locator("#ctV4GenerateAspect").waitFor({ state: "visible" });
@@ -1129,24 +1129,24 @@ test("v4 workbench owns the reference layout and contextual rail", async () => {
 
     await page.evaluate(() => {
       document.querySelector('#ctV4MaterialsSummary').dataset.outputFilename = 'selected.mp4';
-      window.ClipTalkOrderedJobOutputs = () => [{ item: { filename: 'another.mp4', width: 1080, height: 1920 } }];
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipOrderedJobOutputs = () => [{ item: { filename: 'another.mp4', width: 1080, height: 1920 } }];
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator("#ctV4GenerateAspect").isVisible(), true, "Another version's canvas cannot suppress this version's action");
     await page.evaluate(() => {
-      window.ClipTalkOrderedJobOutputs = () => [{ item: { filename: 'selected.mp4', width: 1080, height: 1920 } }];
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipOrderedJobOutputs = () => [{ item: { filename: 'selected.mp4', width: 1080, height: 1920 } }];
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator("#ctV4GenerateAspect").isVisible(), false);
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "16:9" } });
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "16:9" } });
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator("#ctV4GenerateAspect").textContent(), "生成横屏版");
     assert.equal(await page.locator("#ctV4GenerateAspect").isVisible(), true);
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "source" } });
-      window.ClipTalkWorkspaceController.syncProjectControls();
+      window.ChatClipCurrentJobSnapshot = () => ({ projectSettings: { outputAspect: "source" } });
+      window.ChatClipWorkspaceController.syncProjectControls();
     });
     assert.equal(await page.locator("#ctV4GenerateAspect").isVisible(), false);
     await page.locator('[data-ct-v4-rail="project"]').click();
@@ -1172,13 +1172,13 @@ test("delivery checks trust rendered overlays and nested cover intro state", asy
           appliedCueCount: 4, subtitleCueCount: 3, textLayerCount: 1,
         },
       };
-      window.ClipTalkCurrentJobId = () => "job_current";
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobId = () => "job_current";
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_current", filename: "source.mp4", coverNeedsRegeneration: false,
       });
-      window.ClipTalkCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
-      window.ClipTalkOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
+      window.ChatClipOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     const validText = await page.locator("#ctV4DeliveryChecks").textContent();
     assert.match(validText, /画幅9:16 · 540×960/);
@@ -1194,12 +1194,12 @@ test("delivery checks trust rendered overlays and nested cover intro state", asy
         filename: "legacy.mp4", previewOnly: true, width: 540, height: 960,
         subtitleMode: "burn", coverIntro: { enabled: true },
       };
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_current", filename: "source.mp4", coverNeedsRegeneration: true,
       });
-      window.ClipTalkCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
-      window.ClipTalkOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
+      window.ChatClipOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     const staleText = await page.locator("#ctV4DeliveryChecks").textContent();
     assert.match(staleText, /封面需更新/);
@@ -1210,13 +1210,13 @@ test("delivery checks trust rendered overlays and nested cover intro state", asy
         filename: "locked-review.mp4", previewOnly: true, width: 540, height: 960,
         coverVersionId: "cover_v002", coverBindingStatus: "locked_for_export",
       };
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_current", filename: "source.mp4", coverNeedsRegeneration: false,
         currentCoverVersionId: "cover_v002",
       });
-      window.ClipTalkCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
-      window.ClipTalkOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipCurrentOutputSnapshot = () => ({ output, isReviewSample: true });
+      window.ChatClipOrderedJobOutputs = () => [{ item: output, version: { previewOnly: true } }];
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     const lockedText = await page.locator("#ctV4DeliveryChecks").textContent();
     assert.match(lockedText, /封面已锁定，导出时绑定/);
@@ -1226,16 +1226,16 @@ test("delivery checks trust rendered overlays and nested cover intro state", asy
       const formalOne = { filename: "formal-one.mp4", width: 1920, height: 1080, duration: 48 };
       const formalTwo = { filename: "formal-two.mp4", width: 1920, height: 1080, duration: 52 };
       const sample = { filename: "sample.mp4", width: 960, height: 540, previewOnly: true };
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_current", filename: "source.mp4", storageMode: "editable",
       });
-      window.ClipTalkCurrentOutputSnapshot = () => ({ output: formalOne, isReviewSample: false });
-      window.ClipTalkOrderedJobOutputs = () => [
+      window.ChatClipCurrentOutputSnapshot = () => ({ output: formalOne, isReviewSample: false });
+      window.ChatClipOrderedJobOutputs = () => [
         { item: formalOne, version: { id: "formal_v1" } },
         { item: formalTwo, version: { id: "formal_v2" } },
         { item: sample, version: { id: "sample_v1", previewOnly: true } },
       ];
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     assert.equal(await page.locator("#ctV4VersionState").textContent(), "2 个正式版本 · 1 个审核样片");
     const formalChecks = await page.locator("#ctV4DeliveryChecks").textContent();
@@ -1245,9 +1245,9 @@ test("delivery checks trust rendered overlays and nested cover intro state", asy
     assert.equal(await page.locator("[data-ct-v4-export]").count(), 0);
 
     await page.evaluate(() => {
-      const current = window.ClipTalkCurrentJobSnapshot();
-      window.ClipTalkCurrentJobSnapshot = () => ({ ...current, storageMode: "one_off" });
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      const current = window.ChatClipCurrentJobSnapshot();
+      window.ChatClipCurrentJobSnapshot = () => ({ ...current, storageMode: "one_off" });
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     assert.deepEqual(await page.locator(".ct-v4-version-card > footer button").allTextContents(), ["播放当前成片", "全部版本"]);
   } finally {
@@ -1261,14 +1261,14 @@ test("current material card shows an explicit generating state until its thumbna
   try {
     await page.setContent(fixture());
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobId = () => "job_thumbnail_pending";
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobId = () => "job_thumbnail_pending";
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_thumbnail_pending",
         filename: "产品宣传.mp4",
         thumbnailReady: false,
         thumbnailStatus: "pending",
       });
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
 
     const pending = await page.locator(".ct-v4-source-preview").evaluate((node) => ({
@@ -1283,13 +1283,13 @@ test("current material card shows an explicit generating state until its thumbna
     assert.equal(pending.statusVisible, "grid");
 
     await page.evaluate(() => {
-      window.ClipTalkCurrentJobSnapshot = () => ({
+      window.ChatClipCurrentJobSnapshot = () => ({
         id: "job_thumbnail_pending",
         filename: "产品宣传.mp4",
         thumbnailReady: true,
         thumbnailStatus: "ready",
       });
-      window.ClipTalkWorkspaceController.syncMaterialsSummary();
+      window.ChatClipWorkspaceController.syncMaterialsSummary();
     });
     const ready = await page.locator(".ct-v4-source-preview").evaluate((node) => ({
       state: node.dataset.thumbnailState,
@@ -1325,5 +1325,5 @@ test("upload progress is real and the premature local player stays hidden", () =
   assert.match(html, /id="localPreviewPanel" class="media-metadata-probe hidden" hidden aria-hidden="true"/);
   assert.match(appSource, /uploadProgress.value = percent/);
   assert.match(appSource, /uploadProgress.removeAttribute\("value"\)/);
-  assert.doesNotMatch(appSource, /ClipTalkStartPreparedTask/);
+  assert.doesNotMatch(appSource, /ChatClipStartPreparedTask/);
 });

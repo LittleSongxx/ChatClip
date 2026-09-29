@@ -13,7 +13,7 @@ class WorkerLock:
             fcntl.flock(self.handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as error:
             self.handle.close()
-            raise RuntimeError("此数据目录已有 ClipTalk 实例运行；请使用单 worker，禁止多个进程共享工作区") from error
+            raise RuntimeError("此数据目录已有 ChatClip 实例运行；请使用单 worker，禁止多个进程共享工作区") from error
 
     def close(self) -> None:
         self.handle.close()

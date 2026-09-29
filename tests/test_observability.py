@@ -11,7 +11,7 @@ from app.observability import JobStageMetrics, JsonLogFormatter, RequestMetrics,
 
 
 def test_json_log_formatter_keeps_structured_fields() -> None:
-    record = logging.LogRecord("cliptalk", logging.INFO, __file__, 1, "request", (), None)
+    record = logging.LogRecord("chatclip", logging.INFO, __file__, 1, "request", (), None)
     record.structured = {"requestId": "req-1", "durationMilliseconds": 12.5}
     payload = json.loads(JsonLogFormatter().format(record))
     assert payload["message"] == "request"
@@ -57,7 +57,7 @@ def test_process_resource_snapshot_reports_memory_and_data_disk(tmp_path) -> Non
 
 def test_observability_middleware_returns_request_id() -> None:
     metrics = RequestMetrics()
-    logger = logging.getLogger("cliptalk-test-observability")
+    logger = logging.getLogger("chatclip-test-observability")
     logger.handlers = [logging.NullHandler()]
     logger.propagate = False
     app = FastAPI()

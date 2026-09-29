@@ -8,11 +8,12 @@ from unittest.mock import patch
 
 import pytest
 
-from app.agent_platform import AgentPlatform, AgentServiceError
+from app.agent import AgentPlatform, AgentServiceError
+from app.agent.compiler import replan_force_replay_tools
 
 
 HIGHLIGHT_SKILL = """---
-name: cliptalk-highlight-director
+name: chatclip-highlight-director
 version: 1.2.0
 description: Builds an evidence-backed highlight cut and a review sample.
 allowed-tools: inspect_workspace analyze_highlights propose_timeline_edit confirm_timeline_edit prepare_subtitle_review render_review_preview
@@ -26,7 +27,10 @@ workflow-profile: highlight
 class DeterministicPlanningClient:
     """The workflow compiler, rather than a live model, owns this acceptance test."""
 
-    def plan(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    def plan(
+        self, _payload: dict[str, Any], *, model_config: dict[str, Any] | None = None,
+        emit: Any = None,
+    ) -> dict[str, Any]:
         return {"plan": {"summary": "自动生成高光审核样片", "steps": [{
             "id": "model_placeholder", "title": "模型占位步骤",
             "tool": "inspect_workspace", "arguments": {}, "dependencies": [],
@@ -35,7 +39,10 @@ class DeterministicPlanningClient:
 
 
 class UnavailablePlanningClient:
-    def plan(self, _payload: dict[str, Any]) -> dict[str, Any]:
+    def plan(
+        self, _payload: dict[str, Any], *, model_config: dict[str, Any] | None = None,
+        emit: Any = None,
+    ) -> dict[str, Any]:
         raise AgentServiceError("Pi Agent 服务不可用：timed out")
 
 
@@ -100,7 +107,7 @@ def test_agent_plan_progress_points_at_failed_step() -> None:
 
 
 def test_retry_rule_allows_failed_highlight_analysis() -> None:
-    assert AgentPlatform._replan_force_replay_tools({
+    assert replan_force_replay_tools({
         "tool": "analyze_highlights",
         "status": "failed",
         "error": "'job_missing_from_memory'",
@@ -174,7 +181,7 @@ def test_agent_review_preview_is_projected_to_public_job(tmp_path: Path) -> None
     plan = {
         "id": "plan_agent_review_projection",
         "status": "preview_ready",
-        "skillId": "cliptalk-highlight-director",
+        "skillId": "chatclip-highlight-director",
         "steps": [{
             "id": "render",
             "title": "准备低码率审阅样片",
@@ -251,7 +258,7 @@ def test_opening_existing_job_backfills_agent_review_preview_projection(
     plan = {
         "id": "plan_agent_review_projection_backfill",
         "status": "preview_ready",
-        "skillId": "cliptalk-highlight-director",
+        "skillId": "chatclip-highlight-director",
         "steps": [{
             "id": "render",
             "title": "准备低码率审阅样片",
@@ -365,10 +372,9 @@ def test_autonomous_agent_reaches_review_sample_without_intermediate_user_action
     """Accept the plan once, then verify that Agent stops only at review-ready."""
     platform = AgentPlatform(
         data_root=tmp_path,
-        service_url="http://agent.invalid",
         model_config_resolver=lambda: {"model": "deterministic-test"},
     )
-    platform.client = DeterministicPlanningClient()  # type: ignore[assignment]
+    platform.planner_backend = DeterministicPlanningClient()  # type: ignore[assignment]
     platform.install_skill(
         markdown=HIGHLIGHT_SKILL, source="builtin", status="enabled",
     )
@@ -413,7 +419,7 @@ def test_autonomous_agent_reaches_review_sample_without_intermediate_user_action
     workspace = platform.create_workspace(job_id="job_auto")
     plan = platform.create_plan(
         workspace_id=workspace["id"],
-        skill_id="cliptalk-highlight-director",
+        skill_id="chatclip-highlight-director",
         goal="剪成 60 秒高光成片",
         execution_mode="autonomous_review",
     )
@@ -450,7 +456,12 @@ def test_autonomous_agent_reaches_review_sample_without_intermediate_user_action
         },
     })
 
+    import time as _time
+    deadline = _time.monotonic() + 5.0
     completed = platform.store.get("plans", plan["id"])
+    while _time.monotonic() < deadline and (not completed or completed.get("status") != "preview_ready"):
+        _time.sleep(0.01)
+        completed = platform.store.get("plans", plan["id"])
     assert completed is not None
     assert completed["status"] == "preview_ready"
     assert all(step["status"] == "completed" for step in completed["steps"])
@@ -459,20 +470,25 @@ def test_autonomous_agent_reaches_review_sample_without_intermediate_user_action
     assert artifact["previewOnly"] is True
     assert artifact["previews"][0]["previewOnly"] is True
 
+    import time as _time
+    deadline = _time.monotonic() + 5.0
     events = platform.store.events_after(workspace["id"])
+    while _time.monotonic() < deadline and not events or events[-1]["type"] != "preview.ready":
+        _time.sleep(0.01)
+        events = platform.store.events_after(workspace["id"])
     assert "action.required" not in {event["type"] for event in events}
     assert events[-1]["type"] == "preview.ready"
+    platform.close()
 
 
 def test_managed_skill_uses_deterministic_plan_when_planning_service_times_out(
     tmp_path: Path,
 ) -> None:
     platform = AgentPlatform(
-        data_root=tmp_path, service_url="http://agent.invalid",
-        model_config_resolver=lambda: {"model": "offline"}, timeout_seconds=17,
+        data_root=tmp_path, model_config_resolver=lambda: {"model": "offline"}, timeout_seconds=17,
     )
-    assert platform.client.timeout_seconds == 17
-    platform.client = UnavailablePlanningClient()  # type: ignore[assignment]
+    assert platform.timeout_seconds == 17
+    platform.planner_backend = UnavailablePlanningClient()  # type: ignore[assignment]
     platform.install_skill(markdown=HIGHLIGHT_SKILL, source="builtin", status="enabled")
     platform.configure_planning_context_provider(lambda job_id: {
         "jobId": job_id,
@@ -482,7 +498,7 @@ def test_managed_skill_uses_deterministic_plan_when_planning_service_times_out(
     workspace = platform.create_workspace(job_id="job_fallback")
 
     plan = platform.create_plan(
-        workspace_id=workspace["id"], skill_id="cliptalk-highlight-director",
+        workspace_id=workspace["id"], skill_id="chatclip-highlight-director",
         goal="剪成 60 秒高光审核样片", execution_mode="autonomous_review",
     )
 

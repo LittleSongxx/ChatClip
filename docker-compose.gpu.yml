@@ -1,6 +1,6 @@
 services:
-  cliptalk:
+  chatclip:
     build:
       args:
-        CLIPTALK_INSTALL_PROFILE: gpu
+        CHATCLIP_INSTALL_PROFILE: gpu
     gpus: all

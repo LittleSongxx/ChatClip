@@ -7,12 +7,13 @@ from typing import Any, Callable
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from .ark_client import VisionRequestError, vision_provider_label
+from .llm import VisionRequestError, vision_provider_label
 from .security import SecurityConfigurationError, validate_public_http_endpoint
 from .setup_readiness import invalidate_agent_probe, save_agent_probe
 from .vision_settings import (
     LLM_PROVIDER_DEFINITIONS,
     LlmConfigurationStore,
+    PROVIDER_DEFINITIONS,
     VisionConfigurationStore,
     discover_llm_models,
     discover_models,
@@ -120,7 +121,7 @@ def build_settings_router(
         return _validated_endpoint(
             provider,
             base_url,
-            allowed_providers={"ark", "openai", "openai_compatible"},
+            allowed_providers={str(item["id"]) for item in PROVIDER_DEFINITIONS},
             provider_error="不支持的视觉模型服务商",
             allow_private=allow_private_model_endpoints,
         )

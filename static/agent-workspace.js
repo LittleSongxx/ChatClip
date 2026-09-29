@@ -5,11 +5,11 @@
   // 在只 eval 本文件的测试上下文中该库不可用，此时退化为等价的最小结构，
   // 保证渲染不中断（生产页面始终经由 index.html 加载 ui-states.js）。
   const ctEsc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const ctEmpty = (o) => (global.ClipTalkUIStates
-    ? global.ClipTalkUIStates.emptyStateHtml(o)
+  const ctEmpty = (o) => (global.ChatClipUIStates
+    ? global.ChatClipUIStates.emptyStateHtml(o)
     : `<div class="ct-empty${o && o.className ? ` ${o.className}` : ""}" role="status"><strong>${ctEsc(o && o.title)}</strong>${o && o.hint ? `<p>${ctEsc(o.hint)}</p>` : ""}</div>`);
   const ctPolling = (fn, ms) => {
-    const ui = global.ClipTalkUIStates;
+    const ui = global.ChatClipUIStates;
     if (ui && typeof ui.createPolling === "function") return ui.createPolling(fn, ms);
     const id = setInterval(fn, ms);
     return { interval: ms, refresh: fn, stop: () => clearInterval(id) };
@@ -25,7 +25,7 @@
   const staleError = () => Object.assign(new Error("任务已切换"), { name: "StaleWorkspaceError" });
   async function viewRequest(method, path, options = {}) {
     if (!/^\/api\/agent\/(workspaces|plans)(?:\/|$)/.test(path)) {
-      return global.ClipTalkApi[method](path, options);
+      return global.ChatClipApi[method](path, options);
     }
     const context = owner();
     const mutationKey = String(options.method || "GET").toUpperCase() === "GET" ? "" : `${context.generation}:${path}`;
@@ -34,7 +34,7 @@
     const controller = new AbortController();
     pendingRequests.add(controller);
     try {
-      const result = await global.ClipTalkApi[method](path, { ...options, signal: options.signal || controller.signal });
+      const result = await global.ChatClipApi[method](path, { ...options, signal: options.signal || controller.signal });
       if (!ownsView(context)) throw staleError();
       return result;
     } catch (error) {
@@ -46,7 +46,7 @@
     }
   }
   const api = {
-    ...global.ClipTalkApi,
+    ...global.ChatClipApi,
     requestJson: (path, options) => viewRequest("requestJson", path, options),
     requestResponse: (path, options) => viewRequest("requestResponse", path, options),
   };
@@ -58,7 +58,6 @@
   let activeWorkspace = null;
   let retrySubmission = null;
   let pollTimer = null;
-  let registryTab = "skills";
   let agentProviders = [];
   let discoveredAgentModels = [];
   let planDrawerTab = "plan";
@@ -77,30 +76,30 @@
   })[character]);
 
   const SKILL_DISPLAY_NAMES = Object.freeze({
-    "cliptalk-audio-polish-mixer": "人声与音频优化",
-    "cliptalk-broll-overlay-editor": "补充画面剪辑",
-    "cliptalk-caption-layout-director": "字幕排版",
-    "cliptalk-content-extractor": "内容提取",
-    "cliptalk-cover-director": "封面设计",
-    "cliptalk-cover-intro-composer": "封面片头制作",
-    "cliptalk-delivery-qc": "成片质量检查",
-    "cliptalk-dynamic-reframe-director": "智能画幅重构",
-    "cliptalk-edit-diagnostics": "剪辑问题诊断",
-    "cliptalk-graphics-packager": "图文包装",
-    "cliptalk-highlight-director": "智能高光",
-    "cliptalk-interview-editor": "访谈剪辑",
-    "cliptalk-local-draft-exporter": "本地草稿导出",
-    "cliptalk-local-motion-renderer": "动态图文制作",
-    "cliptalk-multi-topic-assembler": "多主题组合",
-    "cliptalk-person-editor": "人物聚焦",
-    "cliptalk-platform-delivery-exporter": "平台成片导出",
-    "cliptalk-revision-editor": "版本编辑",
-    "cliptalk-shortform-hook-director": "短视频钩子剪辑",
-    "cliptalk-smart-reframe": "智能改画幅",
-    "cliptalk-social-reframe-exporter": "社媒画幅适配",
-    "cliptalk-source-provenance-guard": "素材来源校验",
-    "cliptalk-speaker-editor": "发言剪辑",
-    "cliptalk-subtitle-editor": "字幕编辑",
+    "chatclip-audio-polish-mixer": "人声与音频优化",
+    "chatclip-broll-overlay-editor": "补充画面剪辑",
+    "chatclip-caption-layout-director": "字幕排版",
+    "chatclip-content-extractor": "内容提取",
+    "chatclip-cover-director": "封面设计",
+    "chatclip-cover-intro-composer": "封面片头制作",
+    "chatclip-delivery-qc": "成片质量检查",
+    "chatclip-dynamic-reframe-director": "智能画幅重构",
+    "chatclip-edit-diagnostics": "剪辑问题诊断",
+    "chatclip-graphics-packager": "图文包装",
+    "chatclip-highlight-director": "智能高光",
+    "chatclip-interview-editor": "访谈剪辑",
+    "chatclip-local-draft-exporter": "本地草稿导出",
+    "chatclip-local-motion-renderer": "动态图文制作",
+    "chatclip-multi-topic-assembler": "多主题组合",
+    "chatclip-person-editor": "人物聚焦",
+    "chatclip-platform-delivery-exporter": "平台成片导出",
+    "chatclip-revision-editor": "版本编辑",
+    "chatclip-shortform-hook-director": "短视频钩子剪辑",
+    "chatclip-smart-reframe": "智能改画幅",
+    "chatclip-social-reframe-exporter": "社媒画幅适配",
+    "chatclip-source-provenance-guard": "素材来源校验",
+    "chatclip-speaker-editor": "发言剪辑",
+    "chatclip-subtitle-editor": "字幕编辑",
   });
 
   function skillDisplayName(skill) {
@@ -116,7 +115,7 @@
   }
 
   function currentJobId() {
-    return String(global.ClipTalkCurrentJobId?.() || "");
+    return String(global.ChatClipCurrentJobId?.() || "");
   }
 
   function isAgentInstructionDraft(job) {
@@ -167,10 +166,10 @@
     if (!detail.workspace?.id) return;
     activeWorkspace = detail.workspace;
     workspaceByJob.set(String(activeWorkspace.jobId), activeWorkspace);
-    const restore = global.ClipTalkChatStream?.restore || (render => render());
+    const restore = global.ChatClipChatStream?.restore || (render => render());
     restore(() => {
       restorePlanMessages(detail);
-      global.ClipTalkRenderAssistantHistory?.();
+      global.ChatClipRenderAssistantHistory?.();
       renderPendingChanges();
     });
   }
@@ -197,7 +196,7 @@
     const pending = activeWorkspace?.pendingChanges || [];
     panel.hidden = !pending.length;
     if (!pending.length) {
-      global.ClipTalkChatStream?.remove(`pending:${String(activeWorkspace?.id || "")}`);
+      global.ChatClipChatStream?.remove(`pending:${String(activeWorkspace?.id || "")}`);
       return;
     }
     const workspaceId = String(activeWorkspace.id);
@@ -209,7 +208,7 @@
       if (submitting || currentJobId() !== boundJobId || String(activeWorkspace?.id) !== workspaceId) return;
       submitting = true;
       const sync = (error = "") => {
-        const visible = global.ClipTalkChatStream?.cardElement(`pending:${workspaceId}`);
+        const visible = global.ChatClipChatStream?.cardElement(`pending:${workspaceId}`);
         for (const host of [panel, visible].filter(Boolean)) {
           host.querySelectorAll("button").forEach(node => { node.disabled = submitting; });
           const message = host.querySelector("[data-pending-error]");
@@ -220,7 +219,7 @@
       try {
         const result = await api.requestJson(`/api/agent/workspaces/${encodeURIComponent(workspaceId)}/pending-changes`, { method: "POST", body: { choice: button.dataset.pendingChoice } });
         if (currentJobId() !== boundJobId || String(activeWorkspace?.id) !== workspaceId) return;
-        global.ClipTalkChatStream?.remove(`pending:${workspaceId}`);
+        global.ChatClipChatStream?.remove(`pending:${workspaceId}`);
         if (result.plan) renderPlan(result.plan);
         await refreshConversation();
       } catch (error) {
@@ -231,7 +230,7 @@
       }
     }));
     if (streamActive()) {
-      var cs = global.ClipTalkChatStream;
+      var cs = global.ChatClipChatStream;
       var pendingId = `pending:${String(activeWorkspace?.id || "")}`;
       cs.emit({
         id: pendingId,
@@ -512,7 +511,7 @@
         previews.push({ ...artifact.output, kind: "cover_intro_review_preview" });
       }
     });
-    const jobPreviews = global.ClipTalkCurrentJobSnapshot?.()?.agentPreviewOutputs;
+    const jobPreviews = global.ChatClipCurrentJobSnapshot?.()?.agentPreviewOutputs;
     if (Array.isArray(jobPreviews)) {
       previews.push(...jobPreviews
         .filter((item) => (item.planId === plan?.id || previews.some((p) => p.filename && p.filename === item.filename)) && ([
@@ -697,19 +696,19 @@
 
   function skillLabel(skillId) {
     return ({
-      "cliptalk-highlight-director": "智能高光计划", "cliptalk-content-extractor": "内容检索计划",
-      "cliptalk-interview-editor": "访谈剪辑计划", "cliptalk-person-editor": "人物聚焦计划",
-      "cliptalk-speaker-editor": "发言剪辑计划", "cliptalk-revision-editor": "版本编辑计划",
-      "cliptalk-shortform-hook-director": "短视频剪辑计划", "cliptalk-delivery-qc": "成片质检计划",
-      "cliptalk-social-reframe-exporter": "社媒画幅计划",
-      "cliptalk-cover-director": "封面导演计划",
+      "chatclip-highlight-director": "智能高光计划", "chatclip-content-extractor": "内容检索计划",
+      "chatclip-interview-editor": "访谈剪辑计划", "chatclip-person-editor": "人物聚焦计划",
+      "chatclip-speaker-editor": "发言剪辑计划", "chatclip-revision-editor": "版本编辑计划",
+      "chatclip-shortform-hook-director": "短视频剪辑计划", "chatclip-delivery-qc": "成片质检计划",
+      "chatclip-social-reframe-exporter": "社媒画幅计划",
+      "chatclip-cover-director": "封面导演计划",
     })[String(skillId || "")] || "智能剪辑计划";
   }
 
   function coverReviewMarkup(plan) {
     const current = planProgress(plan).current;
     if (String(current?.tool || "") !== "review_cover_variants") return "";
-    const draft = global.ClipTalkCurrentJobSnapshot?.()?.coverDraft;
+    const draft = global.ChatClipCurrentJobSnapshot?.()?.coverDraft;
     const variants = Array.isArray(draft?.variants) ? draft.variants : [];
     if (!variants.length) {
       return `<section class="agent-cover-review agent-cover-review-empty"><small>封面审核</small><p>封面预览正在同步，请稍后刷新任务。</p></section>`;
@@ -720,7 +719,7 @@
   function completedCover(plan) {
     if (!["preview_ready", "completed"].includes(String(plan?.status || ""))) return null;
     if (!presentationSteps(plan).some((step) => String(step?.tool || "") === "confirm_cover")) return null;
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     const currentId = String(job?.currentCoverVersionId || "");
     return (job?.coverVersions || []).find((item) => String(item?.id || "") === currentId) || null;
   }
@@ -763,7 +762,7 @@
   function coverVariantReviewError(plan, variant) {
     if (!variant) return "尚未选择封面候选";
     const requirement = coverRequirement(plan);
-    const job = global.ClipTalkCurrentJobSnapshot?.() || {};
+    const job = global.ChatClipCurrentJobSnapshot?.() || {};
     const requestedTime = job?.coverDraft?.requestedSourceTime !== null
       && job?.coverDraft?.requestedSourceTime !== undefined
       ? Number(job.coverDraft.requestedSourceTime) : requirement.sourceTime;
@@ -784,7 +783,7 @@
   function coverDraftReviewErrors(plan) {
     const progress = planProgress(plan);
     if (String(plan?.status || "") !== "action_required" || String(progress.current?.tool || "") !== "review_cover_variants") return [];
-    const job = global.ClipTalkCurrentJobSnapshot?.() || {};
+    const job = global.ChatClipCurrentJobSnapshot?.() || {};
     const variants = Array.isArray(job?.coverDraft?.variants) ? job.coverDraft.variants : [];
     if (!variants.length) return [];
     const errors = variants.map((variant) => coverVariantReviewError(plan, variant)).filter(Boolean);
@@ -829,14 +828,14 @@
   function coverStatusMarkup(plan) {
     const { requirement, cover, issues } = coverCompliance(plan);
     if (!requirement.requested) return "";
-    const previousRequirement = global.ClipTalkActiveCoverRequirement;
-    global.ClipTalkActiveCoverRequirement = { ...requirement, planId: String(plan?.id || "") };
-    if (JSON.stringify(previousRequirement || {}) !== JSON.stringify(global.ClipTalkActiveCoverRequirement)) {
-      global.dispatchEvent?.(new CustomEvent("cliptalk:cover-requirement", {
-        detail: global.ClipTalkActiveCoverRequirement,
+    const previousRequirement = global.ChatClipActiveCoverRequirement;
+    global.ChatClipActiveCoverRequirement = { ...requirement, planId: String(plan?.id || "") };
+    if (JSON.stringify(previousRequirement || {}) !== JSON.stringify(global.ChatClipActiveCoverRequirement)) {
+      global.dispatchEvent?.(new CustomEvent("chatclip:cover-requirement", {
+        detail: global.ChatClipActiveCoverRequirement,
       }));
     }
-    const job = global.ClipTalkCurrentJobSnapshot?.() || {};
+    const job = global.ChatClipCurrentJobSnapshot?.() || {};
     const hasDrafts = Array.isArray(job?.coverDraft?.variants) && job.coverDraft.variants.length > 0;
     const displayIssues = [...issues, ...coverDraftReviewErrors(plan)];
     const detail = displayIssues.length
@@ -893,7 +892,7 @@
   }
 
   function planUsesPrecisionEditor(plan) {
-    if (String(plan?.skillId || "") === "cliptalk-revision-editor") return true;
+    if (String(plan?.skillId || "") === "chatclip-revision-editor") return true;
     const precisionTools = new Set([
       "propose_timeline_edit",
       "confirm_timeline_edit",
@@ -989,7 +988,7 @@
   function updateExecutionProgress() {
     const view = executionView();
     if (!view) return;
-    const facts = global.ClipTalkAgentProgressFacts?.(view.jobId, view.tool) || {};
+    const facts = global.ChatClipAgentProgressFacts?.(view.jobId, view.tool) || {};
     const fraction = typeof facts.fraction === "number" && Number.isFinite(facts.fraction)
       ? Math.max(0, Math.min(1, facts.fraction)) : null;
     document.querySelectorAll("[data-agent-execution]").forEach(panel => {
@@ -1174,14 +1173,14 @@
 
   function planIsHistorical(plan) {
     if (!["completed", "preview_ready", "cancelled", "no_result"].includes(plan?.status)) return false;
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     const key = job?.presentation?.key;
     return Boolean(job && (["content_review", "exported", "export_running"].includes(key)
       || (job.agent?.planId && job.agent.planId !== plan.id)));
   }
 
   function jobHasFormalOutput() {
-    const job = global.ClipTalkCurrentJobSnapshot?.() || {};
+    const job = global.ChatClipCurrentJobSnapshot?.() || {};
     return Boolean(
       (job.outputs || []).length
       || (job.outputVersions || []).some((version) => (version?.outputs || []).length),
@@ -1228,7 +1227,7 @@
       }
       if (currentTool === "review_cover_variants") {
         const subject = coverRequirement(plan).subject;
-        const job = global.ClipTalkCurrentJobSnapshot?.() || {};
+        const job = global.ChatClipCurrentJobSnapshot?.() || {};
         const activeId = String(job?.coverTimelineDraft?.activeVariantId || job?.coverDraft?.selectedVariantId || "");
         const activeVariant = (job?.coverDraft?.variants || []).find((item) => String(item?.variantId || "") === activeId);
         const reviewError = coverVariantReviewError(plan, activeVariant);
@@ -1340,16 +1339,16 @@
       guardedPlanRoots.add(root);
     }
     root?.querySelectorAll("[data-result-action]").forEach(button => button.addEventListener("click", () => {
-      if (boundJobId !== global.ClipTalkCurrentJobId?.()) return;
-      Promise.resolve(global.ClipTalkVersionAction?.(button.dataset.resultFilename, button.dataset.resultAction)).catch(error => global.showToast?.(error.message));
+      if (boundJobId !== global.ChatClipCurrentJobId?.()) return;
+      Promise.resolve(global.ChatClipVersionAction?.(button.dataset.resultFilename, button.dataset.resultAction)).catch(error => global.showToast?.(error.message));
     }));
     root?.querySelectorAll("[data-agent-replan]").forEach(button => button.addEventListener("click", () => {
-      if (boundJobId !== global.ClipTalkCurrentJobId?.()) return;
-      if (button.textContent.includes("封面") || planProgress(activePlan).current?.tool === "review_cover_variants") global.ClipTalkEditCoverRequirement?.();
+      if (boundJobId !== global.ChatClipCurrentJobId?.()) return;
+      if (button.textContent.includes("封面") || planProgress(activePlan).current?.tool === "review_cover_variants") global.ChatClipEditCoverRequirement?.();
       else reviseActivePlanGoal();
     }));
-    root?.querySelectorAll("[data-agent-evidence-open]").forEach((button) => button.addEventListener("click", () => global.ClipTalkOpenContentEvidence?.()));
-    root?.querySelectorAll("[data-plan-output-settings]").forEach((button) => button.addEventListener("click", () => global.ClipTalkWorkspaceController?.openRail?.("project")));
+    root?.querySelectorAll("[data-agent-evidence-open]").forEach((button) => button.addEventListener("click", () => global.ChatClipOpenContentEvidence?.()));
+    root?.querySelectorAll("[data-plan-output-settings]").forEach((button) => button.addEventListener("click", () => global.ChatClipWorkspaceController?.openRail?.("project")));
     root?.querySelectorAll("[data-plan-revise-goal]").forEach((button) => button.addEventListener("click", openPlanRevision));
     root?.querySelectorAll("[data-agent-plan-open]").forEach((button) => button.addEventListener("click", () => {
       openPlanDetails({
@@ -1385,7 +1384,7 @@
     return true;
   }
 
-  global.ClipTalkReviseAgentGoal = reviseActivePlanGoal;
+  global.ChatClipReviseAgentGoal = reviseActivePlanGoal;
 
   async function retryActiveCoverCandidates(cover = null) {
     const step = planProgress(activePlan).current;
@@ -1405,16 +1404,16 @@
       });
       if (!ownsView(context) || activePlan?.id !== id) return null;
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       clearTimeout(pollTimer);
       pollTimer = global.setTimeout(refreshPlan, 700);
       return result.plan;
     } finally { planOperations.delete(id); }
   }
 
-  global.ClipTalkRetryCoverCandidates = retryActiveCoverCandidates;
+  global.ChatClipRetryCoverCandidates = retryActiveCoverCandidates;
 
-  global.ClipTalkEditCoverRequirement = () => {
+  global.ChatClipEditCoverRequirement = () => {
     if (!activePlan) return false;
     const context = owner();
     const planId = activePlan.id;
@@ -1464,10 +1463,10 @@
     const previousLabel = button.textContent;
     button.textContent = "正在打开导出确认…";
     try {
-      if (typeof global.ClipTalkExportAgentReviewPreview === "function") {
-        await global.ClipTalkExportAgentReviewPreview(preview);
+      if (typeof global.ChatClipExportAgentReviewPreview === "function") {
+        await global.ChatClipExportAgentReviewPreview(preview);
       } else {
-        await global.ClipTalkOpenAgentPreview?.(preview);
+        await global.ChatClipOpenAgentPreview?.(preview);
         const fallback = document.querySelector("#finalizePreviewButton:not(.hidden), #finalizeOneOffButton:not(.hidden)");
         if (!fallback) throw new Error("成片版本生成入口尚未就绪，请先播放样片");
         fallback.click();
@@ -1483,11 +1482,11 @@
   }
 
   function openCoverTimeline() {
-    if (typeof global.ClipTalkOpenCoverTimeline !== "function") {
+    if (typeof global.ChatClipOpenCoverTimeline !== "function") {
       global.showToast?.("封面时间轴尚未加载，请刷新页面后重试", "error");
       return;
     }
-    if (global.ClipTalkOpenCoverTimeline()) closePlanDrawer();
+    if (global.ChatClipOpenCoverTimeline()) closePlanDrawer();
   }
 
   async function retryFailedPlan(event) {
@@ -1511,7 +1510,7 @@
         method: "POST",
       });
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       pollTimer = global.setTimeout(refreshPlan, 700);
     } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
@@ -1546,7 +1545,7 @@
         method: "POST",
       });
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       clearTimeout(pollTimer);
       pollTimer = global.setTimeout(refreshPlan, 700);
     } catch (error) {
@@ -1565,7 +1564,7 @@
     const kind = String(event.currentTarget?.dataset?.previewKind || "");
     const previewFilename = String(event.currentTarget?.dataset?.previewFilename || "");
     const previewUrl = String(event.currentTarget?.dataset?.previewUrl || "");
-    if (typeof global.ClipTalkOpenAgentPreview !== "function") {
+    if (typeof global.ChatClipOpenAgentPreview !== "function") {
       global.showToast?.("审核预览播放器尚未加载，请刷新页面后重试", "error");
       return;
     }
@@ -1581,7 +1580,7 @@
           .some((value) => String(value || "") === sessionId)) return true;
         return false;
       }) || {};
-      await global.ClipTalkOpenAgentPreview({
+      await global.ChatClipOpenAgentPreview({
         ...preview,
         filename: previewFilename || String(preview.filename || ""),
         previewUrl: previewUrl || String(preview.previewUrl || preview.videoUrl || ""),
@@ -1671,32 +1670,32 @@
   }
 
   function streamActive() {
-    var cs = global.ClipTalkChatStream;
+    var cs = global.ChatClipChatStream;
     return Boolean(cs) && !cs.legacyDockEnabled();
   }
 
   function streamPlanHost(planId) {
-    var cs = global.ClipTalkChatStream;
+    var cs = global.ChatClipChatStream;
     if (!cs) return null;
     return cs.cardElement(`plan:${String(planId || "")}`) || cs.cardElement(`planning:${String(planId || "")}`) || null;
   }
 
   function streamCurrentHost() {
-    var cs = global.ClipTalkChatStream;
+    var cs = global.ChatClipChatStream;
     if (!cs) return null;
     return (activePlan && cs.cardElement(`plan:${String(activePlan.id || "")}`))
       || (activeWorkspace && cs.cardElement(`planning:${String(activeWorkspace.id || "")}`))
       || null;
   }
 
-  function moveStreamHostToConversationEnd(cs = global.ClipTalkChatStream) {
+  function moveStreamHostToConversationEnd(cs = global.ChatClipChatStream) {
     const root = $("#chatMessages");
     const host = cs?.hostElement?.();
     if (root && host?.parentElement === root && host !== root.lastElementChild) root.append(host);
   }
 
   function foldPlanIntoHistory(plan) {
-    const cs = global.ClipTalkChatStream;
+    const cs = global.ChatClipChatStream;
     if (!cs || !plan?.id) return null;
     const id = `plan:${String(plan.id)}`;
     for (const card of cs._cards?.() || []) {
@@ -1727,7 +1726,7 @@
 
   /** 把计划状态写进对话流（复用 dock 已算好的 markup，不重复构造）。 */
   function streamPlanCard(plan, progress, dock) {
-    var cs = global.ClipTalkChatStream;
+    var cs = global.ChatClipChatStream;
     if (!cs) return null;
     // 计划已经返回后，收起同一轮的“正在生成计划”卡片，避免用户看到两个互相矛盾的状态。
     if (activeWorkspace?.id) cs.remove(`planning:${String(activeWorkspace.id)}`);
@@ -1838,7 +1837,7 @@
   }
 
   function streamPlanningCard(workspace, dock) {
-    var cs = global.ClipTalkChatStream;
+    var cs = global.ChatClipChatStream;
     if (!cs) return null;
     var id = `planning:${String(workspace?.id || "")}`;
     const el = cs.emit({
@@ -1857,21 +1856,21 @@
     const previousProgressStatus = activePlan?.status;
     activePlan = plan;
     planSnapshots.set(`${currentJobId()}:${plan.id}`, structuredClone(plan));
-    for (const card of global.ClipTalkChatStream?._cards?.() || []) {
+    for (const card of global.ChatClipChatStream?._cards?.() || []) {
       const node = card.el;
       if (!node?.dataset.agentPlanId || node.dataset.agentPlanId === plan.id) continue;
-      global.ClipTalkChatStream.clearAction(card.id);
+      global.ChatClipChatStream.clearAction(card.id);
       if (node.dataset.historical === "true") continue;
       const previous = planSnapshots.get(`${node.dataset.agentJobId || currentJobId()}:${node.dataset.agentPlanId}`);
       if (previous) foldPlanIntoHistory(previous);
-      else global.ClipTalkChatStream.remove(card.id);
+      else global.ChatClipChatStream.remove(card.id);
     }
     const dock = $("#agentPlanDock");
     if (!dock) return;
     document.querySelector(".chat-panel")?.classList.add("agent-plan-active");
     dock.classList.remove("hidden");
     const progress = planProgress(plan);
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     const hasPreservedOutput = Boolean(
       (job?.outputs || []).length
       || (job?.outputVersions || []).some((version) => (version?.outputs || []).length)
@@ -1933,7 +1932,7 @@
     const summaryText = historical ? "查看上次处理结果" : confirmCard && !awaitingConfirmation ? "查看处理详情" : escapeHtml(currentStageText(plan, progress));
     dock.innerHTML = `${statusHead}${leadMarkup}<div class="agent-plan-body">${resultStage ? qcSummaryMarkup(plan) : ""}<details class="assistant-plan-summary" ${awaitingConfirmation ? "open" : ""}><summary>${summaryText}</summary>${deliveryChecklistMarkup(plan)}${understandingMarkup}${controlMarkup}${progressLine}</details>${coverStatusMarkup(plan)}</div><footer class="${confirmCard ? "agent-plan-confirm-footer" : ""}">${planActionMarkup(plan, progress)}</footer>`;
     if (!historical && executionView(plan)) dock.innerHTML = executionProgressMarkup(plan);
-    const formal = global.ClipTalkOrderedJobOutputs?.(job)?.filter(({ item, version }) => !item.previewOnly && !version.previewOnly).at(-1);
+    const formal = global.ChatClipOrderedJobOutputs?.(job)?.filter(({ item, version }) => !item.previewOnly && !version.previewOnly).at(-1);
     if (job?.presentation?.key === "exported" && historical && formal) {
       const { item, version } = formal;
       dock.dataset.tone = "success";
@@ -1948,8 +1947,8 @@
     updateExecutionProgress();
     renderPlanDrawer(plan, progress);
     // Once a real plan owns progress, retire the generic sub-operation card.
-    if (previousProgressOwner !== plan.id || previousProgressStatus !== plan.status || document.querySelector("#inlineAnalysisProgress")) global.ClipTalkRenderAssistantHistory?.();
-    global.ClipTalkSyncContentReview?.();
+    if (previousProgressOwner !== plan.id || previousProgressStatus !== plan.status || document.querySelector("#inlineAnalysisProgress")) global.ChatClipRenderAssistantHistory?.();
+    global.ChatClipSyncContentReview?.();
     subscribeActivity(activeWorkspace?.id || plan.workspaceId);
     resumeAutonomousSubtitleRecovery(plan, progress);
   }
@@ -1978,7 +1977,7 @@
           method: "POST",
         });
         renderPlan(result.plan);
-        global.ClipTalkRefreshCurrentJob?.();
+        global.ChatClipRefreshCurrentJob?.();
         pollTimer = global.setTimeout(refreshPlan, 700);
       } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
@@ -2043,7 +2042,7 @@
       root.innerHTML = ctEmpty({ title: "还没有活动记录", hint: "计划开始后，规划、执行和确认记录会显示在这里。", className: "agent-activity-empty" });
       return;
     }
-    if (global.ClipTalkOpenUI?.renderActivity(root, activityItems)) return;
+    if (global.ChatClipOpenUI?.renderActivity(root, activityItems)) return;
     root.innerHTML = `<ol class="agent-activity-list">${activityItems.map(({ time, title, detail }) => {
       return `<li><time>${escapeHtml(time)}</time><span aria-hidden="true"></span><div><strong>${escapeHtml(title)}</strong><p>${escapeHtml(detail)}</p></div></li>`;
     }).join("")}</ol>`;
@@ -2072,7 +2071,7 @@
     activityRefreshTimer = global.setTimeout(async () => {
       activityRefreshTimer = null;
       if (!activePlan?.id) {
-        global.ClipTalkRefreshCurrentJob?.();
+        global.ChatClipRefreshCurrentJob?.();
         return;
       }
       clearTimeout(pollTimer);
@@ -2083,7 +2082,7 @@
         // action-required metadata changed. Refresh the shared job snapshot too
         // so the main player can pick up the generated preview without a page
         // reload.
-        global.ClipTalkRefreshCurrentJob?.();
+        global.ChatClipRefreshCurrentJob?.();
       }
     }, Math.max(0, Number(delay) || 0));
   }
@@ -2159,9 +2158,9 @@
     const readOnly = forceReadOnly || plan.id !== activePlan?.id || planIsHistorical(plan);
     if (!readOnly && section === "action" && plan.status === "action_required"
       && planProgress(plan).current?.tool === "review_cover_variants"
-      && global.ClipTalkCurrentJobSnapshot?.()?.coverDraft?.variants?.length
-      && global.ClipTalkOpenCoverTimeline?.()) {
-      global.ClipTalkWorkspaceController?.revealPreview?.();
+      && global.ChatClipCurrentJobSnapshot?.()?.coverDraft?.variants?.length
+      && global.ChatClipOpenCoverTimeline?.()) {
+      global.ChatClipWorkspaceController?.revealPreview?.();
       return true;
     }
     renderPlanDrawer(plan, planProgress(plan), { force: true, readOnly });
@@ -2181,7 +2180,7 @@
   function openPlanDrawer(event) {
     const drawer = ensurePlanDrawerPortal();
     if (!drawer) return;
-    if (global.ClipTalkPrepareWorkspaceOverlay?.("agentPlan") === false) return;
+    if (global.ChatClipPrepareWorkspaceOverlay?.("agentPlan") === false) return;
     global.clearTimeout(planDrawerCloseTimer);
     planDrawerCloseTimer = null;
     planDrawerReturnFocus = event?.currentTarget || document.activeElement;
@@ -2201,7 +2200,7 @@
     scrim?.classList.remove("hidden");
     setPlanDrawerTab(planDrawerTab);
     planDrawerReleaseFocus?.(false);
-    planDrawerReleaseFocus = global.ClipTalkActivateModalFocus?.(drawer, {
+    planDrawerReleaseFocus = global.ChatClipActivateModalFocus?.(drawer, {
       initialFocus: drawer.querySelector("#agentPlanDrawerClose"),
       additionalActive: [scrim].filter(Boolean),
       restoreFocus: false,
@@ -2233,7 +2232,7 @@
     }, 190);
   }
 
-  global.ClipTalkCloseAgentPlanDrawer = closePlanDrawer;
+  global.ChatClipCloseAgentPlanDrawer = closePlanDrawer;
 
   function reset() {
     viewGeneration += 1;
@@ -2269,7 +2268,7 @@
       dock.removeAttribute("data-plan-surface");
       dock.innerHTML = "";
     }
-    global.ClipTalkChatStream?.clear?.();
+    global.ChatClipChatStream?.clear?.();
     const drawer = $("#agentPlanDrawer");
     global.clearTimeout(planDrawerCloseTimer);
     planDrawerCloseTimer = null;
@@ -2303,13 +2302,13 @@
       retryCount = 0;
       renderPlan(result.plan);
       const handoff = planHandoff(result.plan);
-      if (handoff?.id && String(handoff.id) !== currentJobId()) global.ClipTalkSwitchWorkspaceJob?.(handoff);
+      if (handoff?.id && String(handoff.id) !== currentJobId()) global.ChatClipSwitchWorkspaceJob?.(handoff);
       if (["running", "approved"].includes(result.plan.status)) {
         clearTimeout(pollTimer);
         pollTimer = global.setTimeout(refreshPlan, 1200);
       } else {
         clearTimeout(pollTimer);
-        global.ClipTalkRefreshCurrentJob?.();
+        global.ChatClipRefreshCurrentJob?.();
       }
     } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
@@ -2360,7 +2359,7 @@
       validating_plan: "确认执行依赖",
       plan_ready: "等待确认计划",
     };
-    dock.innerHTML = `<header><div class="agent-plan-dock-brand"><img src="/static/assets/cliptalk-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><small>剪辑计划</small><strong>正在生成计划</strong><span><i aria-hidden="true"></i>确认前不会分析或渲染</span></div></div><b class="agent-planning-live"><i aria-hidden="true"></i>正在生成</b></header>${planControlMarkup({
+    dock.innerHTML = `<header><div class="agent-plan-dock-brand"><img src="/static/assets/chatclip-director-icon.png?v=20260812-1" alt="" aria-hidden="true" /><div><small>剪辑计划</small><strong>正在生成计划</strong><span><i aria-hidden="true"></i>确认前不会分析或渲染</span></div></div><b class="agent-planning-live"><i aria-hidden="true"></i>正在生成</b></header>${planControlMarkup({
       goal: "等待确认剪辑目标",
       stage: phaseLabels[phase] || title,
       next: detail,
@@ -2418,7 +2417,7 @@
           && String(parent?.agent?.workspaceId || "")
           && String(parent?.agent?.workspaceId || "") !== workspaceId
         ) {
-          global.ClipTalkSwitchWorkspaceJob?.(parent);
+          global.ChatClipSwitchWorkspaceJob?.(parent);
           return null;
         }
       } catch {
@@ -2443,10 +2442,10 @@
       workspaceByJob.set(String(workspace.jobId || jobId), workspace);
       if (String(workspace.sourceJobId || "") === jobId) workspaceByJob.set(jobId, workspace);
       activeWorkspace = workspace;
-      const restore = global.ClipTalkChatStream?.restore || (render => render());
+      const restore = global.ChatClipChatStream?.restore || (render => render());
       restore(() => {
         restorePlanMessages(detail);
-        global.ClipTalkRenderAssistantHistory?.();
+        global.ChatClipRenderAssistantHistory?.();
         renderPendingChanges();
       });
       const plan = newestPlan(detail.plans, workspace.activePlanId || job?.agent?.planId);
@@ -2464,16 +2463,16 @@
         return null;
       }
       if (!plan) {
-        global.ClipTalkChatStream?.remove(`planning:${workspace.id}`);
+        global.ChatClipChatStream?.remove(`planning:${workspace.id}`);
         return null;
       }
       restore(() => renderPlan(plan));
       if (["preview_ready", "completed"].includes(String(plan.status || ""))) {
         const preferred = planReviewPreviews(plan).sort((a, b) => previewPriority(b) - previewPriority(a))[0];
-        if (preferred) await global.ClipTalkOfferAgentPreview?.({ ...preferred, outputKind: preferred.kind || preferred.outputKind || "agent_review_preview" });
+        if (preferred) await global.ChatClipOfferAgentPreview?.({ ...preferred, outputKind: preferred.kind || preferred.outputKind || "agent_review_preview" });
       }
       const handoff = planHandoff(plan);
-      if (handoff?.id && String(handoff.id) !== currentJobId()) global.ClipTalkSwitchWorkspaceJob?.(handoff);
+      if (handoff?.id && String(handoff.id) !== currentJobId()) global.ChatClipSwitchWorkspaceJob?.(handoff);
       clearTimeout(pollTimer);
       if (["approved", "running"].includes(String(plan.status || ""))) {
         pollTimer = global.setTimeout(refreshPlan, 900);
@@ -2506,7 +2505,7 @@
       });
       if (currentJobId() !== jobId || activePlan?.id !== planId) return;
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       clearTimeout(pollTimer);
       pollTimer = global.setTimeout(refreshPlan, 700);
     } catch (error) {
@@ -2534,7 +2533,7 @@
       const result = await api.requestJson(`/api/agent/plans/${encodeURIComponent(planId)}/cancel`, { method: "POST" });
       if (currentJobId() !== jobId || activePlan?.id !== planId) return;
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
     } catch (error) {
       if (error.name === "StaleWorkspaceError" || currentJobId() !== jobId || activePlan?.id !== planId) return;
       planMessages.set(planId, error.message || "停止失败，请重试。");
@@ -2580,7 +2579,7 @@
         visibleGoal: `修改当前规划：${revision}`,
       });
       if (!revised) return;
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
     } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
       button.disabled = false;
@@ -2592,7 +2591,7 @@
 
   function contentReviewContext() {
     const step = planProgress(activePlan).current;
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     if (!activePlan || activePlan.status !== "action_required" || !step
       || (step.tool !== "review_content_evidence" && step.result?.action !== "content_evidence_review")
       || !planSnapshots.has(`${currentJobId()}:${activePlan.id}`)
@@ -2613,18 +2612,18 @@
         method: "POST", body: { approved: true, value },
       });
       if (currentJobId() !== context.jobId || activePlan?.id !== context.planId || planProgress(activePlan).current?.id !== context.stepId
-        || global.ClipTalkCurrentJobSnapshot?.()?.contentSearch?.id !== context.searchId) return false;
+        || global.ChatClipCurrentJobSnapshot?.()?.contentSearch?.id !== context.searchId) return false;
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       clearTimeout(pollTimer);
       pollTimer = global.setTimeout(refreshPlan, 700);
       return true;
     } catch (error) {
-      if (currentJobId() === context.jobId && activePlan?.id === context.planId) global.ClipTalkRefreshCurrentJob?.();
+      if (currentJobId() === context.jobId && activePlan?.id === context.planId) global.ChatClipRefreshCurrentJob?.();
       throw error;
     } finally {
       planOperations.delete(context.planId);
-      global.ClipTalkSyncContentReview?.();
+      global.ChatClipSyncContentReview?.();
     }
   }
 
@@ -2647,7 +2646,7 @@
         method: "POST", body: { approved, value },
       });
       renderPlan(result.plan);
-      global.ClipTalkRefreshCurrentJob?.();
+      global.ChatClipRefreshCurrentJob?.();
       if (approved) pollTimer = global.setTimeout(refreshPlan, 700);
     } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
@@ -2658,7 +2657,7 @@
 
   async function confirmCoverTimelineSelection({ variantId, contentHash = "" } = {}) {
     const step = planProgress(activePlan).current;
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     if (!activePlan || String(activePlan.status || "") !== "action_required" || String(step?.tool || "") !== "review_cover_variants") {
       throw new Error("当前计划不在封面审核步骤");
     }
@@ -2680,13 +2679,13 @@
       method: "POST", body: { approved: true, value },
     });
     renderPlan(result.plan);
-    global.ClipTalkRefreshCurrentJob?.();
+    global.ChatClipRefreshCurrentJob?.();
     clearTimeout(pollTimer);
     pollTimer = global.setTimeout(refreshPlan, 700);
     return result.plan;
   }
 
-  global.ClipTalkConfirmCoverTimelineSelection = confirmCoverTimelineSelection;
+  global.ChatClipConfirmCoverTimelineSelection = confirmCoverTimelineSelection;
 
   async function openTimelineAction(event) {
     const button = event.currentTarget;
@@ -2705,7 +2704,7 @@
           method: "POST",
         });
         renderPlan(retried.plan);
-        global.ClipTalkRefreshCurrentJob?.();
+        global.ChatClipRefreshCurrentJob?.();
         pollTimer = global.setTimeout(refreshPlan, 700);
         global.showToast?.("正在从高光候选重新生成待审核时间线", "success");
       } catch (error) {
@@ -2717,11 +2716,11 @@
       return;
     }
     const subtitleReview = step.tool === "prepare_subtitle_review";
-    if (subtitleReview && typeof global.ClipTalkOpenAgentSubtitleReview !== "function") {
+    if (subtitleReview && typeof global.ChatClipOpenAgentSubtitleReview !== "function") {
       global.showToast?.("字幕校对工具尚未加载，请刷新页面后重试", "error");
       return;
     }
-    if (!subtitleReview && typeof global.ClipTalkOpenAgentTimeline !== "function") {
+    if (!subtitleReview && typeof global.ChatClipOpenAgentTimeline !== "function") {
       global.showToast?.("精剪时间线尚未加载，请刷新页面后重试", "error");
       return;
     }
@@ -2729,8 +2728,8 @@
     button.textContent = "正在打开…";
     try {
       const opened = subtitleReview
-        ? await global.ClipTalkOpenAgentSubtitleReview({ sessionId: String(result.sessionId) })
-        : await global.ClipTalkOpenAgentTimeline({
+        ? await global.ChatClipOpenAgentSubtitleReview({ sessionId: String(result.sessionId) })
+        : await global.ChatClipOpenAgentTimeline({
           sessionId: String(result.sessionId),
           instruction: step.tool === "propose_timeline_edit" ? String(step.arguments?.instruction || "") : "",
           variantCount: Number(step.arguments?.variantCount || 1),
@@ -2755,7 +2754,7 @@
 
   function actionResolutionValue() {
     const step = planProgress(activePlan).current;
-    const job = global.ClipTalkCurrentJobSnapshot?.();
+    const job = global.ChatClipCurrentJobSnapshot?.();
     if (!step?.id || !job?.id) throw new Error("请先打开此计划关联的素材任务");
     const context = {
       jobId: String(job.id), stepId: String(step.id),
@@ -2841,7 +2840,7 @@
     pendingRequests.add(streamController);
     const goal = String(text || "").trim();
     const visibleGoal = String(options.visibleGoal || goal).trim();
-    const capturedContext = JSON.parse(JSON.stringify(options.uiContext || global.ClipTalkCollectAssistantContext?.() || {}));
+    const capturedContext = JSON.parse(JSON.stringify(options.uiContext || global.ChatClipCollectAssistantContext?.() || {}));
     const submittedPlan = activePlan;
     const submittedWorkspace = activeWorkspace;
     const isConfirmation = /^(?:可以|好的?|继续|确认|开始|ok|yes)[。！!\s]*$/i.test(goal);
@@ -2858,7 +2857,7 @@
       return true;
     }
     if (submittedPlan && streamActive()) foldPlanIntoHistory(submittedPlan);
-    else if (submittedPlan) global.ClipTalkChatStream?.clearAction(`plan:${submittedPlan.id}`);
+    else if (submittedPlan) global.ChatClipChatStream?.clearAction(`plan:${submittedPlan.id}`);
     const input = $("#chatInput");
     const send = $("#sendButton");
     if (input) {
@@ -2908,7 +2907,7 @@
       // prepare_plan_request() has already reserved planning on the server
       // before the streaming response starts. Refresh the shared task state
       // immediately, rather than waiting for the plan to finish.
-      global.ClipTalkRefreshCurrentJob?.({ retryUntilChanged: true });
+      global.ChatClipRefreshCurrentJob?.({ retryUntilChanged: true });
       const reader = response.body?.getReader();
       if (!reader) throw new Error("浏览器不支持 Agent 流式响应");
       const decoder = new TextDecoder();
@@ -2982,7 +2981,7 @@
         renderPlan(submittedPlan);
       }
       updatePlanningMessage(result.message || result.warning || "计划已准备好。请确认范围后开始执行。");
-      if (activeWorkspace?.id) global.ClipTalkChatStream?.remove(`planning:${activeWorkspace.id}`);
+      if (activeWorkspace?.id) global.ChatClipChatStream?.remove(`planning:${activeWorkspace.id}`);
       planningMessage.dataset.kind = "agent-plan-ready";
       retrySubmission = null;
       if (result.retryable && input) input.value = visibleGoal;
@@ -2998,7 +2997,7 @@
         input.value = visibleGoal;
         input.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      if (activeWorkspace?.id) global.ClipTalkChatStream?.remove(`planning:${activeWorkspace.id}`);
+      if (activeWorkspace?.id) global.ChatClipChatStream?.remove(`planning:${activeWorkspace.id}`);
       if (submittedWorkspace) {
         activeWorkspace = submittedWorkspace;
         workspaceByJob.set(String(submittedWorkspace.jobId || currentJobId()), submittedWorkspace);
@@ -3119,7 +3118,7 @@
     const model = effectiveAgentModel;
     const configured = Boolean(model?.configured);
     const dirty = modelSettingsDirty();
-    const ready = global.ClipTalkSetupStatus?.steps?.find(step => step.id === "agent")?.status === "ready";
+    const ready = global.ChatClipSetupStatus?.steps?.find(step => step.id === "agent")?.status === "ready";
     const result = effectiveProbeResult?.identity === effectiveIdentity(model) ? effectiveProbeResult : null;
     const passed = ready && result?.passed !== false;
     const status = effectiveProbeBusy ? "正在测试工具调用…" : result?.error || (passed ? "工具调用测试已通过" : configured ? "模型已配置，尚未通过工具调用测试" : "请先配置剪辑规划模型，或展开下方独立模型配置");
@@ -3308,23 +3307,13 @@
     return `<article class="agent-registry-item"><header><div><strong>${escapeHtml(skill.name)}</strong><small>${escapeHtml(skill.version)} · ${escapeHtml(skill.source)}</small></div><b>${escapeHtml(skill.status)}</b></header><p>${escapeHtml(skill.description)}</p><footer>${canEnable ? `<button type="button" data-enable-skill="${escapeHtml(skill.id)}" data-skill-hash="${escapeHtml(skill.contentHash)}">审核并启用</button>` : `<button type="button" data-disable-skill="${escapeHtml(skill.id)}">禁用</button>`}</footer></article>`;
   }
 
-  function registryPluginMarkup(plugin) {
-    const activation = `<label class="agent-plugin-trust"><input type="checkbox" data-trust-plugin="${escapeHtml(plugin.id)}"><span>我已审核来源，理解此 Plugin 拥有宿主权限并信任它</span></label><button class="danger" type="button" data-activate-plugin="${escapeHtml(plugin.id)}" data-plugin-hash="${escapeHtml(plugin.contentHash)}" disabled>启用 Plugin</button>`;
-    return `<article class="agent-registry-item plugin"><header><div><strong>${escapeHtml(plugin.id)}</strong><small>${escapeHtml(plugin.version || "未标版本")} · ${escapeHtml(plugin.source)}</small></div><b>${escapeHtml(plugin.status)}</b></header><p>${escapeHtml(plugin.warning || "受信任 Plugin 在 Agent 进程内运行。")}</p><small>工具：${escapeHtml((plugin.tools || []).map((tool) => tool.name).join("、") || "无")}</small><footer>${plugin.status === "enabled" ? `<button type="button" data-disable-plugin="${escapeHtml(plugin.id)}">禁用</button>` : activation}</footer></article>`;
-  }
-
   async function renderRegistry() {
     const root = $("#agentRegistryContent");
     if (!root) return;
     root.innerHTML = '<p class="agent-registry-loading">正在读取能力目录…</p>';
     try {
-      if (registryTab === "skills") {
-        const result = await api.requestJson("/api/agent/skills");
-        root.innerHTML = `<section class="agent-registry-create"><label><span>用自然语言生成 Skill 草稿</span><textarea id="agentSkillPrompt" rows="3" placeholder="例如：把课程视频按知识点分章，保留完整解释并生成字幕预览"></textarea></label><button type="button" data-generate-skill>生成并模拟规划</button><label class="agent-package-upload"><span>安装标准 Skill ZIP</span><input type="file" accept=".zip" data-upload-skill></label></section><div class="agent-registry-list">${(result.skills || []).map(registrySkillMarkup).join("")}</div>`;
-      } else {
-        const result = await api.requestJson("/api/agent/plugins");
-        root.innerHTML = `<aside class="agent-plugin-warning"><strong>Plugin 是受信任代码</strong><p>启用后可访问 Agent 进程的宿主权限。只安装你已审核且信任的包。</p></aside><label class="agent-package-upload"><span>检查 Plugin ZIP</span><input type="file" accept=".zip" data-upload-plugin></label><div class="agent-registry-list">${(result.plugins || []).map(registryPluginMarkup).join("")}</div>`;
-      }
+      const result = await api.requestJson("/api/agent/skills");
+      root.innerHTML = `<section class="agent-registry-create"><label><span>用自然语言生成 Skill 草稿</span><textarea id="agentSkillPrompt" rows="3" placeholder="例如：把课程视频按知识点分章，保留完整解释并生成字幕预览"></textarea></label><button type="button" data-generate-skill>生成并模拟规划</button><label class="agent-package-upload"><span>安装标准 Skill ZIP</span><input type="file" accept=".zip" data-upload-skill></label></section><div class="agent-registry-list">${(result.skills || []).map(registrySkillMarkup).join("")}</div>`;
       bindRegistryActions(root);
     } catch (error) {
       if (error.name === "StaleWorkspaceError") return;
@@ -3367,7 +3356,6 @@
       }
     });
     root.querySelector("[data-upload-skill]")?.addEventListener("change", (event) => uploadPackage(event.currentTarget, "/api/agent/skills/install"));
-    root.querySelector("[data-upload-plugin]")?.addEventListener("change", (event) => uploadPackage(event.currentTarget, "/api/agent/plugins/inspect"));
     root.querySelectorAll("[data-enable-skill]").forEach((button) => button.addEventListener("click", async () => {
       await api.requestJson(`/api/agent/skills/${encodeURIComponent(button.dataset.enableSkill)}/enable`, { method: "POST", body: { contentHash: button.dataset.skillHash } });
       await renderRegistry();
@@ -3377,20 +3365,6 @@
       await api.requestJson(`/api/agent/skills/${encodeURIComponent(button.dataset.disableSkill)}/disable`, { method: "POST" });
       await renderRegistry();
       await loadSkills();
-    }));
-    root.querySelectorAll("[data-trust-plugin]").forEach((checkbox) => checkbox.addEventListener("change", () => {
-      const button = root.querySelector(`[data-activate-plugin="${CSS.escape(checkbox.dataset.trustPlugin)}"]`);
-      if (button) button.disabled = !checkbox.checked;
-    }));
-    root.querySelectorAll("[data-activate-plugin]").forEach((button) => button.addEventListener("click", async () => {
-      const checkbox = root.querySelector(`[data-trust-plugin="${CSS.escape(button.dataset.activatePlugin)}"]`);
-      if (!checkbox?.checked) return;
-      await api.requestJson(`/api/agent/plugins/${encodeURIComponent(button.dataset.activatePlugin)}/activate`, { method: "POST", body: { contentHash: button.dataset.pluginHash, trusted: true } });
-      await renderRegistry();
-    }));
-    root.querySelectorAll("[data-disable-plugin]").forEach((button) => button.addEventListener("click", async () => {
-      await api.requestJson(`/api/agent/plugins/${encodeURIComponent(button.dataset.disablePlugin)}/disable`, { method: "POST" });
-      await renderRegistry();
     }));
   }
 
@@ -3435,16 +3409,11 @@
     document.addEventListener("click", (event) => {
       if (!event.target.closest(".agent-skill-row")) closeSkillMenu();
     });
-    document.querySelectorAll("[data-agent-registry-tab]").forEach((button) => button.addEventListener("click", () => {
-      registryTab = button.dataset.agentRegistryTab;
-      document.querySelectorAll("[data-agent-registry-tab]").forEach((item) => item.classList.toggle("active", item === button));
-      renderRegistry();
-    }));
     loadSkills();
     loadAgentSettings();
     $("#settingsButton")?.addEventListener("click", loadAgentSettings);
     $("#testEffectiveAgent")?.addEventListener("click", probeEffectiveAgent);
-    global.addEventListener("cliptalk:setup-status", () => {
+    global.addEventListener("chatclip:setup-status", () => {
       void refreshEffectiveAgent();
     });
     for (const event of ["input", "change"]) document.querySelector('#settingsPanel')?.addEventListener(event, () => queueMicrotask(renderEffectiveAgent));
@@ -3474,7 +3443,7 @@
     });
   });
 
-  global.ClipTalkAgentWorkspace = Object.freeze({
+  global.ChatClipAgentWorkspace = Object.freeze({
     submitGoal, resumeForJob, loadSkills, openRegistry, reset, conversationMessages, previewPriority, openDetails: openPlanDetails,
     contentReviewContext, continueContentReview, updateExecutionProgress,
     confirmationState: () => activePlan?.status === "awaiting_confirmation"
@@ -3483,5 +3452,5 @@
     progressOwner: () => activePlan && planSnapshots.has(`${currentJobId()}:${activePlan.id}`)
       ? { jobId: currentJobId(), planId: activePlan.id, status: activePlan.status, execution: executionView() } : null,
   });
-  global.ClipTalkAgentSettings = Object.freeze({ probeEffectiveAgent, refreshEffectiveAgent, renderEffectiveAgent });
+  global.ChatClipAgentSettings = Object.freeze({ probeEffectiveAgent, refreshEffectiveAgent, renderEffectiveAgent });
 })(window);

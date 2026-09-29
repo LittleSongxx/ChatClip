@@ -10,6 +10,10 @@ from PIL import Image
 from app.media import render_composition, subtitle_font_pixels, wrap_subtitle_text
 from app.subtitle_review import normalize_layout, parse_style_command
 
+import shutil
+FFMPEG_BIN = "/usr/bin/ffmpeg" if Path("/usr/bin/ffmpeg").is_file() else (shutil.which("ffmpeg") or "ffmpeg")
+FFPROBE_BIN = "/usr/bin/ffprobe" if Path("/usr/bin/ffprobe").is_file() else (shutil.which("ffprobe") or "ffprobe")
+
 
 def test_subtitle_size_uses_short_edge_for_portrait_and_landscape() -> None:
     assert subtitle_font_pixels(1920, 1080, .04) == pytest.approx(43.2)
@@ -37,14 +41,14 @@ def test_portrait_drawtext_render_accepts_short_edge_expression_and_wrapping() -
         source = root / "portrait.mp4"
         output = root / "captioned.mp4"
         subprocess.run([
-            "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+            FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
             "-f", "lavfi", "-i", "color=c=navy:size=360x640:rate=25:duration=1",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(source),
         ], check=True)
         render_composition(
             source, output,
             segments=[{"id": "one", "start": 0, "end": 1, "transitionIn": {"type": "cut"}}],
-            has_audio=False, ffmpeg="/usr/bin/ffmpeg",
+            has_audio=False, ffmpeg=FFMPEG_BIN,
             subtitle_path=root / "captions.ass",
             subtitle_cues=[{
                 "id": "cue", "start": 0, "end": .9,
@@ -66,20 +70,20 @@ def test_in_memory_text_cues_render_without_a_subtitle_artifact_path() -> None:
         output = root / "captioned.mp4"
         frame = root / "frame.png"
         subprocess.run([
-            "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+            FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
             "-f", "lavfi", "-i", "color=c=navy:size=640x360:rate=25:duration=1",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(source),
         ], check=True)
         render_composition(
             source, output,
             segments=[{"id": "one", "start": 0, "end": 1, "transitionIn": {"type": "cut"}}],
-            has_audio=False, ffmpeg="/usr/bin/ffmpeg",
+            has_audio=False, ffmpeg=FFMPEG_BIN,
             subtitle_cues=[{"id": "text", "start": 0, "end": .9, "text": "VISIBLE TEXT"}],
             subtitle_layout={"fontSizeRatio": .08, "horizontal": "center", "vertical": "top"},
             subtitle_frame_width=640, subtitle_frame_height=360,
         )
         subprocess.run([
-            "/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error",
+            FFMPEG_BIN, "-hide_banner", "-loglevel", "error",
             "-ss", "0.4", "-i", str(output), "-frames:v", "1", "-y", str(frame),
         ], check=True)
         with Image.open(frame).convert("RGB") as image:

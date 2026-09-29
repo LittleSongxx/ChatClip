@@ -17,7 +17,7 @@ async function isolatedPage(run) {
     await page.setContent('<section class="chat-panel"><div id="chatMessages"></div><textarea id="chatInput"></textarea><button id="sendButton">发送</button><div id="agentPlanDock" class="hidden"></div></section>');
     await page.evaluate(() => {
       window.job = 'job_A';
-      window.ClipTalkCurrentJobId = () => window.job;
+      window.ChatClipCurrentJobId = () => window.job;
       window.showToast = () => {};
       window.EventSource = class { addEventListener() {} close() {} };
     });
@@ -28,7 +28,7 @@ async function isolatedPage(run) {
 for (const outcome of ['success', 'error']) {
   test(`late ${outcome} from A leaves B's plan and composer intact`, async () => isolatedPage(async page => {
     await page.evaluate(({ plan, outcome }) => {
-      window.ClipTalkApi = {
+      window.ChatClipApi = {
         requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A' } }),
         requestResponse: () => new Promise(resolve => {
           window.release = () => resolve(new Response(`event: ${outcome === 'success' ? 'plan' : 'error'}\ndata: ${JSON.stringify(outcome === 'success' ? { plan } : { message: 'A任务失败' })}\n\n`));
@@ -36,11 +36,11 @@ for (const outcome of ['success', 'error']) {
       };
     }, { plan, outcome });
     await page.addScriptTag({ content: agentSource });
-    await page.evaluate(() => { window.pending = window.ClipTalkAgentWorkspace.submitGoal('A任务目标'); });
+    await page.evaluate(() => { window.pending = window.ChatClipAgentWorkspace.submitGoal('A任务目标'); });
     await page.waitForFunction(() => !!window.release);
     await page.evaluate(() => {
       window.job = 'job_B';
-      window.ClipTalkAgentWorkspace.reset();
+      window.ChatClipAgentWorkspace.reset();
       document.querySelector('#chatMessages').textContent = 'B任务对话';
       document.querySelector('#chatInput').value = 'B未发送的草稿';
       window.release();
@@ -56,7 +56,7 @@ for (const outcome of ['success', 'error']) {
 test('an interrupted poll reconnects and consumes the final snapshot', async () => isolatedPage(async page => {
   await page.evaluate(plan => {
     window.polls = 0;
-    window.ClipTalkApi = { requestJson: async path => {
+    window.ChatClipApi = { requestJson: async path => {
       if (path.includes('/plans/')) {
         if (++window.polls === 1) throw new Error('network unavailable');
         return { plan: { ...plan, status: 'preview_ready', steps: plan.steps.map(s => ({ ...s, status: 'completed' })) } };
@@ -65,7 +65,7 @@ test('an interrupted poll reconnects and consumes the final snapshot', async () 
     } };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob({ id: 'job_A', status: 'awaiting_agent_plan', agent: { workspaceId: 'ws_A' } }));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob({ id: 'job_A', status: 'awaiting_agent_plan', agent: { workspaceId: 'ws_A' } }));
   await page.waitForFunction(() => document.querySelector('#agentConnectionState')?.textContent.includes('正在重连'));
   await page.waitForFunction(() => document.querySelector('#agentPlanDock').dataset.status === 'preview_ready');
   assert.equal(await page.evaluate(() => window.polls), 2);
@@ -76,15 +76,15 @@ test('terminal plan cards expose the current result and make cancellation recove
   await page.evaluate(plan => {
     window.snapshot = { id: 'job_A', status: 'completed', agent: { workspaceId: 'ws_A', planId: plan.id }, presentation: { key: 'exported' } };
     window.fixturePlan = { ...plan, status: 'completed', goal: '保留核心回答', steps: plan.steps.map(s => ({ ...s, status: 'completed' })) };
-    window.ClipTalkCurrentJobSnapshot = () => window.snapshot;
-    window.ClipTalkOrderedJobOutputs = () => [{ item: { filename: 'final.mp4', duration: 12, displayTitle: '访谈精华', capabilities: { canEdit: true } }, version: { number: 2 } }];
+    window.ChatClipCurrentJobSnapshot = () => window.snapshot;
+    window.ChatClipOrderedJobOutputs = () => [{ item: { filename: 'final.mp4', duration: 12, displayTitle: '访谈精华', capabilities: { canEdit: true } }, version: { number: 2 } }];
     window.actions = [];
-    window.ClipTalkVersionAction = (filename, action) => window.actions.push({ filename, action });
+    window.ChatClipVersionAction = (filename, action) => window.actions.push({ filename, action });
     window.setChatInputDraft = text => { document.querySelector('#chatInput').value = text; };
-    window.ClipTalkApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
+    window.ChatClipApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.snapshot));
   assert.match(await page.locator('#agentPlanDock').innerText(), /成片已生成/);
   assert.match(await page.locator('.assistant-result-summary').innerText(), /V2.*12\.0 秒.*访谈精华/);
   assert.equal(await page.locator('#agentPlanDock details').evaluate(n => n.open), false);
@@ -94,7 +94,7 @@ test('terminal plan cards expose the current result and make cancellation recove
     window.fixturePlan.status = 'cancelled';
     window.snapshot.presentation.key = 'cancelled';
     window.snapshot.revision = 2;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   await page.getByRole('button', { name: '修改要求重新规划', exact: true }).click();
   assert.equal(await page.locator('#chatInput').inputValue(), '保留核心回答');
@@ -104,7 +104,7 @@ test('terminal plan cards expose the current result and make cancellation recove
     window.fixturePlan.status = 'awaiting_confirmation';
     window.snapshot.presentation.key = 'exported';
     window.snapshot.revision = 3;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.equal(await page.getByRole('button', { name: '确认并开始', exact: true }).count(), 1, 'An older completed output must not hide a new plan awaiting confirmation');
 }));
@@ -117,14 +117,14 @@ test('warning plan exposes bound full playback, with export delegated to the pla
       { id: 'qc', tool: 'delivery_qc', status: 'completed', result: { artifact: { kind: 'delivery_qc_report', passed: false, reports: [{ issues: [{ severity: 'warning', message: '请检查衔接', evidence: { ranges: [{ start: 36, end: 40 }] } }] }] } } },
     ] };
     window.snapshot = { id: 'job_A', agent: { workspaceId: 'ws_A', planId: plan.id }, presentation: { key: 'preview_review' } };
-    window.ClipTalkCurrentJobSnapshot = () => window.snapshot;
+    window.ChatClipCurrentJobSnapshot = () => window.snapshot;
     window.opened = []; window.exported = [];
-    window.ClipTalkOpenAgentPreview = preview => { window.opened.push(preview); };
-    window.ClipTalkExportAgentReviewPreview = preview => { window.exported.push(preview); };
-    window.ClipTalkApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
+    window.ChatClipOpenAgentPreview = preview => { window.opened.push(preview); };
+    window.ChatClipExportAgentReviewPreview = preview => { window.exported.push(preview); };
+    window.ChatClipApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.snapshot));
   await page.locator('#agentPlanDock footer button.primary[data-agent-review-open]').click();
   assert.equal(await page.evaluate(() => window.opened[0].filename), 'portrait.mp4');
   assert.equal(await page.locator('[data-qc-start="36"]').count(), 1);
@@ -144,13 +144,13 @@ test('quality review groups legacy warnings, distinguishes uncertainty and binds
       ] } } },
     ] };
     window.snapshot = { id: 'job_A', agent: { workspaceId: 'ws_A', planId: plan.id } };
-    window.ClipTalkCurrentJobSnapshot = () => window.snapshot;
+    window.ChatClipCurrentJobSnapshot = () => window.snapshot;
     window.opened = [];
-    window.ClipTalkOpenAgentPreview = preview => window.opened.push(preview);
-    window.ClipTalkApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
+    window.ChatClipOpenAgentPreview = preview => window.opened.push(preview);
+    window.ChatClipApi = { requestJson: async () => ({ workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id }, plans: [window.fixturePlan] }) };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.snapshot));
   const qc = page.locator('#agentPlanDock .agent-qc-summary');
   assert.equal(await qc.locator('[data-qc-status="unknown"]').count(), 2);
   assert.equal(await qc.locator(':scope > strong').textContent(), '2 段内容无法自动确认');
@@ -170,7 +170,7 @@ test('quality review groups legacy warnings, distinguishes uncertainty and binds
       legacy(0, 31.33), legacy(33.3, 147.47),
     ];
     window.snapshot.revision = 1.5;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.equal(await qc.locator(':scope > strong').textContent(), '1 个质量提醒，另有 2 段无法自动确认');
   assert.match(await qc.locator('.agent-qc-issues').innerText(), /检测到持续静止画面/);
@@ -185,7 +185,7 @@ test('quality review groups legacy warnings, distinguishes uncertainty and binds
       { code: 'content_render_sample_unavailable', severity: 'warning', status: 'unavailable', message: '内容抽检未完成' },
     ];
     window.snapshot.revision = 2;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.equal(await qc.locator(':scope > strong').textContent(), '1 项需要修改，1 个质量提醒，1 项检查未完成');
   assert.equal(await qc.locator('[data-qc-status="mismatch"]').count(), 1);
@@ -195,7 +195,7 @@ test('quality review groups legacy warnings, distinguishes uncertainty and binds
   await page.evaluate(async () => {
     window.fixturePlan.steps.at(-1).result.artifact.repair = { available: true, replayFromTool: 'render_social_preview', label: '重新生成画幅预览' };
     window.snapshot.revision++;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.match(await page.locator('#agentPlanDock [data-agent-plan-retry-failed]').innerText(), /重新生成画幅预览/);
   await qc.locator('[data-qc-status="unknown"] details summary').click();
@@ -219,13 +219,13 @@ test('sticky action uses evidence review rather than disabled continue and clear
   await page.evaluate(plan => {
     window.snapshot = { id: 'job_A', status: 'awaiting_agent_plan', agent: { workspaceId: 'ws_A' }, contentSearch: { candidates: [], reviewDraft: { selectedMatchIds: [] } } };
     window.fixture = { workspace: { id: 'ws_A', jobId: 'job_A', activePlanId: plan.id, pendingChanges: [{ text: '缩短片头', status: 'queued' }] }, plans: [{ ...plan, status: 'action_required', steps: [{ id: 'evidence', tool: 'review_content_evidence', status: 'action_required', result: { action: 'content_evidence_review' } }] }] };
-    window.ClipTalkCurrentJobSnapshot = () => window.snapshot;
-    window.ClipTalkApi = { requestJson: async () => window.fixture };
+    window.ChatClipCurrentJobSnapshot = () => window.snapshot;
+    window.ChatClipApi = { requestJson: async () => window.fixture };
     window.openedEvidence = 0;
-    window.ClipTalkOpenContentEvidence = () => { window.openedEvidence++; };
+    window.ChatClipOpenContentEvidence = () => { window.openedEvidence++; };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.snapshot));
   assert.equal(await page.locator('#csActionBar [data-cs-action="primary"]').textContent(), '查看待核对片段');
   assert.equal(await page.locator('#csStreamHost [data-agent-action-resolve]').count(), 0);
   assert.equal(await page.locator('[data-cs-id="plan:plan_A"] .cs-card-body').getAttribute('aria-busy'), null);
@@ -235,15 +235,15 @@ test('sticky action uses evidence review rather than disabled continue and clear
   await page.evaluate(async () => {
     window.fixture.workspace.pendingChanges = [];
     window.snapshot.revision = 2;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.equal(await page.locator('[data-cs-id="pending:ws_A"]').count(), 0);
-  assert.equal(await page.evaluate(() => window.ClipTalkChatStream._pendingActions().some(x => x.id === 'pending:ws_A')), false);
+  assert.equal(await page.evaluate(() => window.ChatClipChatStream._pendingActions().some(x => x.id === 'pending:ws_A')), false);
   await page.evaluate(async () => {
     window.fixture.plans[0].executionMode = 'autonomous_review';
     window.fixture.plans[0].steps = [{ id: 'subtitle', tool: 'prepare_subtitle_review', status: 'action_required', result: {} }];
     window.snapshot.revision = 3;
-    await window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot);
+    await window.ChatClipAgentWorkspace.resumeForJob(window.snapshot);
   });
   assert.equal(await page.locator('#csActionBar [data-cs-action="primary"]').isDisabled(), true);
   assert.match(await page.locator('#csActionBar [data-cs-action-reason]').textContent(), /请先|正在/);
@@ -257,9 +257,9 @@ test('plan confirmation has one conversation action, locks during request and re
       { id: 'video', tool: 'render_review_preview', status: 'pending' },
       { id: 'cover', tool: 'confirm_cover', status: 'pending' },
     ] };
-    window.ClipTalkCurrentJobSnapshot = () => window.snapshot;
+    window.ChatClipCurrentJobSnapshot = () => window.snapshot;
     window.confirmCalls = [];
-    window.ClipTalkApi = { requestJson: async (path, options) => {
+    window.ChatClipApi = { requestJson: async (path, options) => {
       if (path.endsWith('/confirm')) {
         window.confirmCalls.push(options.body);
         return new Promise((resolve, reject) => {
@@ -271,7 +271,7 @@ test('plan confirmation has one conversation action, locks during request and re
     } };
   }, plan);
   await page.addScriptTag({ content: agentSource });
-  await page.evaluate(() => window.ClipTalkAgentWorkspace.resumeForJob(window.snapshot));
+  await page.evaluate(() => window.ChatClipAgentWorkspace.resumeForJob(window.snapshot));
   const primary = page.locator('#csActionBar [data-cs-action="primary"]');
   assert.equal(await page.locator('#csStreamHost [data-agent-plan-confirm]').count(), 0);
   assert.equal(await page.locator('#csStreamHost [data-agent-plan-revise]').count(), 0);
@@ -289,7 +289,7 @@ test('plan confirmation has one conversation action, locks during request and re
   assert.equal(await primary.textContent(), '正在启动…');
   assert.equal(await primary.isDisabled(), true);
   await page.evaluate(() => {
-    window.ClipTalkChatStream._pendingActions()[0].onPrimary();
+    window.ChatClipChatStream._pendingActions()[0].onPrimary();
     document.querySelector('#agentPlanDrawerFooter [data-agent-plan-confirm]')?.click();
   });
   assert.equal(await page.evaluate(() => window.confirmCalls.length), 1);
@@ -301,7 +301,7 @@ test('plan confirmation has one conversation action, locks during request and re
   assert.equal(await page.evaluate(() => window.confirmCalls.length), 2);
   await page.evaluate(() => window.finishConfirm());
   await page.waitForFunction(() => document.querySelector('#csActionBar').hidden);
-  assert.equal(await page.evaluate(() => window.ClipTalkAgentWorkspace.confirmationState()), null);
+  assert.equal(await page.evaluate(() => window.ChatClipAgentWorkspace.confirmationState()), null);
   assert.deepEqual(await page.evaluate(() => window.confirmCalls), [{ planHash: 'hash_A' }, { planHash: 'hash_A' }]);
 }));
 
@@ -313,11 +313,11 @@ test('Escape settles authentication and permits a fresh attempt', async () => {
     await page.goto('http://auth.test');
     await page.evaluate(() => { window.fetch = async () => new Response('{"detail":"unauthorized"}', { status: 401 }); });
     await page.addScriptTag({ content: apiSource });
-    await page.evaluate(() => { window.settled = false; window.ClipTalkApi.request('/api/test').catch(() => { window.settled = true; }); });
+    await page.evaluate(() => { window.settled = false; window.ChatClipApi.request('/api/test').catch(() => { window.settled = true; }); });
     await page.waitForFunction(() => document.querySelector('dialog').open);
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => window.settled);
-    await page.evaluate(() => { window.ClipTalkApi.request('/api/test').catch(() => {}); });
+    await page.evaluate(() => { window.ChatClipApi.request('/api/test').catch(() => {}); });
     await page.waitForFunction(() => document.querySelector('dialog').open);
     await page.getByText('取消', { exact: true }).click();
   } finally { await browser.close(); }
@@ -365,7 +365,7 @@ test('streamed confirmation overrides lagging planning chrome in the real worksp
     await page.evaluate(() => openHomeTask('job_A'));
     await page.waitForFunction(() => document.querySelector('#ctTaskJourney .ct-journey-summary strong')?.textContent === '等待确认计划');
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       assert.equal(await page.getByRole('button', { name: '确认并开始', exact: true }).count(), 1);
       assert.equal(await page.locator('#csStreamHost [data-agent-plan-confirm]').count(), 0);
       assert.equal(await page.locator('#csStreamHost [data-agent-plan-revise]').count(), 0);
@@ -464,7 +464,7 @@ test('running Agent owns one honest progress card and stops the whole plan with 
     job.progressFacts.timing.processingElapsedSeconds = 18;
     job.progressFacts.timing.processingActiveSince = new Date().toISOString();
     job.revision = 2;
-    await page.evaluate(async job => { renderJob(job); await window.ClipTalkAgentWorkspace.resumeForJob(job); }, job);
+    await page.evaluate(async job => { renderJob(job); await window.ChatClipAgentWorkspace.resumeForJob(job); }, job);
     assert.equal(await card.evaluate(el => el === window.testExecutionNode), true, 'Polling must preserve the animated card');
     assert.match(await card.innerText(), /已用时 0:18/);
     assert.equal(await page.locator('#csStreamHost .agent-cover-status').count(), 0);
@@ -472,7 +472,7 @@ test('running Agent owns one honest progress card and stops the whole plan with 
     assert.doesNotMatch(await card.innerText(), /Hook|系统|暂无法估算|按需执行计划/);
     assert.equal(await page.locator('[data-conversation-key="message:notice"] details').count(), 1);
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       assert.equal(await page.getByRole('button', { name: '停止任务', exact: true }).count(), 1);
       await page.screenshot({ path: `test-results/agent-running-${theme}.png` });
     }
@@ -572,7 +572,7 @@ test('candidate select-all is a leading tri-state checkbox, preserves failures a
       await page.setViewportSize({ width, height: 900 });
       if (width === 390) await page.locator('[data-ct-compact-view="assistant"]').click();
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+        await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
         await all.scrollIntoViewIfNeeded();
         await page.waitForTimeout(350);
         assert.equal(await review.evaluate(root => {
@@ -676,7 +676,7 @@ test('Agent content review separates selection, explicit range confirmation and 
     });
     await page.goto(server.url, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => openHomeTask('review_job'));
-    await page.waitForFunction(() => !!window.ClipTalkAgentWorkspace.contentReviewContext());
+    await page.waitForFunction(() => !!window.ChatClipAgentWorkspace.contentReviewContext());
     await page.evaluate(value => { currentJob = value; renderConversation(value); }, job);
     assert.deepEqual(await page.evaluate(() => {
       const match = currentJob.contentSearch.candidates[1];
@@ -699,7 +699,7 @@ test('Agent content review separates selection, explicit range confirmation and 
     assert.match(await review.innerText(), /对象匹配待核对：白色空调/);
     assert.equal(await review.locator('[data-content-match][value="a"]').getAttribute('data-content-review-status'), 'pending');
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       await page.waitForTimeout(350);
       assert.equal(await review.locator('.content-subject-hint').evaluate(node => getComputedStyle(node).color),
         theme === 'light' ? 'rgb(67, 83, 75)' : 'rgb(183, 200, 192)');
@@ -746,7 +746,7 @@ test('Agent content review separates selection, explicit range confirmation and 
     await confirm.evaluate(button => button.click());
     assert.equal(resolveCalls, 1);
     releaseResolve();
-    await page.waitForFunction(() => window.ClipTalkAgentWorkspace.progressOwner()?.status === 'running');
+    await page.waitForFunction(() => window.ChatClipAgentWorkspace.progressOwner()?.status === 'running');
     assert.equal(resolveCalls, 1);
     assert.equal(writes.some(path => path.endsWith('/bulk-keep') || path.endsWith('/content-search/confirm')), false);
     assert.deepEqual(errors, []);
@@ -809,7 +809,7 @@ test('filtered drawer selection preserves other clips and independent generation
     assert.equal(generated, 0);
     assert.equal(await page.evaluate(() => window.confirmationPrompts.length), 1);
     await confirm.click();
-    await page.waitForFunction(() => window.ClipTalkCurrentJobSnapshot()?.status === 'running');
+    await page.waitForFunction(() => window.ChatClipCurrentJobSnapshot()?.status === 'running');
     assert.equal(generated, 1);
     assert.match(await page.evaluate(() => window.confirmationPrompts[0].warning), /尚未核验/);
     assert.equal(writes.some(path => /bulk-keep|feedback|actions\/resolve/.test(path)), false);
@@ -860,8 +860,8 @@ test('long clip titles and thumbnail columns fit their container in both themes'
       host.id = 'uxClipFixture';
       host.style.cssText = 'position:fixed;inset:105px auto auto 8px;width:300px;max-height:calc(100vh - 115px);overflow:auto;z-index:1000;background:var(--ct-panel);';
       const job = { id: 'layout', filename: '产品介绍.mp4', status: 'awaiting_content_confirmation', taskMode: 'content_extract', videoInfo: { duration: 60 }, contentSearch: search };
-      await window.ClipTalkSwitchWorkspaceJob(job);
-      window.ClipTalkAppShell.showView('workspace', { route: false });
+      await window.ChatClipSwitchWorkspaceJob(job);
+      window.ChatClipAppShell.showView('workspace', { route: false });
       document.querySelector('#workspace').classList.remove('home-mode');
       document.body.classList.add('ct-workbench-v4');
       host.innerHTML = contentSearchReviewMarkup(job);
@@ -875,7 +875,7 @@ test('long clip titles and thumbnail columns fit their container in both themes'
       await page.waitForTimeout(100);
       await page.evaluate(() => document.querySelector('[data-ct-compact-view="assistant"]')?.click());
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(theme => window.ClipTalkTheme.apply(theme), theme);
+        await page.evaluate(theme => window.ChatClipTheme.apply(theme), theme);
         await page.waitForTimeout(350);
         for (const containerWidth of [300, Math.min(480, width - 24)]) {
           await page.locator('#uxClipFixture').evaluate((node, value) => { node.style.width = `${value}px`; }, containerWidth);
@@ -898,14 +898,14 @@ test('long clip titles and thumbnail columns fit their container in both themes'
     }
     await page.locator('#uxClipFixture .content-match-full-title summary').click();
     assert.match(await page.locator('#uxClipFixture .content-match-full-title p').innerText(), /完整观点和前后文/);
-    if (process.env.CLIPTALK_UX_CAPTURE) {
+    if (process.env.CHATCLIP_UX_CAPTURE) {
       await page.setViewportSize({ width: 390, height: 900 });
       await page.evaluate(() => document.querySelector('[data-ct-compact-view="assistant"]')?.click());
       await page.locator('#uxClipFixture').evaluate(node => { node.style.width = '350px'; });
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(theme => window.ClipTalkTheme.apply(theme), theme);
+        await page.evaluate(theme => window.ChatClipTheme.apply(theme), theme);
         await page.waitForTimeout(350);
-        await page.locator('#uxClipFixture').screenshot({ path: `/tmp/cliptalk-ux-clips-${theme}.png` });
+        await page.locator('#uxClipFixture').screenshot({ path: `/tmp/chatclip-ux-clips-${theme}.png` });
       }
     }
   } finally { await browser.close(); await server.close(); }
@@ -936,7 +936,7 @@ test('reused Agent model has a direct shared probe, retry and dirty-configuratio
     assert.equal(await direct.isEnabled(), true);
     await direct.click();
     await page.waitForFunction(() => document.querySelector('#probeEffectiveAgent').disabled);
-    await page.evaluate(() => { void window.ClipTalkAgentSettings.probeEffectiveAgent(); });
+    await page.evaluate(() => { void window.ChatClipAgentSettings.probeEffectiveAgent(); });
     assert.equal(attempt, 1, 'The two entry points share one in-flight request');
     release();
     await page.waitForFunction(() => document.querySelector('#agentEffectiveStatus').textContent === '工具调用测试已通过');
@@ -945,7 +945,7 @@ test('reused Agent model has a direct shared probe, retry and dirty-configuratio
     assert.equal(await page.locator('#probeEffectiveAgent').innerText(), '重新测试工具调用');
     await page.locator('#probeEffectiveAgent').click();
     await page.waitForFunction(() => document.querySelector('#agentEffectiveStatus').textContent.includes('服务商拒绝'));
-    assert.equal(await page.evaluate(() => window.ClipTalkSetupStatus.canUseAgent), false);
+    assert.equal(await page.evaluate(() => window.ChatClipSetupStatus.canUseAgent), false);
     assert.equal(await direct.isEnabled(), true);
     await direct.click();
     await page.waitForFunction(() => document.querySelector('#agentEffectiveStatus').textContent === '工具调用测试已通过');
@@ -958,7 +958,7 @@ test('reused Agent model has a direct shared probe, retry and dirty-configuratio
     assert.equal(await direct.isEnabled(), true);
     assert.deepEqual(writes, Array(3).fill('/api/settings/agent/probe-effective'));
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(theme => window.ClipTalkTheme.apply(theme), theme);
+      await page.evaluate(theme => window.ChatClipTheme.apply(theme), theme);
       await page.waitForTimeout(550);
       const colors = await page.locator('.agent-effective-model p, #testEffectiveAgent, #setupReadinessTitle, #setupReadinessSummary, #setupReadinessSteps b, #setupReadinessSteps small').evaluateAll(nodes => nodes.map(node => {
         let parent = node, background;
@@ -1040,7 +1040,7 @@ test('default TalkNet capability is explicit, retryable and readable in both the
     await page.locator('#localCapabilities summary').click();
     assert.match(await page.locator('#localCapabilities').innerText(), /python3 tools\/setup.py/);
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       await page.waitForTimeout(650);
       const colors = await page.locator('#localCapabilities p, #localCapabilities code, #checkLocalCapabilities').evaluateAll(nodes => nodes.map(node => {
         let parent = node, background;
@@ -1064,7 +1064,7 @@ test('settings capabilities have a stable dedicated tab at wide and narrow width
     for (const width of [1920, 1440, 1280, 760, 390]) {
       await page.setViewportSize({ width, height: 948 });
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(theme => window.ClipTalkTheme.apply(theme), theme);
+        await page.evaluate(theme => window.ChatClipTheme.apply(theme), theme);
         await page.locator('[data-model-role="system"]').click();
         for (const expanded of [false, true]) {
           const layout = await page.evaluate((expanded) => {
@@ -1189,8 +1189,8 @@ test('cover review focuses the editor and disables every source-mismatched candi
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(`${server.url}/#job=${job.id}`);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'cover_focus');
-    assert.equal(await page.evaluate(() => window.ClipTalkOpenCoverTimeline()), true);
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'cover_focus');
+    assert.equal(await page.evaluate(() => window.ChatClipOpenCoverTimeline()), true);
     await page.waitForFunction(() => document.body.dataset.ctCoverEditorOpen === 'true');
     const state = await page.evaluate(() => ({
       stageDisplay: getComputedStyle(document.querySelector('#reviewStage')).display,
@@ -1222,8 +1222,8 @@ test('cover review focuses the editor and disables every source-mismatched candi
     await page.evaluate(() => {
       window.__coverGoalRevised = false;
       window.__coverCandidatesRetried = false;
-      window.ClipTalkEditCoverRequirement = () => { window.__coverGoalRevised = true; return true; };
-      window.ClipTalkRetryCoverCandidates = async () => { window.__coverCandidatesRetried = true; };
+      window.ChatClipEditCoverRequirement = () => { window.__coverGoalRevised = true; return true; };
+      window.ChatClipRetryCoverCandidates = async () => { window.__coverCandidatesRetried = true; };
     });
     await page.click('[data-cover-timeline-retry]');
     assert.equal(await page.evaluate(() => window.__coverCandidatesRetried), true);
@@ -1231,8 +1231,8 @@ test('cover review focuses the editor and disables every source-mismatched candi
     assert.equal(await page.evaluate(() => window.__coverGoalRevised), true);
     job.coverDraft.variants[0].sourceTime = 54;
     await page.reload();
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'cover_focus');
-    assert.equal(await page.evaluate(() => window.ClipTalkOpenCoverTimeline()), true);
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'cover_focus');
+    assert.equal(await page.evaluate(() => window.ChatClipOpenCoverTimeline()), true);
     await page.waitForSelector('[data-cover-timeline-open-preview]');
     let popupOpened = false;
     page.once('popup', () => { popupOpened = true; });
@@ -1333,7 +1333,7 @@ test('opening a legacy landscape sample shows real tracks and a reachable toggle
       await page.locator('#timelineFit').click();
       assert.equal(await page.locator('#timelineZoomLevel').innerText(), '100%');
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(theme => ClipTalkTheme.apply(theme), theme);
+        await page.evaluate(theme => ChatClipTheme.apply(theme), theme);
         await page.waitForFunction(() => document.querySelector('#timelineViewport').getBoundingClientRect().height >= 195);
         assert.equal(await page.locator('#waveformCanvas').isVisible(), true);
         const paintedRows = await page.locator('#waveformCanvas').evaluate(canvas => {
@@ -1358,7 +1358,7 @@ test('opening a legacy landscape sample shows real tracks and a reachable toggle
       }
       await page.locator('#portraitPrecisionToggle').click();
       assert.equal(await page.locator('#timelinePanel').isVisible(), false);
-      await page.evaluate(async () => { renderJob(currentJob); await ClipTalkAgentWorkspace.resumeForJob(currentJob); });
+      await page.evaluate(async () => { renderJob(currentJob); await ChatClipAgentWorkspace.resumeForJob(currentJob); });
       assert.equal(await page.locator('#timelinePanel').isVisible(), false, 'Polling preserves a deliberate collapse');
       await page.locator('#portraitPrecisionToggle').click();
       assert.equal(await page.locator('#timelinePanel').isVisible(), true);
@@ -1366,7 +1366,7 @@ test('opening a legacy landscape sample shows real tracks and a reachable toggle
       await page.evaluate(async preview => {
         currentJob.editSessions[0].revision = 2;
         currentJob.agentPreviewOutputs = [];
-        await ClipTalkOpenAgentPreview({ ...preview, filename: 'stale.mp4', autoplay: false, silent: true });
+        await ChatClipOpenAgentPreview({ ...preview, filename: 'stale.mp4', autoplay: false, silent: true });
       }, preview);
       assert.equal(await page.evaluate(() => currentOutput.segments.length), 0);
       await page.close();
@@ -1394,12 +1394,12 @@ test('pending covers never hide the ordinary timeline and closing cover review r
     await page.route('**/fixture-sprite.svg', r => r.fulfill({ contentType: 'image/svg+xml',
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90"><rect width="160" height="90" fill="#637f6b"/></svg>' }));
     await page.goto(`${server.url}/#job=${job.id}`);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'cover_timeline_modes' && waveformData?.rms?.length && timelineAssets?.sprite?.items?.length);
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'cover_timeline_modes' && waveformData?.rms?.length && timelineAssets?.sprite?.items?.length);
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: 900 });
       if (width === 390) await page.locator('#ctCompactWorkspaceNav [data-ct-compact-view="preview"]').click();
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(t => window.ClipTalkTheme.apply(t), theme);
+        await page.evaluate(t => window.ChatClipTheme.apply(t), theme);
         for (const status of ['review_ready', 'auto_selected', 'candidates_ready', 'approved']) {
           await page.evaluate(status => { currentJob.coverDraft.status = status; setReviewLowerPanelMode('timeline'); updateTimeline(); }, status);
           assert.equal(await page.locator('body').getAttribute('data-ct-cover-editor-open'), 'false', `${width}/${theme}/${status}: ordinary timeline must not enter cover mode`);
@@ -1416,7 +1416,7 @@ test('pending covers never hide the ordinary timeline and closing cover review r
           });
           assert.ok(tracks.thumbnailTop >= tracks.top && tracks.thumbnailBottom <= tracks.bottom + 1, JSON.stringify(tracks));
           assert.ok(tracks.audioBottom <= tracks.bottom + 1, JSON.stringify(tracks));
-          await page.evaluate(() => { ClipTalkOpenCoverTimeline(); updateTimeline(); });
+          await page.evaluate(() => { ChatClipOpenCoverTimeline(); updateTimeline(); });
           assert.equal(await page.locator('body').getAttribute('data-ct-cover-editor-open'), 'true');
           assert.equal(await page.locator('#timelineViewport').isVisible(), false);
           await page.locator('#coverReviewBack').click();
@@ -1424,12 +1424,12 @@ test('pending covers never hide the ordinary timeline and closing cover review r
           assert.equal(await page.locator('body').getAttribute('data-ct-cover-editor-open'), 'false');
           assert.equal(await page.locator('#timelineViewport').isVisible(), true);
           assert.equal(await page.locator('#waveformCanvas').isVisible(), true);
-          await page.evaluate(() => { ClipTalkOpenCoverTimeline(); setReviewLowerPanelMode('timeline'); });
+          await page.evaluate(() => { ChatClipOpenCoverTimeline(); setReviewLowerPanelMode('timeline'); });
           assert.equal(await page.locator('body').getAttribute('data-ct-cover-editor-open'), 'false', 'Explicit timeline navigation must exit cover mode');
         }
       }
     }
-    await page.evaluate(() => { setReviewLowerPanelMode('collapsed'); ClipTalkOpenCoverTimeline(); });
+    await page.evaluate(() => { setReviewLowerPanelMode('collapsed'); ChatClipOpenCoverTimeline(); });
     await page.locator('#coverReviewBack').click();
     assert.equal(await page.evaluate(() => reviewLowerPanelMode), 'collapsed');
     await page.setViewportSize({ width: 1366, height: 768 });
@@ -1551,7 +1551,7 @@ test('new-task intro and upload target share one balanced visual group', async (
     await page.locator('#uploadView.new-task-upload').waitFor({ state: 'visible' });
 
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+      await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
       await page.waitForTimeout(220);
       const layout = await page.evaluate(() => {
         const bounds = selector => {
@@ -1620,18 +1620,18 @@ test('review entry selects the sample, honors explicit versions and preserves ma
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(server.url + '/#job=' + job.id);
-    await page.waitForFunction(() => window.ClipTalkCurrentOutputSnapshot?.().output?.filename === 'sample.mp4');
+    await page.waitForFunction(() => window.ChatClipCurrentOutputSnapshot?.().output?.filename === 'sample.mp4');
     assert.equal(await page.locator('#mainVideo').evaluate(v => v.paused), true);
     await page.evaluate(() => window.showSource({ autoplay: false }));
     await page.evaluate(job => window.renderJob({ ...job, contentUiRevision: 'changed' }), job);
-    assert.equal(await page.evaluate(() => window.ClipTalkCurrentOutputSnapshot().mediaKind), 'source');
+    assert.equal(await page.evaluate(() => window.ChatClipCurrentOutputSnapshot().mediaKind), 'source');
     for (const theme of ['light', 'dark']) {
-      await page.evaluate(theme => window.ClipTalkTheme.apply(theme), theme); await page.waitForTimeout(550);
+      await page.evaluate(theme => window.ChatClipTheme.apply(theme), theme); await page.waitForTimeout(550);
       const badge = await page.locator('#viewerBadge').evaluate(n => getComputedStyle(n).color);
       assert.equal(badge, 'rgb(245, 247, 244)', 'On-media labels must not inherit light-theme body text');
     }
     await page.goto(server.url + '/#job=' + job.id + '&output=final.mp4');
-    await page.waitForFunction(() => window.ClipTalkCurrentOutputSnapshot?.().output?.filename === 'final.mp4');
+    await page.waitForFunction(() => window.ChatClipCurrentOutputSnapshot?.().output?.filename === 'final.mp4');
   } finally { await browser.close(); await server.close(); }
 });
 
@@ -1649,7 +1649,7 @@ test('unknown readiness blocks new AI actions and distinguishes old backend from
     await page.route('**/api/setup/status', r => r.abort());
     await page.locator('#refreshSetupReadiness').click();
     await page.waitForFunction(() => document.querySelector('#setupReadinessTitle').textContent === '能力检查失败');
-    assert.equal(await page.evaluate(() => window.ClipTalkSetupStatus), null);
+    assert.equal(await page.evaluate(() => window.ChatClipSetupStatus), null);
   } finally { await browser.close(); await server.close(); }
 });
 
@@ -1672,7 +1672,7 @@ test('subtitle review preserves edits, binds source time, and gates confirmation
       return r.fulfill({ json: { draft: { ...draft, ...body, revision: saves + 1, status: body.confirmed ? 'confirmed' : 'draft' } } });
     });
     await page.goto(server.url + '/#job=' + job.id);
-    await page.waitForFunction(() => window.ClipTalkCurrentJobId?.() === 'subtitle_journey');
+    await page.waitForFunction(() => window.ChatClipCurrentJobId?.() === 'subtitle_journey');
     await page.evaluate(() => { window.reviewResult = 'pending'; reviewSubtitlesBeforeRender([{ segments: [{ start: 54, end: 62, playbackRate: 2 }] }], 'clean', { purpose: 'edit' }).then(r => { window.reviewResult = r; }); });
     await page.waitForSelector('#subtitleReview:not(.hidden)');
     assert.equal(await page.locator('#subtitleConfirmButton').isDisabled(), true);
@@ -1707,7 +1707,7 @@ test('subtitle review preserves edits, binds source time, and gates confirmation
     for (const width of [1440, 768, 390]) {
       await page.setViewportSize({ width, height: 900 });
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(t => window.ClipTalkTheme.apply(t), theme);
+        await page.evaluate(t => window.ChatClipTheme.apply(t), theme);
         const bounds = await page.locator('.subtitle-review-panel').evaluate(n => ({ left: n.getBoundingClientRect().left, right: n.getBoundingClientRect().right, viewport: innerWidth }));
         assert.ok(bounds.left >= -1 && bounds.right <= bounds.viewport + 1, JSON.stringify(bounds));
         await page.locator('#subtitleConfirmButton').click({ trial: true });
@@ -1752,12 +1752,12 @@ test('full application keeps output selection, readable themes and usable mobile
       const errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(`${server.url}/#job=${job.id}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => window.ClipTalkCurrentJobId?.());
+      await page.waitForFunction(() => window.ChatClipCurrentJobId?.());
       await page.waitForTimeout(350);
       assert.equal(await page.locator('#timelinePanel').isVisible(), true, 'Ready source tracks stay visible beside generated versions');
       assert.equal(await page.locator('#timelineTitle').innerText(), '源片时间轴');
       assert.equal(await page.locator('body').getAttribute('data-precision-editing'), 'false');
-      await page.evaluate(() => window.ClipTalkWorkspaceController.openRail('materials'));
+      await page.evaluate(() => window.ChatClipWorkspaceController.openRail('materials'));
       await page.waitForFunction(() => document.querySelector('#ctV4MaterialsSummary')?.dataset.outputFilename === 'v2.mp4');
       await page.evaluate(() => {
         const card = document.createElement('article');
@@ -1775,7 +1775,7 @@ test('full application keeps output selection, readable themes and usable mobile
         assert.equal(await page.locator('#appSidebar').isVisible(), false);
       }
       for (const theme of ['light', 'dark']) {
-        await page.evaluate(value => { window.ClipTalkTheme.apply(value); window.ClipTalkWorkspaceController.openRail('project'); }, theme);
+        await page.evaluate(value => { window.ChatClipTheme.apply(value); window.ChatClipWorkspaceController.openRail('project'); }, theme);
         await page.waitForTimeout(650);
         const colors = await page.evaluate(() => ['#timelineTitle', '#playerRate', '#ctV4ProjectPanel > header strong', '#ctV4ReframeFit', '#legacyResultContrast strong', '#legacyResultContrast p', '#agentSkillMenuButton small', '#secondaryEditCurrentButton', '#sidebarHistoryToggle', '[data-ct-source-expand]', '[data-ct-v4-open-versions]', '#ctV4GenerateAspect', '[data-ct-v4-replace]'].map(selector => {
           const node = document.querySelector(selector), style = getComputedStyle(node);
@@ -1791,13 +1791,13 @@ test('full application keeps output selection, readable themes and usable mobile
         assert.equal(await fit.evaluate(node => getComputedStyle(node).backgroundRepeat), 'no-repeat');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       }
-      await page.evaluate(() => window.ClipTalkWorkspaceController.openRail('materials'));
+      await page.evaluate(() => window.ChatClipWorkspaceController.openRail('materials'));
       await page.locator('[data-ct-v4-open-versions]').click();
       assert.equal(await page.locator('#ctV4VersionList .clip-version-entry').count(), 3);
       await page.locator('#ctV4VersionList [data-auto-output="v1.mp4"]').click();
       // Playback switches compact layouts to the preview pane. Reopen the
       // material pane before interacting with its version-list controls.
-      await page.evaluate(() => window.ClipTalkWorkspaceController.openRail('materials'));
+      await page.evaluate(() => window.ChatClipWorkspaceController.openRail('materials'));
       await page.locator('[data-ct-versions-back]').click();
       // Source card is hidden by the rail-slimming pass. Replay exactly what the
       // old inline preview button did (value + change event), independent of the
@@ -1808,7 +1808,7 @@ test('full application keeps output selection, readable themes and usable mobile
         select.dispatchEvent(new Event('change', { bubbles: true }));
       });
       assert.equal(await page.locator('#ctV4MaterialsSummary').getAttribute('data-output-filename'), 'v1.mp4');
-      await page.evaluate(() => window.ClipTalkVersionAction('sample.mp4', 'preview'));
+      await page.evaluate(() => window.ChatClipVersionAction('sample.mp4', 'preview'));
       await page.waitForFunction(() => document.querySelector('#ctV4MaterialsSummary').dataset.outputFilename === 'sample.mp4');
       assert.doesNotMatch(await page.locator('#ctV4DeliveryChecks').innerText(), /待检测|尺寸待检测/);
       assert.doesNotMatch(await page.locator('#ctV4DeliveryChecks').innerText(), /竖屏/);
@@ -1829,14 +1829,14 @@ test('full application keeps output selection, readable themes and usable mobile
       if (width > 1024) assert.equal(await page.locator('#finalizePreviewButton').isVisible(), true);
       assert.match(await page.locator('#downloadButton').textContent(), /下载 V\d+ 审核样片/);
       if (width >= 1024) {
-        await page.evaluate(() => window.ClipTalkOpenAgentTimeline({ sessionId: 'session_ui', reviewPendingProposal: true }));
+        await page.evaluate(() => window.ChatClipOpenAgentTimeline({ sessionId: 'session_ui', reviewPendingProposal: true }));
         await page.locator('[data-secondary-inspector-tab="export"]').click();
         assert.equal(await page.locator('#secondaryEditorExport').isDisabled(), true, 'Stale samples cannot be exported');
         assert.match(await page.locator('#secondaryEditorPreflight').innerText(), /时间线检查有提醒/);
         assert.match(await page.locator('#secondaryEditorPreflight').innerText(), /00:17\.70/);
         assert.doesNotMatch(await page.locator('#secondaryEditorPreflight').innerText(), /999/);
         for (const theme of ['light', 'dark']) {
-          await page.evaluate(value => window.ClipTalkTheme.apply(value), theme);
+          await page.evaluate(value => window.ChatClipTheme.apply(value), theme);
           await page.waitForTimeout(650);
           const textColors = await page.locator('.secondary-timeline-clip :is(strong, small, em)').evaluateAll(nodes => nodes.map(node => ({ fg: getComputedStyle(node).color, bg: getComputedStyle(node).backgroundColor })));
           for (const colors of textColors) assert.ok(contrast(colors.fg, colors.bg) >= 4.5, JSON.stringify({ width, theme, colors }));
@@ -1872,7 +1872,7 @@ test('fresh entry uses the real stylesheet chain without clipping or leaked navi
         await handle.focus();
         await page.keyboard.press('ArrowRight');
         assert.equal(Math.round((await assistant.boundingBox()).width), 446);
-        assert.equal(await page.evaluate(() => localStorage.getItem('cliptalk-new-task-assistant-width:v1')), '446');
+        assert.equal(await page.evaluate(() => localStorage.getItem('chatclip-new-task-assistant-width:v1')), '446');
         await page.keyboard.press('Home');
         assert.equal(Math.round((await assistant.boundingBox()).width), 380);
       }

@@ -6,11 +6,11 @@
 对外服务需要设置独立的随机访问令牌，并由 HTTPS 反向代理保护访问：
 
 ```dotenv
-HIGHLIGHT_HOST=0.0.0.0
-HIGHLIGHT_PORT=5180
-HIGHLIGHT_ALLOW_UNAUTHENTICATED_REMOTE=false
+CHATCLIP_HOST=0.0.0.0
+CHATCLIP_PORT=5180
+CHATCLIP_ALLOW_UNAUTHENTICATED_REMOTE=false
 # 填入自己生成的至少 16 字符随机令牌，不要提交到 GitHub。
-HIGHLIGHT_ACCESS_TOKEN=
+CHATCLIP_ACCESS_TOKEN=
 ```
 
 以上令牌留空时，对外监听会拒绝启动，这是安全检查，不是安装故障。
@@ -24,24 +24,19 @@ HIGHLIGHT_ACCESS_TOKEN=
 
 Docker 部署建议使用 Docker Engine 24+ 与 Docker Compose 2.24+；GPU 配置还需要 NVIDIA Container Toolkit。
 
-- `bash start.sh`：前台统一管理网页和本地 AI 助手，优先使用项目 `.venv`。
+- `bash start.sh`：前台启动网页服务（Agent 编排在同进程内运行），优先使用项目 `.venv`。
 - `bash start.sh --check`：只检查，不启动。
-- `bash start.sh --external-agent`：网页使用独立部署的助手，不尝试启动助手。
-- `bash restart.sh`：原有服务器维护脚本，仅重启网页后端；独立助手保持运行。
-- `docker compose up --build -d`：Compose 分别管理网页和助手，默认安装 CPU 版 TalkNet，只发布到 `127.0.0.1`。
+- `docker compose up --build -d`：单容器部署，默认安装 CPU 版 TalkNet，只发布到 `127.0.0.1`。
 - `docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d`：GPU 部署；需支持 NVIDIA GPU 的容器运行环境。
 
-不要同时使用前台启动器和 `restart.sh` 管理同一个网页实例。长期部署应选择一个服务管理方式。
-独立助手使用 `CLIPTALK_AGENT_SERVICE_URL`；跨容器或跨主机时，双方必须配置相同的独立服务令牌。
-本机默认通过数据目录中的 `agent/service-token` 自动共享令牌。
-启动器只会复用健康且凭据匹配的本地助手，不会接管或终止其他进程。
+长期部署应选择一个服务管理方式；前台启动器（`bash start.sh`）与系统服务管理器不要同时管理同一实例。
 
 Compose 不会把宿主机 `.env` 整份注入容器，只传递明确列出的模型、资源和安全参数，因此本机 TalkNet 绝对路径或显卡编号不会覆盖镜像内配置。远程发布示例：
 
 ```dotenv
-CLIPTALK_BIND_ADDRESS=0.0.0.0
-HIGHLIGHT_PORT=5180
-HIGHLIGHT_ACCESS_TOKEN=请替换为至少16字符的随机令牌
+CHATCLIP_BIND_ADDRESS=0.0.0.0
+CHATCLIP_PORT=5180
+CHATCLIP_ACCESS_TOKEN=请替换为至少16字符的随机令牌
 ```
 
 非回环发布地址缺少有效令牌时，容器会拒绝启动。默认 CPU 构建建议为 Docker 预留约 20 GiB，GPU 构建建议预留约 30 GiB（包括构建缓存）。
@@ -50,13 +45,13 @@ HIGHLIGHT_ACCESS_TOKEN=请替换为至少16字符的随机令牌
 
 ```bash
 docker compose ps
-docker compose logs -f cliptalk agent
+docker compose logs -f chatclip agent
 docker compose down
 git pull --ff-only
 docker compose up --build -d
 ```
 
-`docker compose down` 不会删除 `cliptalk-data` 命名卷；不要使用 `down -v`，除非明确要删除任务、模型配置和输出。升级前可将卷内容复制到备份目录，恢复时必须保持文件权限并同时恢复 `agent/service-token`。本机前台启动使用 `Ctrl+C` 停止，任务与输出仍保存在配置的数据目录中。
+`docker compose down` 不会删除 `chatclip-data` 命名卷；不要使用 `down -v`，除非明确要删除任务、模型配置和输出。升级前可将卷内容复制到备份目录，恢复时必须保持文件权限并同时恢复 `agent/service-token`。本机前台启动使用 `Ctrl+C` 停止，任务与输出仍保存在配置的数据目录中。
 
 ## TalkNet 默认安装
 
@@ -76,8 +71,8 @@ data/models/talknet/
 ```
 
 以下变量默认无需填写；非空时优先使用指定值，不会被自动发现覆盖：
-`HIGHLIGHT_TALKNET_PYTHON`、`HIGHLIGHT_TALKNET_REPOSITORY`、`HIGHLIGHT_TALKNET_CHECKPOINT`、`HIGHLIGHT_TALKNET_WORKER`。
-`HIGHLIGHT_TALKNET_DEVICE=auto` 会优先使用可用 GPU，否则使用 CPU。
+`CHATCLIP_TALKNET_PYTHON`、`CHATCLIP_TALKNET_REPOSITORY`、`CHATCLIP_TALKNET_CHECKPOINT`、`CHATCLIP_TALKNET_WORKER`。
+`CHATCLIP_TALKNET_DEVICE=auto` 会优先使用可用 GPU，否则使用 CPU。
 `cuda:N` 按当前进程可见设备编号，兼容 `CUDA_VISIBLE_DEVICES` 的设备映射。
 `primary` 使用模型结果作为主要依据；`shadow` 仅用于对比；`off` 明确关闭该能力。
 

@@ -1,23 +1,23 @@
 from concurrent.futures import Future
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.agent_api import build_agent_router
-from app.agent_platform import AgentPlatform, AgentServiceError
+from app.agent import AgentPlatform, AgentServiceError
 from app.assistant_interaction import AssistantInteraction, freeze_context, message_intent, revised_goal, validate_frozen
 
 
 @pytest.fixture
 def setup(tmp_path):
-    platform = AgentPlatform(data_root=tmp_path, service_url="http://unused.invalid", model_config_resolver=lambda: {})
+    platform = AgentPlatform(data_root=tmp_path, model_config_resolver=lambda: {})
     platform.install_skill(markdown="---\nname: test-editor\ndescription: Test editor\nallowed-tools: inspect_workspace\n---\nInspect only.", source="test", status="enabled")
-    platform.install_skill(markdown="---\nname: cliptalk-smart-reframe\ndescription: Change aspect\nallowed-tools: inspect_workspace render_social_preview run_delivery_qc\n---\nChange aspect.", source="test", status="enabled")
-    platform.client = Mock()
-    platform.client.route_skill.return_value = {"skillId": "test-editor"}
-    platform.client.plan.return_value = {"plan": {"summary": "测试方案", "steps": [{"id": "inspect", "tool": "inspect_workspace", "title": "检查状态", "arguments": {}, "dependencies": [], "expectedOutput": "状态", "sideEffect": "read"}]}}
+    platform.install_skill(markdown="---\nname: chatclip-smart-reframe\ndescription: Change aspect\nallowed-tools: inspect_workspace render_social_preview run_delivery_qc\n---\nChange aspect.", source="test", status="enabled")
+    platform.planner_backend = Mock()
+    platform.planner_backend.route_skill.return_value = {"skillId": "test-editor"}
+    platform.planner_backend.plan.return_value = {"plan": {"summary": "测试方案", "steps": [{"id": "inspect", "tool": "inspect_workspace", "title": "检查状态", "arguments": {}, "dependencies": [], "expectedOutput": "状态", "sideEffect": "read"}]}}
     job = {"id": "job_test", "revision": 1, "videoInfo": {"duration": 20}, "contentSearch": {"id": "search", "candidates": [{"id": "a", "start": 1, "end": 2}, {"id": "b", "start": 3, "end": 4}]}}
     workspace = platform.create_workspace(job_id=job["id"])
     service = AssistantInteraction(platform, lambda _: job)
@@ -45,7 +45,7 @@ def test_question_never_calls_planner(setup):
     platform, service, workspace, _ = setup
     response = send(service, workspace, "为什么有无关画面？")
     assert response["action"] == "answer"
-    platform.client.plan.assert_not_called()
+    platform.planner_backend.plan.assert_not_called()
     assert len(service.workspace(workspace)["messages"]) == 2
 
 
@@ -55,7 +55,7 @@ def test_answer_provider_is_read_only_and_falls_back_safely(setup):
     result = send(service, workspace, "为什么？")
     assert "secret" not in result["message"]
     assert result["action"] == "answer"
-    platform.client.plan.assert_not_called()
+    platform.planner_backend.plan.assert_not_called()
 
 
 def test_duplicate_submission_creates_one_plan(setup):
@@ -63,7 +63,7 @@ def test_duplicate_submission_creates_one_plan(setup):
     first = send(service, workspace, "找到目标片段")
     second = send(service, workspace, "找到目标片段")
     assert first["plan"]["id"] == second["plan"]["id"]
-    assert platform.client.plan.call_count == 1
+    assert platform.planner_backend.plan.call_count == 1
     assert len(service.workspace(workspace)["messages"]) == 2
     with pytest.raises(ValueError):
         send(service, workspace, "改成横屏")
@@ -72,7 +72,7 @@ def test_duplicate_submission_creates_one_plan(setup):
 def test_failed_revision_preserves_original_plan(setup):
     platform, service, workspace, _ = setup
     original = send(service, workspace, "剪成竖屏")["plan"]
-    platform.client.plan.side_effect = AgentServiceError("offline")
+    platform.planner_backend.plan.side_effect = AgentServiceError("offline")
     result = send(service, workspace, "改成方屏", "two")
     assert result["retryable"]
     assert platform.store.get("plans", original["id"])["status"] == "awaiting_confirmation"
@@ -133,7 +133,7 @@ def test_bad_references_never_fall_back(setup, ui):
     platform, service, workspace, _ = setup
     result = send(service, workspace, "合成为竖屏", uiContext=ui)
     assert result["action"] == "clarification"
-    platform.client.plan.assert_not_called()
+    platform.planner_backend.plan.assert_not_called()
 
 
 def test_selection_is_bound_to_plan_hash_and_approval(setup):
@@ -165,7 +165,7 @@ def test_vague_confirmation_never_exports(setup):
     platform, service, workspace, _ = setup
     result = send(service, workspace, "可以")
     assert result["action"] == "clarification"
-    platform.client.plan.assert_not_called()
+    platform.planner_backend.plan.assert_not_called()
 
 
 def test_pending_conflicts_are_not_silently_merged(setup):
@@ -202,7 +202,7 @@ def test_preview_time_question_does_not_become_source_edit(setup):
     platform, service, workspace, _ = setup
     result = send(service, workspace, "这里为什么不对", uiContext={"timeDomain": "preview", "timelineSelection": {"start": 1, "end": 2}})
     assert result["action"] == "answer"
-    platform.client.plan.assert_not_called()
+    platform.planner_backend.plan.assert_not_called()
 
 
 def test_review_explicitly_rebinds_new_evidence(setup):
@@ -238,8 +238,8 @@ def test_output_revision_keeps_aspect_and_binds_its_timeline(setup):
 def test_missing_addon_releases_revision_reservation(setup):
     platform, service, workspace, _ = setup
     original = send(service, workspace, "找到目标片段")["plan"]
-    platform._compose_skills = Mock(side_effect=ValueError("缺少执行能力"))
-    result = send(service, workspace, "改成方屏", "two")
+    with patch("app.agent.platform.compose_skills", side_effect=ValueError("缺少执行能力")):
+        result = send(service, workspace, "改成方屏", "two")
     assert result["retryable"]
     assert not service.workspace(workspace).get("planningRequestId")
     assert platform.store.get("plans", original["id"])["status"] == "awaiting_confirmation"

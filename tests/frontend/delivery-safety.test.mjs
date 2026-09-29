@@ -9,10 +9,10 @@ const source = readFileSync(new URL("../../static/app.js", import.meta.url), "ut
 const finalize = source.slice(source.indexOf("async function finalizePreviewVersion("), source.indexOf("async function regenerateMissingAutoVariants("));
 
 test("synthetic Agent previews use their session, never a fabricated version API", async () => {
-  const dispatcher = source.slice(source.indexOf("window.ClipTalkVersionAction ="), source.indexOf("function renderOutputPreviewSelector("));
+  const dispatcher = source.slice(source.indexOf("window.ChatClipVersionAction ="), source.indexOf("function renderOutputPreviewSelector("));
   const calls = [];
   const entry = { version: { id: "agent-review-previews", previewOnly: true }, output: { filename: "agent.mp4", previewOnly: true } };
-  const context = { window: { ClipTalkOpenAgentTimeline: options => calls.push(["session", options.sessionId]) },
+  const context = { window: { ChatClipOpenAgentTimeline: options => calls.push(["session", options.sessionId]) },
     locateJobOutput: () => entry, sourceEditSessionForOutput: () => ({ id: "real-session" }),
     exportAgentReviewPreview: output => calls.push(["render", output.filename]),
     openSecondaryEditor: () => assert.fail("Synthetic version sent to normal editor"),
@@ -20,11 +20,11 @@ test("synthetic Agent previews use their session, never a fabricated version API
   };
   vm.createContext(context);
   vm.runInContext(dispatcher, context);
-  await context.window.ClipTalkVersionAction("agent.mp4", "edit");
-  await context.window.ClipTalkVersionAction("agent.mp4", "export");
+  await context.window.ChatClipVersionAction("agent.mp4", "edit");
+  await context.window.ChatClipVersionAction("agent.mp4", "export");
   assert.deepEqual(calls, [["session", "real-session"], ["render", "agent.mp4"]]);
   context.sourceEditSessionForOutput = () => null;
-  await context.window.ClipTalkVersionAction("agent.mp4", "edit");
+  await context.window.ChatClipVersionAction("agent.mp4", "edit");
   assert.match(calls.at(-1)[1], /缺少可编辑/);
 });
 
@@ -150,7 +150,7 @@ test("per-export choices are editable, isolated and frozen at confirmation", asy
     await page.setContent('<ul id="details"></ul><select id="subtitleMode"><option value="burn">burn</option></select>');
     await page.addScriptTag({ content: stateSource });
     await page.evaluate(() => {
-      window.form = window.ClipTalkDelivery.mountOptions(document.querySelector("#details"), { subtitleMode: "none", subtitleStyle: "bold", outputFilename: "selected.mp4" });
+      window.form = window.ChatClipDelivery.mountOptions(document.querySelector("#details"), { subtitleMode: "none", subtitleStyle: "bold", outputFilename: "selected.mp4" });
     });
     await page.getByLabel("本次导出字幕").selectOption("burn");
     await page.getByLabel("本次导出样式").selectOption("social");

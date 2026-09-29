@@ -4,7 +4,7 @@ Version 1.1, 2026
 
 Copyright (C) 2026 GML-MMGroup
 
-This License applies to ClipTalk, including its source code, documentation, models, model weights, configuration files, assets, and other materials distributed with the project, unless otherwise explicitly stated.
+This License applies to ChatClip, including its source code, documentation, models, model weights, configuration files, assets, and other materials distributed with the project, unless otherwise explicitly stated.
 
 Everyone is permitted to copy and distribute verbatim copies of this License document, but modification of this License document is not permitted.
 
@@ -71,15 +71,15 @@ The original copyright notice and attribution to the original author and project
 
 All copies of the Software, including modified or derivative copies, must retain the following attribution:
 
-ClipTalk — Copyright (C) 2026 GML-MMGroup
+ChatClip — Copyright (C) 2026 GML-MMGroup
 
-Where the Software or any modified, adapted, trained, improved, evolved, or derivative version is published, distributed, shared, demonstrated, deployed, or otherwise made available to another person or entity, the recipient or audience must be reasonably informed that the work is based on ClipTalk.
+Where the Software or any modified, adapted, trained, improved, evolved, or derivative version is published, distributed, shared, demonstrated, deployed, or otherwise made available to another person or entity, the recipient or audience must be reasonably informed that the work is based on ChatClip.
 
 Such attribution must, where reasonably possible:
 
 a) identify GML-MMGroup as the original copyright holder or author;
 
-b) identify ClipTalk as the original project;
+b) identify ChatClip as the original project;
 
 c) retain the original copyright notice;
 
@@ -95,7 +95,7 @@ a) claim the original Software as your own work;
 
 b) remove or conceal the original attribution;
 
-c) falsely represent a derivative work as the original ClipTalk project; or
+c) falsely represent a derivative work as the original ChatClip project; or
 
 d) state or imply that GML-MMGroup has created, approved, sponsored, certified, or endorsed your modified or derivative version without explicit written permission.
 
@@ -127,7 +127,7 @@ a) this License;
 
 b) the original copyright notice;
 
-c) attribution to GML-MMGroup and ClipTalk; and
+c) attribution to GML-MMGroup and ChatClip; and
 
 d) a clear statement identifying any material modifications.
 
@@ -237,7 +237,7 @@ Modification, fine-tuning, retraining, adaptation, improvement, or evolution of 
 
 This License does not grant permission to use any trade name, trademark, service mark, logo, branding, or other identifying mark belonging to the copyright holder, except where reasonably necessary to identify the original source of the Software for attribution purposes.
 
-No modified or derivative work may be presented in a manner that falsely suggests that it is an official version of ClipTalk or is approved, sponsored, or endorsed by GML-MMGroup.
+No modified or derivative work may be presented in a manner that falsely suggests that it is an official version of ChatClip or is approved, sponsored, or endorsed by GML-MMGroup.
 
 11. Reservation of Rights
 
