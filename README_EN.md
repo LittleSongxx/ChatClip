@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="./assets/banner.png" alt="ChatClip" width="860" />
-
 # ChatClip
 
 **A plan-gated AI agent that turns natural language into finished video cuts.**

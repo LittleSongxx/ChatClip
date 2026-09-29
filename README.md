@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="./assets/banner_zh.png" alt="ChatClip" width="860" />
-
 # ChatClip
 
 **一个计划门控的 AI 剪辑 Agent：把一句话变成一条剪好的视频。**
