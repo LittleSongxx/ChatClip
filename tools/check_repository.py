@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 
-PROTECTED_FILES = ("README.md", "README_zh.md", "LICENSE")
+PROTECTED_FILES = ("README.md", "README_EN.md", "LICENSE")
 FORBIDDEN_PREFIXES = (
     "data/", "tmp/", "test-results/", "playwright-report/", "node_modules/",
     ".venv/", "venv/", "__pycache__/", ".pytest_cache/",

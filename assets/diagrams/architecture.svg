@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="620" viewBox="0 0 960 620" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5a6472"/>
+    </marker>
+  </defs>
+  <rect width="960" height="620" fill="#ffffff"/>
+  <text x="480" y="34" text-anchor="middle" font-size="21" font-weight="700" fill="#1c2430">ChatClip 系统架构 · System Architecture</text>
+  <text x="480" y="54" text-anchor="middle" font-size="12" fill="#7a8494">单进程 FastAPI 应用，无独立 Agent 服务 · Single-process FastAPI, no sidecar agent service</text>
+
+  <!-- Browser -->
+  <rect x="330" y="76" width="300" height="58" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.6"/>
+  <text x="480" y="100" text-anchor="middle" font-size="14" font-weight="600" fill="#24448c">浏览器工作台 · Browser Workspace</text>
+  <text x="480" y="120" text-anchor="middle" font-size="11.5" fill="#4a5a78">static/ 原生 JS 单页应用（对话 · 时间线 · 审阅）</text>
+
+  <line x1="480" y1="134" x2="480" y2="166" stroke="#5a6472" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="497" y="154" font-size="11" fill="#5a6472">HTTP / SSE 事件流</text>
+
+  <!-- API layer -->
+  <rect x="300" y="168" width="360" height="52" rx="10" fill="#f2f4f8" stroke="#8a94a6" stroke-width="1.5"/>
+  <text x="480" y="190" text-anchor="middle" font-size="13.5" font-weight="600" fill="#3c4658">薄路由层 · Thin Routes</text>
+  <text x="480" y="208" text-anchor="middle" font-size="11.5" fill="#5a6472">app/*_api.py — 任务 / Agent / 设置 / 媒体</text>
+
+  <!-- Three middle boxes -->
+  <line x1="480" y1="220" x2="180" y2="252" stroke="#5a6472" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="480" y1="220" x2="480" y2="252" stroke="#5a6472" stroke-width="1.4" marker-end="url(#arr)"/>
+  <line x1="480" y1="220" x2="780" y2="252" stroke="#5a6472" stroke-width="1.4" marker-end="url(#arr)"/>
+
+  <!-- Agent domain -->
+  <rect x="40" y="254" width="280" height="168" rx="12" fill="#eaf3ff" stroke="#2f6bd8" stroke-width="1.8"/>
+  <text x="180" y="280" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1d4fae">app/agent/ · LangGraph 编排域</text>
+  <text x="180" y="302" text-anchor="middle" font-size="11.5" fill="#33507e">规划器（强制工具调用）</text>
+  <text x="180" y="320" text-anchor="middle" font-size="11.5" fill="#33507e">确定性计划编译器 + 24 技能注册表</text>
+  <text x="180" y="338" text-anchor="middle" font-size="11.5" fill="#33507e">人工门 interrupt() / Command 恢复</text>
+  <text x="180" y="356" text-anchor="middle" font-size="11.5" fill="#33507e">持久操作日志 · CAS · 执行预算</text>
+  <text x="180" y="374" text-anchor="middle" font-size="11.5" fill="#33507e">重规划（≤2 次）· 四态状态投影</text>
+  <text x="180" y="402" text-anchor="middle" font-size="10.5" fill="#6b7d9e">Orchestration: planner · compiler · gates</text>
+
+  <!-- LLM layer -->
+  <rect x="344" y="254" width="272" height="168" rx="12" fill="#ecf9f1" stroke="#2e9e5b" stroke-width="1.8"/>
+  <text x="480" y="280" text-anchor="middle" font-size="14.5" font-weight="700" fill="#1d6e3f">app/llm/ · LangChain 模型层</text>
+  <text x="480" y="302" text-anchor="middle" font-size="11.5" fill="#2e5e42">Provider 工厂 × 角色预设</text>
+  <text x="480" y="320" text-anchor="middle" font-size="11.5" fill="#2e5e42">百炼 / DeepSeek / 智谱 / 方舟 / OpenAI</text>
+  <text x="480" y="338" text-anchor="middle" font-size="11.5" fill="#2e5e42">JSON 与多模态客户端 · 用量采集</text>
+  <text x="480" y="356" text-anchor="middle" font-size="11.5" fill="#2e5e42">模型发现 · 工具调用探针</text>
+  <text x="480" y="384" text-anchor="middle" font-size="10.5" fill="#5e8a70">Model layer: factory · clients · probes</text>
+
+  <!-- Tools layer -->
+  <rect x="640" y="254" width="280" height="168" rx="12" fill="#fff3e6" stroke="#e07b2a" stroke-width="1.8"/>
+  <text x="780" y="280" text-anchor="middle" font-size="14.5" font-weight="700" fill="#a85a14">app/agent_tools/ · 33 媒体工具</text>
+  <text x="780" y="304" text-anchor="middle" font-size="11.5" fill="#8a5a28">内容检索 · 身份选择 · 时间线</text>
+  <text x="780" y="322" text-anchor="middle" font-size="11.5" fill="#8a5a28">字幕 · 封面 · 画幅 · 动效</text>
+  <text x="780" y="340" text-anchor="middle" font-size="11.5" fill="#8a5a28">音频优化 · 导出 · 交付质检</text>
+  <text x="780" y="358" text-anchor="middle" font-size="11.5" fill="#8a5a28">sideEffect 分级：read→export 门控</text>
+  <text x="780" y="386" text-anchor="middle" font-size="10.5" fill="#a5825c">Media tools by domain, effect-gated</text>
+
+  <!-- Kernel -->
+  <line x1="780" y1="422" x2="780" y2="452" stroke="#5a6472" stroke-width="1.6" marker-end="url(#arr)"/>
+  <line x1="180" y1="422" x2="180" y2="452" stroke="#5a6472" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="120" y="454" width="720" height="60" rx="10" fill="#f4f2fa" stroke="#7a6bb5" stroke-width="1.7"/>
+  <text x="480" y="479" text-anchor="middle" font-size="14" font-weight="700" fill="#4c3f85">app/main.py · 媒体内核 Media Kernel</text>
+  <text x="480" y="499" text-anchor="middle" font-size="11.5" fill="#5d5484">任务生命周期 · 高光分析 · 内容检索 · SenseVoice 语音 · 多模态识别 · FFmpeg 渲染 · 质检</text>
+
+  <!-- Storage row -->
+  <line x1="480" y1="514" x2="480" y2="540" stroke="#5a6472" stroke-width="1.6" marker-end="url(#arr)"/>
+  <rect x="60" y="542" width="260" height="52" rx="9" fill="#f2f4f8" stroke="#8a94a6" stroke-width="1.4"/>
+  <text x="190" y="563" text-anchor="middle" font-size="12" font-weight="600" fill="#3c4658">SQLite 事实存储</text>
+  <text x="190" y="581" text-anchor="middle" font-size="10.5" fill="#5a6472">任务 · 队列 · AgentStore（实体+事件同事务）</text>
+  <rect x="350" y="542" width="260" height="52" rx="9" fill="#f2f4f8" stroke="#8a94a6" stroke-width="1.4"/>
+  <text x="480" y="563" text-anchor="middle" font-size="12" font-weight="600" fill="#3c4658">图检查点 graph.sqlite3</text>
+  <text x="480" y="581" text-anchor="middle" font-size="10.5" fill="#5a6472">interrupt 暂停点跨重启恢复（0600 权限）</text>
+  <rect x="640" y="542" width="260" height="52" rx="9" fill="#f2f4f8" stroke="#8a94a6" stroke-width="1.4"/>
+  <text x="770" y="563" text-anchor="middle" font-size="12" font-weight="600" fill="#3c4658">云端模型 API（可选）</text>
+  <text x="770" y="581" text-anchor="middle" font-size="10.5" fill="#5a6472">qwen3-vl-max · deepseek-flash · qwen3.8-max</text>
+</svg>

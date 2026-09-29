@@ -44,7 +44,7 @@ invent a parallel installation procedure.
   deleting data. Never run `docker compose down -v` as routine cleanup.
 - Do not stop unrelated processes to reclaim a port. Report the owning process
   or offer a different port.
-- Preserve `README.md`, `README_zh.md`, and `LICENSE` unless the user explicitly
+- Preserve `README.md`, `README_EN.md`, and `LICENSE` unless the user explicitly
   asks to modify them. Do not publish local tests, screenshots, videos, secrets,
   or runtime data when preparing a release.
 
@@ -53,7 +53,7 @@ invent a parallel installation procedure.
 - 使用 `sudo`、修改系统软件、开放远程端口、切换部署方式或删除数据前，
   必须先取得用户确认。
 - 不要为了释放端口而结束不属于本次启动的进程。
-- 未经明确要求，不修改 `README.md`、`README_zh.md` 和 `LICENSE`。
+- 未经明确要求，不修改 `README.md`、`README_EN.md` 和 `LICENSE`。
 
 ## Verification and handoff / 验证与交付
 

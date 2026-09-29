@@ -6,8 +6,8 @@ import octicons from "@primer/octicons";
 
 const toolDirectory = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(toolDirectory, "..");
-const sourcePath = resolve(projectRoot, "README_zh.md");
-const outputPath = resolve(projectRoot, "README_zh-preview.html");
+const sourcePath = resolve(projectRoot, "README.md");
+const outputPath = resolve(projectRoot, "README-preview.html");
 const indexPath = resolve(projectRoot, "index.html");
 const assetDirectory = resolve(projectRoot, "readme-preview-assets");
 
@@ -107,8 +107,8 @@ const html = `<!doctype html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="description" content="ChatClip README_zh.md GitHub-style preview" />
-    <title>ChatClip / README_zh.md</title>
+    <meta name="description" content="ChatClip README.md GitHub-style preview" />
+    <title>ChatClip / README.md</title>
     <link rel="stylesheet" href="./node_modules/@primer/css/dist/primer.css" />
     <style>
       :root { --preview-width: 1280px; }
@@ -180,22 +180,22 @@ const html = `<!doctype html>
   </head>
   <body>
     <header class="gh-global">
-      <a class="gh-mark" href="https://github.com/GML-MMGroup/ChatClip" aria-label="GitHub repository">${githubMark}</a>
+      <a class="gh-mark" href="https://github.com/LittleSongxx/ChatClip" aria-label="GitHub repository">${githubMark}</a>
       <div class="gh-search">Type / to search</div>
       <nav aria-label="Global navigation"><a href="https://github.com/pulls">Pull requests</a><a href="https://github.com/issues">Issues</a></nav>
     </header>
     <section class="repo-header">
-      <div class="repo-identity"><a href="https://github.com/GML-MMGroup">GML-MMGroup</a><span>/</span><a href="https://github.com/GML-MMGroup/ChatClip">ChatClip</a><span class="visibility">Public</span></div>
+      <div class="repo-identity"><a href="https://github.com/GML-MMGroup">GML-MMGroup</a><span>/</span><a href="https://github.com/LittleSongxx/ChatClip">ChatClip</a><span class="visibility">Public</span></div>
       <nav class="repo-nav" aria-label="Repository navigation"><a class="active" href="#">Code</a><a href="#">Issues</a><a href="#">Pull requests</a><a href="#">Actions</a><a href="#">Projects</a><a href="#">Security</a><a href="#">Insights</a></nav>
     </section>
     <main class="page">
-      <div class="file-path"><a href="https://github.com/GML-MMGroup/ChatClip">ChatClip</a><span>/</span><strong>README_zh.md</strong></div>
+      <div class="file-path"><a href="https://github.com/LittleSongxx/ChatClip">ChatClip</a><span>/</span><strong>README.md</strong></div>
       <section class="file-shell" id="fileShell" data-view="preview">
-        <header class="file-toolbar"><strong>README_zh.md</strong><small>GitHub-style local preview</small><div class="view-tabs" role="tablist" aria-label="README view"><button id="previewTab" type="button" role="tab" aria-selected="true">Preview</button><button id="sourceTab" type="button" role="tab" aria-selected="false">Code</button></div></header>
+        <header class="file-toolbar"><strong>README.md</strong><small>GitHub-style local preview</small><div class="view-tabs" role="tablist" aria-label="README view"><button id="previewTab" type="button" role="tab" aria-selected="true">Preview</button><button id="sourceTab" type="button" role="tab" aria-selected="false">Code</button></div></header>
         <div class="readme-frame"><article class="markdown-body entry-content container-lg">${article}</article></div>
         <pre class="source-view" id="sourceView"><code>${sourceEscaped}</code></pre>
       </section>
-      <footer class="preview-footer">由 README_zh.md 生成 · ${escapeHtml(generatedAt)} UTC</footer>
+      <footer class="preview-footer">由 README.md 生成 · ${escapeHtml(generatedAt)} UTC</footer>
     </main>
     <script>
       const shell = document.getElementById("fileShell");

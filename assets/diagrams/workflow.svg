@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="700" viewBox="0 0 960 700" font-family="'PingFang SC','Microsoft YaHei','Noto Sans CJK SC',sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5a6472"/>
+    </marker>
+  </defs>
+  <rect width="960" height="700" fill="#ffffff"/>
+  <text x="480" y="34" text-anchor="middle" font-size="21" font-weight="700" fill="#1c2430">Agent 工作流 · Plan-Gated Workflow</text>
+  <text x="480" y="54" text-anchor="middle" font-size="12" fill="#7a8494">每个剪辑计划先审批后执行，导出/删除永不自动 · Every plan is approved before execution; exports are never autonomous</text>
+
+  <!-- Step 1 -->
+  <rect x="70" y="76" width="240" height="54" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.6"/>
+  <text x="190" y="99" text-anchor="middle" font-size="13.5" font-weight="600" fill="#24448c">① 用户描述剪辑目标</text>
+  <text x="190" y="118" text-anchor="middle" font-size="11" fill="#4a5a78">“剪 60 秒高光 / 只留主持人发言”</text>
+
+  <line x1="190" y1="130" x2="190" y2="152" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Step 2 -->
+  <rect x="70" y="154" width="240" height="54" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.6"/>
+  <text x="190" y="177" text-anchor="middle" font-size="13.5" font-weight="600" fill="#24448c">② 理解与技能路由</text>
+  <text x="190" y="196" text-anchor="middle" font-size="11" fill="#4a5a78">brief 确定性解析 · 24 Skills 路由</text>
+
+  <line x1="190" y1="208" x2="190" y2="230" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Step 3 -->
+  <rect x="70" y="232" width="240" height="54" rx="10" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.6"/>
+  <text x="190" y="255" text-anchor="middle" font-size="13.5" font-weight="600" fill="#24448c">③ 计划编译</text>
+  <text x="190" y="274" text-anchor="middle" font-size="11" fill="#4a5a78">确定性骨架 + LLM 策略 · 步骤可审计</text>
+
+  <line x1="190" y1="286" x2="190" y2="308" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Gate: approval -->
+  <polygon points="190,310 320,352 190,394 60,352" fill="#fdeeee" stroke="#c94a4a" stroke-width="1.8"/>
+  <text x="190" y="347" text-anchor="middle" font-size="13" font-weight="700" fill="#a13636">④ 审批门</text>
+  <text x="190" y="366" text-anchor="middle" font-size="10.5" fill="#8a4a4a">interrupt · planHash+素材指纹绑定</text>
+
+  <line x1="190" y1="394" x2="190" y2="422" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="205" y="412" font-size="10.5" fill="#5a6472">确认</text>
+  <line x1="60" y1="352" x2="26" y2="352" stroke="#c94a4a" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="26" y1="352" x2="26" y2="250" stroke="#c94a4a" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="26" y1="250" x2="64" y2="250" stroke="#c94a4a" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text x="20" y="300" font-size="10" fill="#a13636" transform="rotate(-90 20 300)" text-anchor="middle">素材变化 → 拒绝并重新规划</text>
+
+  <!-- Step 5: execution loop -->
+  <rect x="70" y="424" width="240" height="76" rx="10" fill="#fff3e6" stroke="#e07b2a" stroke-width="1.8"/>
+  <text x="190" y="449" text-anchor="middle" font-size="13.5" font-weight="700" fill="#a85a14">⑤ 步骤执行循环</text>
+  <text x="190" y="468" text-anchor="middle" font-size="11" fill="#8a5a28">33 媒体工具按依赖单步执行</text>
+  <text x="190" y="486" text-anchor="middle" font-size="11" fill="#8a5a28">操作日志 CAS · 执行时限 · token 记账</text>
+
+  <!-- side gates -->
+  <line x1="310" y1="462" x2="386" y2="462" stroke="#5a6472" stroke-width="1.4" marker-end="url(#a)"/>
+  <polygon points="452,424 542,443 452,462 362,443" fill="#fdeeee" stroke="#c94a4a" stroke-width="1.6"/>
+  <text x="452" y="440" text-anchor="middle" font-size="11.5" font-weight="600" fill="#a13636">动作门</text>
+  <text x="452" y="456" text-anchor="middle" font-size="9.5" fill="#8a4a4a">身份/审核确认</text>
+  <polygon points="452,470 542,489 452,508 362,489" fill="#eef4ff" stroke="#3b6fd4" stroke-width="1.6"/>
+  <text x="452" y="486" text-anchor="middle" font-size="11.5" font-weight="600" fill="#24448c">操作门</text>
+  <text x="452" y="502" text-anchor="middle" font-size="9.5" fill="#4a5a78">后台渲染停靠</text>
+  <line x1="542" y1="489" x2="590" y2="489" stroke="#5a6472" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="590" y1="489" x2="590" y2="530" stroke="#5a6472" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="590" y1="530" x2="312" y2="530" stroke="#5a6472" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <line x1="312" y1="530" x2="312" y2="500" stroke="#5a6472" stroke-width="1.3" stroke-dasharray="4 3" marker-end="url(#a)"/>
+  <text x="452" y="524" text-anchor="middle" font-size="9.5" fill="#5a6472">完成/取消后恢复图</text>
+
+  <!-- replan branch -->
+  <path d="M 190 500 L 190 536 L 100 536 L 100 560" fill="none" stroke="#c9822a" stroke-width="1.4" marker-end="url(#a)"/>
+  <rect x="40" y="562" width="140" height="44" rx="9" fill="#fdf6e9" stroke="#c9822a" stroke-width="1.5"/>
+  <text x="110" y="580" text-anchor="middle" font-size="11" font-weight="600" fill="#9a6414">失败 → 重规划 ≤2 次</text>
+  <text x="110" y="597" text-anchor="middle" font-size="9.5" fill="#9a7a3a">重大变更回审批门</text>
+  <path d="M 110 562 L 110 420 L 66 420" fill="none" stroke="#c9822a" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+  <line x1="190" y1="500" x2="190" y2="626" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- Step 6 -->
+  <rect x="70" y="628" width="240" height="52" rx="10" fill="#ecf9f1" stroke="#2e9e5b" stroke-width="1.8"/>
+  <text x="190" y="650" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1d6e3f">⑥ 审核样片（水印）</text>
+  <text x="190" y="669" text-anchor="middle" font-size="11" fill="#2e5e42">追问可原位返修时间线</text>
+
+  <!-- right column: final gate + export -->
+  <line x1="310" y1="654" x2="386" y2="654" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+  <polygon points="452,616 556,654 452,692 348,654" fill="#fdeeee" stroke="#c94a4a" stroke-width="1.8"/>
+  <text x="452" y="650" text-anchor="middle" font-size="12.5" font-weight="700" fill="#a13636">⑦ 导出确认门</text>
+  <text x="452" y="668" text-anchor="middle" font-size="10" fill="#8a4a4a">明确授权后正式导出</text>
+  <line x1="556" y1="654" x2="620" y2="654" stroke="#5a6472" stroke-width="1.5" marker-end="url(#a)"/>
+  <rect x="622" y="628" width="268" height="52" rx="10" fill="#ecf9f1" stroke="#2e9e5b" stroke-width="1.8"/>
+  <text x="756" y="650" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1d6e3f">成片交付</text>
+  <text x="756" y="669" text-anchor="middle" font-size="11" fill="#2e5e42">正式版本 · 字幕文件 · 封面 · 质检报告</text>
+
+  <!-- right rail: reliability -->
+  <rect x="622" y="76" width="288" height="330" rx="12" fill="#f7f8fa" stroke="#8a94a6" stroke-width="1.4" stroke-dasharray="6 3"/>
+  <text x="766" y="102" text-anchor="middle" font-size="13" font-weight="700" fill="#3c4658">护栏与可观测 · Guardrails</text>
+  <text x="766" y="128" text-anchor="middle" font-size="11" fill="#5a6472">• 计划哈希绑定工具目录+提示词版本</text>
+  <text x="766" y="150" text-anchor="middle" font-size="11" fill="#5a6472">• 审批校验素材指纹（contextFingerprint）</text>
+  <text x="766" y="172" text-anchor="middle" font-size="11" fill="#5a6472">• 动作确认 receipt 绑定步骤出现代</text>
+  <text x="766" y="194" text-anchor="middle" font-size="11" fill="#5a6472">• 迟到操作结果记 late 并阻断</text>
+  <text x="766" y="216" text-anchor="middle" font-size="11" fill="#5a6472">• 单计划 wall-clock 时限</text>
+  <text x="766" y="238" text-anchor="middle" font-size="11" fill="#5a6472">• 每工作区消息限流</text>
+  <text x="766" y="260" text-anchor="middle" font-size="11" fill="#5a6472">• Run 级 trace：模型指纹/token/时长</text>
+  <text x="766" y="282" text-anchor="middle" font-size="11" fill="#5a6472">• 实体+事件同事务原子写</text>
+  <text x="766" y="304" text-anchor="middle" font-size="11" fill="#5a6472">• 凭据不入图检查点（0600 权限）</text>
+  <text x="766" y="326" text-anchor="middle" font-size="11" fill="#5a6472">• 无结果诚实返回（系统错误不伪装）</text>
+  <text x="766" y="352" text-anchor="middle" font-size="10.5" fill="#8a94a6">删除任务级联清理计划/事件/检查点</text>
+  <text x="766" y="372" text-anchor="middle" font-size="10.5" fill="#8a94a6">1342 项测试护栏 · 306 项前端契约</text>
+
+  <!-- middle-right: models strip -->
+  <rect x="622" y="424" width="288" height="76" rx="10" fill="#ecf9f1" stroke="#2e9e5b" stroke-width="1.5"/>
+  <text x="766" y="449" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1d6e3f">推荐模型主线（2 个账号）</text>
+  <text x="766" y="470" text-anchor="middle" font-size="10.5" fill="#2e5e42">视觉 qwen3-vl-max@百炼 · 规划 deepseek-flash</text>
+  <text x="766" y="488" text-anchor="middle" font-size="10.5" fill="#2e5e42">Agent qwen3.8-max@百炼 · 各留一降级候选</text>
+</svg>
