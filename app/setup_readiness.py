@@ -66,7 +66,7 @@ def _write_agent_probe(path: Path, model: dict[str, Any], result: dict[str, Any]
         "version": 1,
         "fingerprint": model_fingerprint(model),
         "toolCalling": bool(result.get("toolCalling")),
-        "piVersion": str(result.get("piVersion") or ""),
+        "runtime": str(result.get("runtime") or ""),
     }
     descriptor, temporary_name = tempfile.mkstemp(prefix=".agent-probe-", dir=path.parent)
     temporary = Path(temporary_name)

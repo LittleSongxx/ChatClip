@@ -56,7 +56,7 @@ def parse_skill_markdown(markdown: str) -> dict[str, Any]:
 class AgentStore:
     """Durable Agent registry, plan, run and event store."""
 
-    ENTITY_TABLES = frozenset({"workspaces", "skills", "plugins", "plans", "runs"})
+    ENTITY_TABLES = frozenset({"workspaces", "skills", "plans", "runs"})
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -80,6 +80,9 @@ class AgentStore:
                 "CREATE INDEX IF NOT EXISTS events_workspace_sequence "
                 "ON events(workspace_id,sequence)"
             )
+            # The plugin sandbox was removed with the LangGraph rewrite;
+            # drop the legacy table when upgrading an existing data directory.
+            connection.execute("DROP TABLE IF EXISTS plugins")
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=15)
@@ -149,6 +152,34 @@ class AgentStore:
             "sequence": sequence, "workspaceId": workspace_id,
             "type": event_type, "payload": payload, "createdAt": timestamp,
         }
+
+    def delete_events(self, workspace_id: str) -> int:
+        """Delete the event stream of one workspace (task deletion cascade)."""
+        with self.lock, self._connect() as connection:
+            cursor = connection.execute(
+                "DELETE FROM events WHERE workspace_id=?", (workspace_id,),
+            )
+        return cursor.rowcount
+
+    def purge_workspace(self, workspace_id: str) -> int:
+        """Remove a workspace with its plans, runs and events; return plan count."""
+        plan_ids = [
+            str(item["id"]) for item in self.list(
+                "plans", predicate=lambda item: str(item.get("workspaceId") or "") == workspace_id,
+            )
+        ]
+        run_ids = [
+            str(item["id"]) for item in self.list(
+                "runs", predicate=lambda item: str(item.get("workspaceId") or "") == workspace_id,
+            )
+        ]
+        with self.lock, self._connect() as connection:
+            for table, ids in (("plans", plan_ids), ("runs", run_ids)):
+                for item_id in ids:
+                    connection.execute(f"DELETE FROM {table} WHERE id=?", (item_id,))
+            connection.execute("DELETE FROM events WHERE workspace_id=?", (workspace_id,))
+            connection.execute("DELETE FROM workspaces WHERE id=?", (workspace_id,))
+        return len(plan_ids)
 
     def events_after(
         self, workspace_id: str, sequence: int = 0, *, limit: int = 200,

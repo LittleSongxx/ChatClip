@@ -83,7 +83,15 @@ class LangChainPlannerBackend:
         return planner_module.generate_skill_markdown(payload, model_config=model_config)
 
     def probe(self, model_config: dict[str, Any]) -> dict[str, Any]:
-        return self.planner_backend.probe(model_config)
+        return planner_module.probe_tool_calling(model_config)
+
+    def tool_calling_verified(self) -> bool:
+        """Whether the current agent model passed a saved tool-calling probe."""
+        from ..setup_readiness import agent_probe_ready
+
+        return agent_probe_ready(
+            self.data_root / "agent-probe.json", self.model_config_resolver(),
+        )
 
 
 class AgentPlatform:
@@ -111,7 +119,9 @@ class AgentPlatform:
         # lock until the owning invoke parks at its operation-gate interrupt
         # instead of racing a still-running dispatch node.
         self._graph_driver = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="chatclip-agent-graph",
+            # Per-plan thread locks keep one plan's deliveries serialized;
+            # different plans may resume in parallel.
+            max_workers=4, thread_name_prefix="chatclip-agent-graph",
         )
         self._checkpointer_context = SqliteSaver.from_conn_string(
             str(self.data_root / "graph.sqlite3"),
@@ -119,6 +129,13 @@ class AgentPlatform:
         self.checkpointer = self._checkpointer_context.__enter__()
         self.planner_backend = LangChainPlannerBackend()
         self.graph = build_agent_graph(self)
+        # Agent state can embed prompts and tool payloads; keep it private.
+        try:
+            self.data_root.chmod(0o700)
+            for name in ("agent.sqlite3", "graph.sqlite3"):
+                (self.data_root / name).chmod(0o600)
+        except OSError:
+            pass
 
     def close(self) -> None:
         # Wait for in-flight Future deliveries so callers observe quiescence
@@ -158,6 +175,49 @@ class AgentPlatform:
             # Agent orchestration must not lose a completed plan merely because
             # the presentation-side job summary could not be refreshed.
             return
+
+    _VOLATILE_CONTEXT_KEYS = frozenset({
+        "available", "jobStatus", "updatedAt", "status", "stage", "progress",
+        "message", "error", "lastSearchStatus", "lastSearchMessage",
+        "lastSearchClarification", "planningProgress", "completedAt",
+        "startedAt", "coverageComplete", "speechModelStatus",
+    })
+
+    def _model_fingerprint(self) -> str:
+        model = self.model_config_resolver()
+        return content_hash(json.dumps({
+            "provider": model.get("provider"), "model": model.get("model"),
+            "baseUrl": model.get("baseUrl"), "thinkingType": model.get("thinkingType"),
+        }, ensure_ascii=False, sort_keys=True))
+
+    @classmethod
+    def _context_fingerprint(cls, context: dict[str, Any]) -> str:
+        """Hash the material facts of a planning context.
+
+        Volatile progress/status markers are dropped so ordinary polling
+        noise cannot invalidate a plan, while evidence volumes, editing
+        state, source identity and the frozen input context remain bound.
+        """
+
+        def sanitize(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {
+                    key: sanitize(item)
+                    for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+                    if key not in cls._VOLATILE_CONTEXT_KEYS
+                }
+            if isinstance(value, list):
+                return [sanitize(item) for item in value]
+            if isinstance(value, (str, int, float, bool)) or value is None:
+                return value
+            return str(value)
+
+        projection = {
+            key: sanitize(context.get(key))
+            for key in ("sourceHash", "duration", "editing", "evidence",
+                        "speaker", "people", "inputContext", "delivery")
+        }
+        return content_hash(json.dumps(projection, ensure_ascii=False, sort_keys=True, default=str))
 
     def _planning_context(self, job_id: str) -> dict[str, Any]:
         provider = self._planning_context_provider
@@ -318,6 +378,29 @@ class AgentPlatform:
         self._notify_workspace_state(workspace)
         return workspace
 
+    def purge_job_data(self, job_id: str) -> int:
+        """Delete every workspace, plan, run, event and checkpoint of a job.
+
+        Called from the task-deletion path so removing a video also removes
+        the agent-side goals, tool payloads and graph state about it.
+        """
+        purged_plans = 0
+        for workspace in self.store.list(
+            "workspaces", predicate=lambda item: str(item.get("jobId") or "") == str(job_id),
+        ):
+            workspace_id = str(workspace["id"])
+            for plan in self.store.list(
+                "plans", predicate=lambda item: str(item.get("workspaceId") or "") == workspace_id,
+            ):
+                self._cancel_plan_operations(str(plan["id"]))
+                thread_id = self._plan_thread_id(plan)
+                try:
+                    self.checkpointer.delete_thread(thread_id)
+                except Exception:  # noqa: BLE001 - checkpoint may not exist
+                    pass
+            purged_plans += self.store.purge_workspace(workspace_id)
+        return purged_plans
+
     def workspace_for_job(self, job_id: str) -> dict[str, Any] | None:
         return next((
             item for item in self.store.list("workspaces")
@@ -333,6 +416,7 @@ class AgentPlatform:
         workspace["jobId"] = job_id
         if source_job_id:
             workspace.setdefault("sourceJobId", source_job_id)
+        workspace["revision"] = int(workspace.get("revision") or 1) + 1
         workspace = self.store.save("workspaces", workspace)
         plan = self.store.get("plans", str(workspace.get("activePlanId") or ""))
         self._notify_workspace_state(workspace, plan)
@@ -477,7 +561,6 @@ class AgentPlatform:
                 skill, brief=brief, context=planning_context,
                 enabled_skill_for_kind=self._enabled_skill_for_kind,
             )
-            model = self.model_config_resolver()
             catalog = tool_catalog()
         except Exception:
             self.release_plan_request(
@@ -504,7 +587,9 @@ class AgentPlatform:
             "planningContext": planning_context, "brief": brief,
             "executionMode": normalized_mode,
             "profile": {"kind": profile["kind"], "managed": bool(profile["managed"]), "allowedTools": allowed_tools},
-            "toolCatalog": catalog, "model": model,
+            # Model credentials are resolved at planning time via
+            # model_config_resolver(); never persist them into graph state.
+            "toolCatalog": catalog,
         }
         return workspace, skill, payload
 
@@ -638,6 +723,9 @@ class AgentPlatform:
         # Bind review approval to the actual selection and output version.
         if frozen:
             plan["planHash"] = content_hash(plan["planHash"] + json.dumps(frozen, sort_keys=True, ensure_ascii=False))
+        # Material-facts fingerprint: approval revalidates it so a plan
+        # cannot be confirmed against stale evidence or edit state.
+        plan["contextFingerprint"] = self._context_fingerprint(context)
         with self._execution_lock:
             latest_workspace = self.store.get("workspaces", workspace_id)
             expected_request = str(workspace.get("planningRequestId") or "")
@@ -908,7 +996,15 @@ class AgentPlatform:
             self._finish_plan(plan, "failed")
 
     def probe(self, model_config: dict[str, Any]) -> dict[str, Any]:
-        return self.planner_backend.probe(model_config)
+        return planner_module.probe_tool_calling(model_config)
+
+    def tool_calling_verified(self) -> bool:
+        """Whether the current agent model passed a saved tool-calling probe."""
+        from ..setup_readiness import agent_probe_ready
+
+        return agent_probe_ready(
+            self.data_root / "agent-probe.json", self.model_config_resolver(),
+        )
 
     # ------------------------------------------------------ plan lifecycle
 
@@ -935,11 +1031,24 @@ class AgentPlatform:
                 validator(plan)
             if not workspace or workspace.get("revision") != plan.get("workspaceRevision"):
                 raise ValueError("素材工作区已经变化，请重新规划")
+            expected_fingerprint = plan.get("contextFingerprint")
+            if expected_fingerprint:
+                refreshed_context = self._planning_context(str(workspace.get("jobId") or ""))
+                frozen = copy.deepcopy(plan.get("inputContext") or {})
+                refreshed_context["inputContext"] = frozen
+                if frozen.get("outputAspect"):
+                    refreshed_context["delivery"] = {"outputAspect": frozen["outputAspect"], "outputFit": frozen.get("outputFit", "blur")}
+                ranges = frozen.get("sourceRanges") or []
+                if len(ranges) == 1:
+                    refreshed_context.update({"sourceScope": "custom", "sourceRange": ranges[0]})
+                if self._context_fingerprint(refreshed_context) != expected_fingerprint:
+                    raise ValueError("素材证据或编辑状态已变化，原计划已过期；请重新规划后确认")
             plan["threadId"] = self._plan_thread_id(plan)
             plan["status"] = "approved"
             plan["approval"] = {
                 "approvedAt": now_iso(), "planHash": expected_hash,
                 "workspaceRevision": workspace["revision"],
+                "modelFingerprint": self._model_fingerprint(),
                 "executionMode": str(plan.get("executionMode") or STEPWISE_REVIEW),
                 "allowedTools": sorted({step["tool"] for step in plan["steps"]}),
                 "allowedSideEffects": sorted({step["sideEffect"] for step in plan["steps"]}),
@@ -1001,7 +1110,25 @@ class AgentPlatform:
             plan = self.store.get("plans", plan_id)
             if not plan:
                 raise KeyError(plan_id)
-            receipt = content_hash(json.dumps({"approved": approved, "value": value}, sort_keys=True, ensure_ascii=False))
+            context_for_receipt = value.get("context") if isinstance(value, dict) and isinstance(value.get("context"), dict) else {}
+            receipt_step_id = str(context_for_receipt.get("stepId") or "")
+            receipt_step = next(
+                (item for item in plan["steps"] if str(item.get("id") or "") == receipt_step_id),
+                None,
+            ) if receipt_step_id else None
+            if receipt_step is None:
+                receipt_step = next((item for item in plan["steps"] if item["status"] == "action_required"), None)
+            # attempts marks the gate occurrence: a replayed proposal is
+            # re-dispatched (attempts+1) and may legitimately be confirmed
+            # again with the same selection, while a pure duplicate submit
+            # keeps the same attempts and stays idempotent.
+            receipt = content_hash(json.dumps({
+                "planId": plan_id,
+                "planRevision": int(plan.get("revision") or 1),
+                "stepId": str((receipt_step or {}).get("id") or receipt_step_id),
+                "stepAttempts": int((receipt_step or {}).get("attempts") or 0),
+                "approved": approved, "value": value,
+            }, sort_keys=True, ensure_ascii=False))
             if approved and receipt in (plan.get("actionResolutionReceipts") or []):
                 return plan
             if plan.get("status") != "action_required":
@@ -1819,7 +1946,6 @@ class AgentPlatform:
                     "allowedTools": allowed_tools,
                 },
                 "toolCatalog": tool_catalog(),
-                "model": self.model_config_resolver(),
                 "replan": {
                     "completedSteps": [
                         {"id": item["id"], "tool": item["tool"], "result": item.get("result")}
@@ -1879,6 +2005,7 @@ class AgentPlatform:
         minor = (
             new_tools.issubset(set(approval.get("allowedTools") or []))
             and new_effects.issubset(set(approval.get("allowedSideEffects") or []))
+            and str(approval.get("modelFingerprint") or "") == self._model_fingerprint()
             and all(
                 dict(approval.get("skillHashes") or {}).get(str(item.get("id") or ""))
                 == str(item.get("contentHash") or "")

@@ -34,6 +34,27 @@ from .skills import (
 )
 
 
+# Conservative planning-time estimates (seconds) used by the replan budget
+# check; a replacement plan that grows beyond +25% of these forces
+# re-approval instead of silently continuing as a minor revision.
+TOOL_ESTIMATED_SECONDS: dict[str, int] = {
+    "inspect_workspace": 2, "analyze_highlights": 300, "search_content": 240,
+    "review_content_evidence": 60, "discover_people": 600, "select_people": 30,
+    "discover_speakers": 300, "select_speakers": 30, "select_multi_topic_evidence": 60,
+    "propose_timeline_edit": 180, "confirm_timeline_edit": 15,
+    "prepare_subtitle_review": 240, "layout_subtitles": 15,
+    "render_review_preview": 240, "render_social_preview": 180,
+    "propose_cover_candidates": 120, "render_cover_variants": 180,
+    "review_cover_variants": 30, "confirm_cover": 10, "compose_cover_intro": 120,
+    "analyze_reframe_safe_areas": 60, "polish_audio_mix": 240,
+    "propose_broll_overlay": 120, "render_graphics_package": 60,
+    "render_motion_graphics": 240, "compose_motion_intro": 180,
+    "export_subtitles": 15, "export_editing_draft": 15, "export_delivery_master": 240,
+    "run_delivery_qc": 90, "validate_task_provenance": 5,
+    "diagnose_edit_failure": 15, "cancel_operation": 5,
+}
+
+
 def replan_force_replay_tools(failed_step: dict[str, Any]) -> set[str]:
     """Invalidate an upstream artifact known to have caused the failure."""
     failed_tool = str(failed_step.get("tool") or "")
@@ -136,7 +157,8 @@ def compile_profile_plan(
         steps.append({
             "id": step_id, "title": title, "tool": tool, "arguments": arguments,
             "dependencies": list(dependencies) if dependencies is not None else ([steps[-1]["id"]] if steps else []), "expectedOutput": output,
-            "sideEffect": tool_map[tool]["sideEffect"], "estimatedSeconds": 0, "optional": False,
+            "sideEffect": tool_map[tool]["sideEffect"],
+            "estimatedSeconds": TOOL_ESTIMATED_SECONDS.get(tool, 60), "optional": False,
         })
         return step_id
 

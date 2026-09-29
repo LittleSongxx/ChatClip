@@ -23,7 +23,7 @@ def plan_system_prompt(payload: dict[str, Any]) -> str:
         "- 当前是规划阶段，禁止执行媒体分析、渲染、导出、删除或身份绑定。\n"
         "- 只能引用组合 Skill 能力档案允许的真实工具；不得绕过 allowed-tools。\n"
         "- 当前执行器一次只运行一个步骤，计划不得声称并行。\n"
-        "- 使用 brief 的 targetSeconds 与 durationToleranceSeconds，不得自行套用固定时长默认。\n"
+        "- 使用 brief 的 targetSeconds 与 durationToleranceSeconds；brief 未给出明确时长时不得自行套用固定时长默认（短视频 Hook 目标可按 30 秒以内把握节奏）。\n"
         "- 身份选择仅在 brief 明确限定人物/声音或 planningContext 表明置信度不足时出现一次。\n"
         "- 时间线必须先作为未应用草案提出，再经 confirm_timeline_edit 由用户确认已应用。"
         "字幕审核和审阅样片必须在时间线确认之后；正式导出不属于本计划。\n"

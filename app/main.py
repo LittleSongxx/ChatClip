@@ -3290,6 +3290,7 @@ def remove_job_storage(job_id: str, job: dict[str, Any]) -> None:
     job_store.delete(job_id)
     analysis_task_store.delete_job(job_id)
     render_task_store.delete_job(job_id)
+    agent_platform.purge_job_data(job_id)
     with jobs_lock:
         cancel_events.pop(job_id, None)
         analysis_futures.pop(job_id, None)
@@ -35179,7 +35180,11 @@ def dispatch_agent_tool(
             },
         }
     if tool_name == "cancel_operation":
-        return {"cancelled": True, "job": cancel_job(job_id).get("job")}
+        active_plan = agent_platform.active_plan_for_workspace(workspace)
+        if active_plan and str(active_plan.get("status") or "") in {"running", "action_required", "waiting_operation"}:
+            cancelled = agent_platform.cancel_plan(str(active_plan["id"]))
+            return {"cancelled": True, "plan": {"id": cancelled["id"], "status": cancelled["status"]}}
+        return {"cancelled": False, "message": "当前没有正在执行的 Agent 后台操作"}
     if tool_name in {"select_people", "select_speakers"}:
         if autonomous:
             search = snapshot.get("contentSearch") if isinstance(snapshot.get("contentSearch"), dict) else {}

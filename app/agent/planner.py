@@ -124,11 +124,18 @@ def _stream_tool_session(
         record({"type": "message.thinking_end"})
     merged = _merge_chunks(chunks)
     tool_calls = list(getattr(merged, "tool_calls", None) or [])
+    tool_name = tool["function"]["name"]
     record({"type": "message.toolcall", "tool": tool_calls[0]["name"] if tool_calls else ""})
     record({"type": "tool.started", "tool": tool_calls[0]["name"] if tool_calls else ""})
     if not tool_calls:
         record({"type": "tool.completed", "tool": "", "isError": True})
-        raise AgentPlannerError("Agent 未调用 %s；请确认模型支持 Tool Calling" % tool["function"]["name"])
+        raise AgentPlannerError("Agent 未调用 %s；请确认模型支持 Tool Calling" % tool_name)
+    if len(tool_calls) > 1:
+        names = ", ".join(str(call.get("name") or "") for call in tool_calls)
+        record({"type": "tool.completed", "tool": names, "isError": True})
+        raise AgentPlannerError(
+            f"模型返回了 {len(tool_calls)} 个工具调用（{names}）；必须恰好调用一次 {tool_name}"
+        )
     call = tool_calls[0]
     if call.get("name") != tool["function"]["name"]:
         record({"type": "tool.completed", "tool": str(call.get("name") or ""), "isError": True})

@@ -126,6 +126,7 @@ def build_agent_router(
                 "provider": str(model.get("provider") or ""),
                 "name": str(model.get("model") or ""),
             },
+            "toolCallingVerified": platform.tool_calling_verified(),
         }
 
     @router.get("/workspaces")
