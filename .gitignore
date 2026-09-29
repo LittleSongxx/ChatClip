@@ -33,6 +33,10 @@ cest-video/
 /*.avi
 /*.webm
 
+# Benchmark media assets: real videos stay local, only SOURCES.md is tracked
+benchmarks/media/*
+!benchmarks/media/SOURCES.md
+
 # Tests and temporary work
 test-results/
 playwright-report/

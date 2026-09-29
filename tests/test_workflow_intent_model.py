@@ -43,11 +43,33 @@ def test_workflow_intent_endpoint_uses_validated_model_result_and_cache() -> Non
         second = main.classify_workflow_intent(request)
 
     assert first["decision"]["workflowKind"] == "content_search"
+    assert first["decision"]["rawWorkflowKind"] == "content_search"
     assert first["decision"]["source"] == "model_primary_v2"
     assert first["decision"]["cacheHit"] is False
     assert second["decision"]["cacheHit"] is True
     assert client.calls == 1
     assert client.cancelled is True
+
+
+def test_workflow_intent_endpoint_exposes_raw_model_workflow_before_guard() -> None:
+    clear_intent_cache()
+    # The deterministic guard strongly disagrees with the model here; the
+    # normalized workflow stays model-owned while rawWorkflowKind preserves
+    # the pre-normalization choice for offline routing evaluation.
+    client = IntentClient({
+        "action": "start_workflow",
+        "workflowKind": "content_search",
+        "confidence": .95,
+        "needsConfirmation": False,
+        "reason": "用户要求定位具体内容",
+    })
+    with patch.object(main, "create_llm_client_for_job", return_value=client):
+        decision = main.classify_workflow_intent(
+            WorkflowIntentRequest(text="做一个精彩集锦"),
+        )["decision"]
+
+    assert decision["rawWorkflowKind"] == "content_search"
+    assert decision["needsConfirmation"] is True
 
 
 def test_workflow_intent_endpoint_requires_manual_choice_when_model_fails() -> None:

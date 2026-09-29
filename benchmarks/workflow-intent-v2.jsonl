@@ -1,0 +1,100 @@
+{"expected":"highlight","text":"剪一条高燃集锦"}
+{"expected":"highlight","text":"把最精彩的瞬间拼在一起"}
+{"expected":"highlight","text":"做个一分钟精华版"}
+{"expected":"highlight","text":"来一份名场面合集"}
+{"expected":"highlight","text":"剪个高光混剪"}
+{"expected":"highlight","text":"把亮点挑出来做成一条片子"}
+{"expected":"highlight","text":"生成精华短片"}
+{"expected":"highlight","text":"整一段最嗨的部分合集"}
+{"expected":"highlight","text":"做一条 45 秒的精彩混剪"}
+{"expected":"highlight","text":"把全场高能片段剪成一条"}
+{"expected":"highlight","text":"给我做个最佳时刻合集视频"}
+{"expected":"highlight","text":"浓缩成一条有节奏的短片"}
+{"expected":"highlight","text":"做个燃向卡点混剪"}
+{"expected":"highlight","text":"出一条高光短视频，适合发抖音","expectedKind":"shortform"}
+{"expected":"highlight","text":"出一条 15 秒的竖屏短视频，前三秒要有钩子","expectedKind":"shortform"}
+{"expected":"highlight","text":"挑精彩镜头做集锦"}
+{"expected":"highlight","text":"把比赛精华做成合集"}
+{"expected":"highlight","text":"剪一条情绪高点合集"}
+{"expected":"highlight","text":"帮我做精华回顾，控制在 40 秒"}
+{"expected":"highlight","text":"create a 30-second highlight montage"}
+{"expected":"content_search","text":"找出所有讲到价格的部分"}
+{"expected":"content_search","text":"把提到续航测试的片段找出来"}
+{"expected":"content_search","text":"搜索讲解安装步骤的画面"}
+{"expected":"content_search","text":"定位嘉宾谈离职原因的对话"}
+{"expected":"content_search","text":"查一下哪里提到了融资"}
+{"expected":"content_search","text":"找出老师说重点的那几段"}
+{"expected":"content_search","text":"把讲产品定位的内容剪出来"}
+{"expected":"content_search","text":"提取 02:15 附近的内容"}
+{"expected":"content_search","text":"搜索出现 logo 的画面"}
+{"expected":"content_search","text":"找到观众提问的环节"}
+{"expected":"content_search","text":"把讨论市场策略的片段找出来"}
+{"expected":"content_search","text":"谁讲了竞品对比？把那部分找出来"}
+{"expected":"content_search","text":"把第一次提到电池的地方截出来"}
+{"expected":"content_search","text":"找出全部谈到售后政策的发言"}
+{"expected":"content_search","text":"把演示操作的镜头挑出来"}
+{"expected":"content_search","text":"检索关于用户增长的分析片段"}
+{"expected":"content_search","text":"把访谈里回答第二个问题的部分剪出来"}
+{"expected":"content_search","text":"找一下屏幕上出现参数表的画面"}
+{"expected":"content_search","text":"把介绍功能和介绍价格的两部分都找出来","expectedKind":"multi-topic"}
+{"expected":"content_search","text":"把讲维基百科历史和讲编辑社群的两段都剪出来","expectedKind":"multi-topic"}
+{"expected":"person_edit","text":"按人物剪，我要选一个人"}
+{"expected":"person_edit","text":"识别一下有哪些人，我挑一个再剪"}
+{"expected":"person_edit","text":"把这个男生出镜的部分都剪出来"}
+{"expected":"person_edit","text":"只留穿西装那位的所有镜头"}
+{"expected":"person_edit","text":"按脸搜人再剪他的全部片段"}
+{"expected":"person_edit","text":"视频里有几个人？我想只剪一个人"}
+{"expected":"person_edit","text":"提取左边那个人出现的画面"}
+{"expected":"person_edit","text":"人脸识别后保留目标人物全部出镜"}
+{"expected":"person_edit","text":"我想只看某位嘉宾，帮我把他剪出来"}
+{"expected":"person_edit","text":"选一个人，把他的镜头拼成合集"}
+{"expected":"person_edit","text":"把主持人出现的部分单独剪出来"}
+{"expected":"person_edit","text":"识别出场人物，我来选，然后剪"}
+{"expected":"person_edit","text":"戴眼镜那位全部出镜剪出来"}
+{"expected":"person_edit","text":"把目标人物所有出现的画面汇总成一条"}
+{"expected":"person_edit","text":"先检测人脸，我选择后提取那个人"}
+{"expected":"person_edit","text":"只要这个人的镜头，别的不要"}
+{"expected":"person_edit","text":"帮我聚焦主角，剪他全部片段"}
+{"expected":"person_edit","text":"按人像检索并剪辑所选人物"}
+{"expected":"person_edit","text":"画面里短发女生的所有出镜剪出来"}
+{"expected":"person_edit","text":"detect faces and keep only the person I pick"}
+{"expected":"speaker_edit","text":"按声音剪，先帮我分一下说话人"}
+{"expected":"speaker_edit","text":"识别不同的声音，我选一个再剪"}
+{"expected":"speaker_edit","text":"只保留男声的发言片段"}
+{"expected":"speaker_edit","text":"把这位老师的讲话全部剪出来"}
+{"expected":"speaker_edit","text":"按音色分人，选一个提取发言"}
+{"expected":"speaker_edit","text":"声音分离后保留目标发言人"}
+{"expected":"speaker_edit","text":"区分说话人，然后只留一位"}
+{"expected":"speaker_edit","text":"Speaker 1 的所有发言剪出来"}
+{"expected":"speaker_edit","text":"听声音选人，提取他全部讲话"}
+{"expected":"speaker_edit","text":"把两个人的对话分开，我只要一个人的"}
+{"expected":"speaker_edit","text":"帮我找到同一个声音出现的所有片段"}
+{"expected":"speaker_edit","text":"按说话人聚类，选一个声音再剪"}
+{"expected":"speaker_edit","text":"分离音轨里不同的声音并选择保留"}
+{"expected":"speaker_edit","text":"哪段是谁说的？我想只剪其中一位"}
+{"expected":"speaker_edit","text":"选个声线，把他说的话全剪出来"}
+{"expected":"speaker_edit","text":"提取目标说话人的语音片段"}
+{"expected":"speaker_edit","text":"只保留声音 A，其他说话人不要"}
+{"expected":"speaker_edit","text":"发言剪辑模式，先试听再选声音"}
+{"expected":"speaker_edit","text":"把不同人的说话分开，我再选一个"}
+{"expected":"speaker_edit","text":"diarize this and keep one speaker's parts"}
+{"expected":"clarification","text":"帮我弄一下"}
+{"expected":"clarification","text":"处理下这个素材呗"}
+{"expected":"clarification","text":"弄个视频出来"}
+{"expected":"clarification","text":"随便剪剪就好"}
+{"expected":"clarification","text":"搞个好看点的"}
+{"expected":"clarification","text":"你看着办帮我剪"}
+{"expected":"clarification","text":"帮我优化一下"}
+{"expected":"clarification","text":"整个活儿"}
+{"expected":"clarification","text":"弄个能发朋友圈的"}
+{"expected":"clarification","text":"随便来一条"}
+{"expected":"clarification","text":"剪一下这段"}
+{"expected":"clarification","text":"做个效果看看"}
+{"expected":"clarification","text":"帮我搞个成片"}
+{"expected":"clarification","text":"看看能剪出什么"}
+{"expected":"clarification","text":"你来定怎么剪"}
+{"expected":"clarification","text":"弄个短的"}
+{"expected":"clarification","text":"帮我弄个精彩的"}
+{"expected":"clarification","text":"给这条视频整整"}
+{"expected":"clarification","text":"make it better"}
+{"expected":"clarification","text":"帮我出个片"}

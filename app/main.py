@@ -1077,6 +1077,9 @@ def classify_workflow_intent(request: WorkflowIntentRequest) -> dict[str, Any]:
         "decision": {
             "action": decision.action,
             "workflowKind": decision.workflow_kind,
+            # The model's pre-normalization workflow choice; lets offline
+            # evaluation compare raw-LLM routing against the guarded hybrid.
+            "rawWorkflowKind": str(raw.get("workflowKind") or ""),
             "taskMode": decision.task_mode,
             "confidence": round(decision.confidence, 3),
             "reason": decision.reason,
