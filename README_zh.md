@@ -1,151 +1,166 @@
 <div align="center">
 
-<img src="./assets/banner_zh.png" alt="ChatClip Banner" width="100%" />
+<img src="./assets/banner_zh.png" alt="ChatClip" width="860" />
 
-# ChatClip ✂️
+# ChatClip
 
-### 一个通过对话完成视频剪辑的 AI Agent
+**一个计划门控的 AI 剪辑 Agent：把一句话变成一条剪好的视频。**
 
-**只需要说出来，视频就剪好了。**
+你说出想要的成片，ChatClip 看完素材、拟出可执行计划、等你确认，
+然后驱动每一刀剪辑、字幕、封面与导出——全程都在你掌控的护栏内。
 
-`FastAPI` `LangGraph` `LangChain` `SenseVoice` `FFmpeg`
+[快速开始](#-快速开始) · [工作原理](#-工作原理) · [架构](#-架构) · [模型](#-模型)
 
-[English](./README.md) · **简体中文**
+`Python 3.10+` `LangGraph` `LangChain` `FastAPI` `SenseVoice` `FFmpeg`
+
+[![License: NC-AL](https://img.shields.io/badge/license-Non--Commercial%20Attribution-blue)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1342%20passing-brightgreen)](#-验证)
+
 </div>
 
 ---
 
-## 💡 ChatClip 是什么？
+## 为什么是 ChatClip
 
-ChatClip 是一个**AI 视频剪辑 Agent**。你不需要在时间线上拖动素材、也不需要逐帧翻看几个小时的素材——只需要用自然语言描述你想要的成片，剩下的交给它：
+时间线剪辑软件让*你*干机械活。ChatClip 把分工倒过来：你只当导演，
+Agent 来当剪辑团队。
 
-**理解素材 → 定位目标内容 → 规划剪辑 → 执行剪辑 → 交付成片。**
+- **动口不动手**——“剪一段 60 秒高光”“把讲定价的部分剪出来”“只保留
+  主持人说话的片段”。Agent 负责找到对的时刻并组装成片。
+- **没有你的签字什么都不执行**——每个任务先给出一份可读的计划（Agent
+  理解了什么、会调用哪些工具、按什么顺序）。时间线草案、字幕校对、
+  封面、正式导出各自停在明确的确认门；导出与删除永不自动执行。
+- **证据优先，不靠感觉**——多模态检索（语音转写、视觉向量、OCR、说话
+  人分离）让每一个提案片段都能回溯到源画面；没有匹配时诚实说无结果。
+- **本地优先的媒体栈**——语音识别、向量检索、识别与渲染都在你的机器
+  上跑；云端只有三个可选模型角色（视觉 / 规划 / 工具调用）。
 
 <div align="center">
-  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ChatClip 对话式高光剪辑工作流" width="900" />
-  <br />
-  <sub><b>“把最精彩的部分剪成高光集锦。”</b>——ChatClip 分析素材、给出事件时间线，并交付 AI 剪辑版本。</sub>
+  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="对话式高光剪辑" width="880" />
 </div>
 
-Agent 的每一个动作都是**计划门控**的：执行任何操作前，它会先给出一份可审计的剪辑计划（包括它对你目标的理解）。时间线草案、字幕校对、封面、正式导出都需要你的明确确认——Agent 绝不会悄悄发布或删除媒体。
+## 工作原理
 
----
+1. **上传并描述**——丢进一个视频，打出你想要的剪辑要求。
+2. **理解**——确定性解析器从你的句子里抽出时长目标、素材范围、锚点
+   和交付物；技能路由选出剪辑方法论（内置 24 个 Skill：高光、话题、
+   人脸匹配、声纹、短视频 Hook、封面、社媒画幅、交付质检……）。
+3. **规划**——Agent 编译出可审计的步骤计划。内置技能的骨架由事实
+   确定性编译，LLM 只贡献策略，绝不发明步骤。
+4. **审批**——计划（绑定素材状态的哈希）等你确认。阅读期间素材变了？
+   审批直接拒绝，重新规划。
+5. **护栏内执行**——33 个媒体工具按序单步执行；长渲染停靠在持久操作
+   日志上；每个计划有执行时限；token 用量、重规划与错误分类全程记录。
+6. **审阅与迭代**——先出带水印的审核样片，正式导出必须明确确认。
+   “再短一点”“从讲定价开始”等追问直接在时间线上原位返修。
 
-## ✨ 核心特性
+## 架构
 
-### 💬 对话式剪辑
-
-从“把最精彩的部分剪成高光”到“把介绍定价的部分剪出来”——自然语言直接变成剪辑动作。还可以用“再短一点”“从讲定价的地方开始”这样的追问继续修改。
-
-### 🎯 四大剪辑能力
-
-* **⚡ 高光提取** — 自动从长视频中识别并提取最有价值的片段。
-* **🧭 话题剪辑** — 围绕指定话题定位并提取相关片段。
-* **👤 人脸匹配剪辑** — 找到目标人物，提取其出镜片段。
-* **🔊 声纹剪辑** — 通过声纹识别目标说话人，提取其发言片段。
-
-### 🛠️ 可扩展的技能系统
-
-内置 24 个 **Skill**（SKILL.md 策略文档），沉淀剪辑方法论——短视频 Hook 编排、字幕返修、封面生成、社媒画幅转换、交付质检等。技能可在界面中管理，也支持用自然语言生成新技能。
-
----
-
-## 🧠 架构
-
-单个 FastAPI 进程承载一切——**没有独立的 Agent 子服务**：
+单个 FastAPI 进程，没有任何旁路 Agent 服务：
 
 ```
-static/（原生 JS 单页应用）──HTTP/SSE──▶  app/*_api.py（薄路由层）
-                                              │
-      app/agent/  LangGraph 编排域            │  app/llm/  LangChain 模型层
-      规划器 · 编译器 · 人工门                │  Provider 工厂 · JSON 客户端
-      （interrupt / Command 恢复）            │
-                                              │
-        app/agent_tools/  33 个媒体工具处理器（内容 · 时间线 ·
-        字幕 · 封面 · 交付），构建于 app/main.py 媒体内核之上
+static/  原生 JS 工作台 ──HTTP/SSE──▶  app/*_api.py  薄路由层
+                                         │
+  app/agent/  LangGraph 编排域           │  app/llm/  LangChain 模型层
+  · 规划器（强制工具调用）               │  · Provider 工厂（百炼/
+  · 确定性计划编译器                     │    DeepSeek/智谱/方舟/OpenAI）
+  · 人工门：interrupt()/resume           │  · JSON 与多模态客户端
+  · 持久操作日志 · 预算控制              │
+                                         │
+  app/agent_tools/  33 个媒体工具处理器（内容 · 时间线 · 字幕 ·
+                   封面 · 交付），构建于 app/main.py 媒体内核
+                   （分析 · 检索 · 语音 · FFmpeg · 质检）之上
 ```
 
-* **LangGraph 状态机**驱动 计划 → 审批 → 步骤执行 → 重规划。计划审批、结构化审核确认、后台渲染/分析等待都是框架级 `interrupt()` 暂停点，由 `Command(resume=...)` 恢复。
-* **确定性编译器** — 内置技能的步骤骨架由事实编译而来（不由模型发明），规划模型只贡献策略。
-* **安全语义** — 导出/删除永不自动执行；身份/审核步骤必须经用户结构化确认；审批与内容哈希绑定。
+计划活在带检查点的状态机里（`interrupt()` 为审批、审核确认与后台渲染
+暂停；`Command(resume=…)` 恢复——重启后依然有效）。实体写入与审计事件
+同事务提交。深入阅读：[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md)。
 
-完整说明：[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · Agent 内部细节：[`docs/agent-platform.md`](./docs/agent-platform.md)
-
----
-
-## 🤖 模型
-
-三个远程模型角色，已预填推荐的国产模型主线——**只需两个账号**：
+## 模型
 
 | 角色 | 主推荐 | 降级候选 |
 |---|---|---|
 | 视觉（VLM） | `qwen3-vl-max` @ 阿里云百炼 | `doubao-seed-2.0` @ 火山方舟 |
-| 剪辑规划 | `deepseek-flash`（DeepSeek-V4.1-Flash）@ DeepSeek | `qwen3.8-max` @ 百炼 |
-| Agent（工具调用） | `qwen3.8-max` @ 阿里云百炼 | `glm-4.6` @ 智谱 BigModel |
+| 剪辑规划 | `deepseek-flash` @ DeepSeek | `qwen3.8-max` @ 百炼 |
+| Agent 工具调用 | `qwen3.8-max` @ 阿里云百炼 | `glm-4.6` @ 智谱 BigModel |
 
-* **本地多模态能力 · 已包含** — SenseVoice 语音识别（可选 whisper 降级）、SigLIP/E5/CLAP 向量、OCR、匿名人物识别；权重首次使用时下载。TalkNet 主动说话人检测为可选安装。
-* 通过 `.env`（见 [`.env.example`](./.env.example)）或页面 **设置** 配置；Agent 模型保存前必须通过真实工具调用探测。
+两个账号即可跑满主线。其余——SenseVoice 语音识别、SigLIP/E5/CLAP 向量、
+OCR、人物识别、可选 TalkNet 主动说话人检测——全部本地运行。
 
----
+## 快速开始
 
-## 🚀 快速开始
-
-环境要求：x86-64 Linux/WSL2 · Python 3.10–3.11 · Node.js 22（仅本地图文动效渲染需要）· 带 `libx264` + `drawtext` 的 FFmpeg/FFprobe · 磁盘 ≥10 GiB。
+**环境要求**——x86-64 Linux/WSL2 · Python 3.10–3.11 · Node 22（仅动效
+渲染需要）· 带 `libx264` + `drawtext` 的 FFmpeg · 磁盘 ≥10 GiB。
 
 ```bash
 git clone https://github.com/LittleSongxx/ChatClip.git
 cd ChatClip
 
-python3 tools/setup.py --profile auto   # 统一安装器（自动选择 CPU/GPU）
-cp .env.example .env                    # 填入你的 API Key（CHATCLIP_* 变量）
-./start.sh                              # http://127.0.0.1:5180
+python3 tools/setup.py --profile auto    # 引导式安装，自动选择 CPU/GPU
+cp .env.example .env                     # 填入你的 API Key（CHATCLIP_* 变量）
+./start.sh                               # → http://127.0.0.1:5180
 ```
 
-打开终端输出的地址，在 **设置** 中把 API Key 填入预选模型，然后上传视频、描述你的剪辑要求。
+在 **设置** 中把 Key 填入预选模型（Agent 模型需通过真实工具调用探测），
+上传视频，描述你的剪辑要求。
 
----
-
-## ⚙️ 部署
-
-### 🐳 Docker
+<details>
+<summary><b>Docker</b></summary>
 
 ```bash
-cp .env.example .env   # 填入模型 Key
-docker compose up --build -d          # CPU
-# GPU（需 NVIDIA Container Toolkit）：
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+cp .env.example .env      # 填入模型 Key
+docker compose up --build -d                       # CPU
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d   # GPU
 ```
+</details>
 
-Docker 默认只发布到 `127.0.0.1`。远程访问时需设置 `CHATCLIP_BIND_ADDRESS=0.0.0.0` **并同时**配置强 `CHATCLIP_ACCESS_TOKEN`，前置带身份验证的 HTTPS 反向代理。
+<details>
+<summary><b>配置</b></summary>
 
-### 🔧 可选配置
+所有变量使用 `CHATCLIP_*` / `VISION_*` / `LLM_*` / `AGENT_*` 前缀——
+见 [`.env.example`](./.env.example) 与完整参考
+[`docs/environment.example`](./docs/environment.example)。重点：
 
-* **NVIDIA GPU** — 本机安装 `requirements-gpu.txt`，用 `python3 tools/doctor.py --profile cuda` 验证。
-* **TalkNet 主动说话人检测** — 本机安装器默认安装，在页面能力面板查看状态。
-* **本地模型预热** — `python3 tools/prepare_recognition_models.py --data-root data`。
-* **全部环境变量** — [`docs/environment.example`](./docs/environment.example)。
+- `CHATCLIP_AGENT_PLAN_DEADLINE_SECONDS`——单计划执行时限
+- `CHATCLIP_AGENT_MAX_MESSAGES_PER_10MIN`——每工作区消息限流
+- `CHATCLIP_ACTIVE_SPEAKER_MODE`——可选 TalkNet 集成
+</details>
 
----
-
-## ✅ 验证
+## 验证
 
 ```bash
-python -m pytest -q                 # 后端测试（1300+ 项）
-npm run test:frontend               # 浏览器/契约测试
-python3 tools/check_repository.py --mode deployment
-python3 tools/doctor.py             # 环境体检
+python -m pytest -q                # 1342 项后端测试
+npm run test:frontend              # 306 项浏览器/契约测试
+npm run test:agent-scenarios       # Agent 门禁（场景 + 硬化 + 预算）
+python3 tools/doctor.py            # 环境体检
 ```
 
----
+## 目录结构
 
-## 📄 许可
+```
+app/agent/        LangGraph 编排（图、规划器、编译器、人工门）
+app/agent_tools/  33 个媒体工具处理器（按域拆分）
+app/llm/          LangChain 模型层（Provider、客户端）
+app/main.py       媒体内核（任务、分析、渲染、质检）
+static/           原生 JS 剪辑工作台
+skills/           24 个剪辑 Skill（SKILL.md 策略文档）
+tools/            安装器、体检、验证器、基准
+tests/            1342 项测试（含浏览器套件）
+```
 
-本项目基于[非商业署名许可](./LICENSE)发布。
+## 路线图
+
+- [ ] 真实视频评测集与公开基准报告
+- [ ] 说话人/人脸身份跨会话持久化
+- [ ] 更多交付目标（平台专属包）
+- [ ] 多素材项目（合并多个上传）
+
+## 许可
+
+基于[非商业署名许可](./LICENSE)发布。
 
 <div align="center">
 
-⭐ 如果 ChatClip 对你有用，欢迎点一个 Star！
-
-Made with ❤️ by [LittleSongxx](https://github.com/LittleSongxx)
+**如果 ChatClip 替你省下了在时间线上逐帧拖拽的一个下午，一个 ⭐ 就是回报。**
 
 </div>

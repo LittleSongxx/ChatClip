@@ -1,151 +1,177 @@
 <div align="center">
 
-<img src="./assets/banner.png" alt="ChatClip Banner" width="100%" />
+<img src="./assets/banner.png" alt="ChatClip" width="860" />
 
-# ChatClip ✂️
+# ChatClip
 
-### An AI Agent That Edits Videos Through Conversation
+**A plan-gated AI agent that turns natural language into finished video cuts.**
 
-**Just say it. It's edited.**
+Describe the edit you want. ChatClip watches the footage, drafts an executable
+plan, waits for your approval, and drives every cut, subtitle, cover and
+export — always inside guardrails you control.
 
-`FastAPI` `LangGraph` `LangChain` `SenseVoice` `FFmpeg`
+[Quick Start](#-quick-start) · [How It Works](#-how-it-works) · [Architecture](#-architecture) · [Models](#-models)
 
-**English** · [简体中文](./README_zh.md)
+`Python 3.10+` `LangGraph` `LangChain` `FastAPI` `SenseVoice` `FFmpeg`
+
+[![License: NC-AL](https://img.shields.io/badge/license-Non--Commercial%20Attribution-blue)](./LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1342%20passing-brightgreen)](#-verification)
+
 </div>
 
 ---
 
-## 💡 What is ChatClip?
+## Why ChatClip
 
-ChatClip is an **AI video-editing agent**. You don't drag clips on a timeline or scrub through hours of footage — you describe what you want in natural language, and the agent handles the entire process:
+Timeline editors make *you* do the mechanical work. ChatClip flips the
+division of labor: you stay the director, the agent becomes the editing crew.
 
-**understanding the footage → locating the target content → planning the edit → executing cuts → delivering the final clips.**
+- **Say it, don't slice it** — "make a 60-second highlight", "cut the part
+  where they explain pricing", "keep only the host speaking". The agent
+  retrieves the right moments and assembles the cut.
+- **Nothing runs without your sign-off** — every job starts with a readable
+  plan (what the agent understood, which tools it will call, in what order).
+  Timeline drafts, subtitle reviews, covers and formal exports each stop at
+  an explicit confirmation gate. Exports and deletions are never autonomous.
+- **Evidence, not vibes** — multimodal retrieval (speech transcript, visual
+  embeddings, OCR, speaker diarization) grounds every proposed cut in source
+  footage you can inspect, with no-result honesty when nothing matches.
+- **Local-first media stack** — ASR, embeddings, recognition and rendering
+  run on your machine; only three optional cloud model roles for vision,
+  planning and tool-calling.
 
 <div align="center">
-  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="ChatClip conversational highlight editing workflow" width="900" />
-  <br />
-  <sub><b>"Make a highlight from the best moments."</b> — ChatClip analyzes the footage, presents the event timeline, and delivers AI-edited versions.</sub>
+  <img src="./assets/showcase/conversational-highlight-editing-preview.gif" alt="Conversational highlight editing" width="880" />
 </div>
 
-Every agent action is **plan-gated**: the agent presents an auditable editing plan (with its understanding of your goal) before executing anything. Timeline drafts, subtitle reviews, covers, and formal exports each require your explicit confirmation — the agent never silently publishes or deletes media.
+## How It Works
 
----
+1. **Upload & describe** — drop a video, type the edit you want.
+2. **Understand** — a deterministic parser extracts duration targets, source
+   ranges, anchors and deliverables from your sentence; a skill router picks
+   the editing playbook (24 built-in Skills: highlight, topic, face-matched,
+   voiceprint, short-form hook, cover, social reframe, delivery QC…).
+3. **Plan** — the agent compiles an auditable step plan. For built-in skills
+   the skeleton is compiled deterministically from facts; the LLM contributes
+   strategy, never invents steps.
+4. **Approve** — the plan (bound to a hash of your material state) waits for
+   you. Material changed while you read? Approval is refused; replan.
+5. **Execute under guardrails** — 33 media tools run one step at a time.
+   Long renders park on a durable operation journal; a wall-clock deadline
+   bounds every plan; token usage, replans and error classes are recorded.
+6. **Review & iterate** — watermarked preview first, formal export only on
+   explicit confirmation. Follow-ups ("shorter", "start from pricing")
+   revise the timeline in-place.
 
-## ✨ Core Features
+## Architecture
 
-### 💬 Conversational Editing
-
-From *"make a highlight of the best moments"* to *"cut out the part where they introduce pricing"* — natural language becomes editing actions. Refine results with follow-ups such as *"make it shorter"* or *"start from the part about pricing"*.
-
-### 🎯 Four Core Editing Capabilities
-
-* **⚡ Highlight Extraction** — automatically identify and extract the most valuable moments from long-form footage.
-* **🧭 Topic-Based Editing** — locate and extract clips around a specific topic.
-* **👤 Face-Matched Editing** — find a target person and extract the segments where they appear on screen.
-* **🔊 Voiceprint-Based Editing** — identify a target speaker by voiceprint and extract the segments where they speak.
-
-### 🛠️ Extensible Skill System
-
-24 built-in **Skills** (SKILL.md policy documents) encode editing know-how — short-form hook direction, subtitle revision, cover art, social reframing, delivery QC. Skills are managed in the UI; new ones can be generated from a natural-language description.
-
----
-
-## 🧠 Architecture
-
-One FastAPI process hosts everything — there is **no separate agent service**:
+Single FastAPI process — no sidecar agent service:
 
 ```
-static/ (vanilla JS SPA)  ──HTTP/SSE──▶  app/*_api.py (thin routes)
-                                            │
-        app/agent/  LangGraph orchestration │  app/llm/  LangChain model layer
-        planner · compiler · human gates    │  provider factory · JSON client
-        (interrupt / Command resume)        │
-                                            │
-        app/agent_tools/  33 media tool handlers (content · timeline ·
-        subtitle · cover · delivery) on top of the app/main.py kernel
+static/  vanilla-JS SPA ──HTTP/SSE──▶ app/*_api.py  thin routes
+                                        │
+   app/agent/  LangGraph orchestration  │  app/llm/  LangChain model layer
+   · planner (forced tool-call)         │  · provider factory (Bailian/
+   · deterministic plan compiler        │    DeepSeek/Zhipu/Ark/OpenAI)
+   · human gates: interrupt()/resume    │  · JSON + multimodal clients
+   · durable op journal · budgets       │
+                                        │
+   app/agent_tools/  33 media tool handlers (content · timeline · subtitle
+                    · cover · delivery) over the app/main.py media kernel
+                    (analysis · search · speech · FFmpeg · QC)
 ```
 
-* **LangGraph state machine** drives plan → approval → step execution → replan. Plan approval, structured review confirmations, and background render/analysis operations are framework-level `interrupt()` pauses resumed by `Command(resume=...)`.
-* **Deterministic compiler** — for built-in skills the step skeleton is compiled from facts (not invented by the model); the planning model contributes strategy only.
-* **Safety semantics** — exports/deletes never run autonomously, identity/review steps gate on structured user confirmation, and approvals are bound to a content hash.
+Plans live in a checkpointed state machine (`interrupt()` pauses for
+approval, review confirmations and background renders; `Command(resume=…)`
+continues them — across restarts). Entity writes and audit events commit in
+one transaction. Deeper dive: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
-Full details: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) · agent internals: [`docs/agent-platform.md`](./docs/agent-platform.md)
+## Models
 
----
-
-## 🤖 Models
-
-Three remote roles, pre-filled with the recommended domestic (CN) model line — **only two accounts needed**:
-
-| Role | Recommended | Fallback candidate |
+| Role | Recommended | Fallback |
 |---|---|---|
 | Vision (VLM) | `qwen3-vl-max` @ Alibaba Bailian | `doubao-seed-2.0` @ Volcengine Ark |
-| Editing planner | `deepseek-flash` (DeepSeek-V4.1-Flash) @ DeepSeek | `qwen3.8-max` @ Bailian |
-| Agent (tool calling) | `qwen3.8-max` @ Alibaba Bailian | `glm-4.6` @ Zhipu BigModel |
+| Edit planning | `deepseek-flash` @ DeepSeek | `qwen3.8-max` @ Bailian |
+| Agent tool-calling | `qwen3.8-max` @ Alibaba Bailian | `glm-4.6` @ Zhipu BigModel |
 
-* **Local multimodal stack · included** — SenseVoice ASR (optional whisper fallback), SigLIP/E5/CLAP embeddings, OCR, anonymous person recognition; weights download on first use. TalkNet active-speaker detection is an optional install.
-* Configure via `.env` (see [`.env.example`](./.env.example)) or the in-app **Settings** page; the agent model must pass a real tool-calling probe before saving.
+Two accounts cover the whole line. Everything else — SenseVoice ASR,
+SigLIP/E5/CLAP embeddings, OCR, person recognition, optional TalkNet
+active-speaker detection — runs locally.
 
----
+## Quick Start
 
-## 🚀 Quick Start
-
-Prerequisites: x86-64 Linux/WSL2 · Python 3.10–3.11 · Node.js 22 (only for the local motion renderer) · FFmpeg/FFprobe with `libx264` + `drawtext` · ≥10 GiB free disk.
+**Prerequisites** — x86-64 Linux/WSL2 · Python 3.10–3.11 · Node 22 (motion
+renderer only) · FFmpeg with `libx264` + `drawtext` · ≥10 GiB disk.
 
 ```bash
 git clone https://github.com/LittleSongxx/ChatClip.git
 cd ChatClip
 
-python3 tools/setup.py --profile auto   # guided installer (CPU/GPU auto-detect)
-cp .env.example .env                    # fill your API keys (CHATCLIP_* vars)
-./start.sh                              # http://127.0.0.1:5180
+python3 tools/setup.py --profile auto    # guided install, CPU/GPU auto-detect
+cp .env.example .env                     # add your API keys (CHATCLIP_* vars)
+./start.sh                               # → http://127.0.0.1:5180
 ```
 
-Open the printed URL, paste your API keys over the pre-selected models in **Settings**, then upload a video and describe the edit you want.
+Paste your keys over the preselected models in **Settings** (the agent model
+must pass a live tool-calling probe), upload a video, and describe your cut.
 
----
-
-## ⚙️ Deployment
-
-### 🐳 Docker
+<details>
+<summary><b>Docker</b></summary>
 
 ```bash
-cp .env.example .env   # fill model keys
-docker compose up --build -d          # CPU
-# GPU (NVIDIA Container Toolkit required):
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d
+cp .env.example .env      # fill model keys
+docker compose up --build -d                       # CPU
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build -d   # GPU
 ```
+</details>
 
-Docker publishes to `127.0.0.1` only. For remote access set `CHATCLIP_BIND_ADDRESS=0.0.0.0` **together with** a strong `CHATCLIP_ACCESS_TOKEN`, and put an authenticated HTTPS reverse proxy in front.
+<details>
+<summary><b>Configuration</b></summary>
 
-### 🔧 Optional setup
+All variables use the `CHATCLIP_*` / `VISION_*` / `LLM_*` / `AGENT_*`
+prefixes — see [`.env.example`](./.env.example) and the full reference in
+[`docs/environment.example`](./docs/environment.example). Highlights:
 
-* **NVIDIA GPU** — native: install `requirements-gpu.txt`; validate with `python3 tools/doctor.py --profile cuda`.
-* **TalkNet active-speaker detection** — installed by the local installer; verify in the in-app capability panel.
-* **Local model warm-up** — `python3 tools/prepare_recognition_models.py --data-root data`.
-* **All environment variables** — [`docs/environment.example`](./docs/environment.example).
+- `CHATCLIP_AGENT_PLAN_DEADLINE_SECONDS` — wall-clock budget per plan
+- `CHATCLIP_AGENT_MAX_MESSAGES_PER_10MIN` — per-workspace rate limit
+- `CHATCLIP_ACTIVE_SPEAKER_MODE` — optional TalkNet integration
+</details>
 
----
-
-## ✅ Verification
+## Verification
 
 ```bash
-python -m pytest -q                 # backend suite (1,300+ tests)
-npm run test:frontend               # browser/contract tests
-python3 tools/check_repository.py --mode deployment
-python3 tools/doctor.py             # environment check
+python -m pytest -q                # 1342 backend tests
+npm run test:frontend              # 306 browser/contract tests
+npm run test:agent-scenarios       # agent gate (scenarios + hardening + budgets)
+python3 tools/doctor.py            # environment check
 ```
 
----
+## Project Layout
 
-## 📄 License
+```
+app/agent/        LangGraph orchestration (graph, planner, compiler, gates)
+app/agent_tools/  33 media tool handlers by domain
+app/llm/          LangChain model layer (providers, clients)
+app/main.py       media kernel (jobs, analysis, rendering, QC)
+static/           vanilla-JS workspace UI
+skills/           24 editing Skills (SKILL.md policy documents)
+tools/            installer, doctor, validators, benchmarks
+tests/            1342 tests incl. browser suite
+```
 
-This project is released under the [Non-Commercial Attribution License](./LICENSE).
+## Roadmap
+
+- [ ] Real-video evaluation dataset & public benchmark report
+- [ ] Speaker/face identity persistence across sessions
+- [ ] More delivery targets (platform-specific packages)
+- [ ] Multi-source projects (combine several uploads)
+
+## License
+
+Released under the [Non-Commercial Attribution License](./LICENSE).
 
 <div align="center">
 
-⭐ If you find ChatClip useful, please give it a star!
-
-Made with ❤️ by [LittleSongxx](https://github.com/LittleSongxx)
+**If ChatClip saves you an afternoon of scrubbing timelines, a ⭐ pays it forward.**
 
 </div>
