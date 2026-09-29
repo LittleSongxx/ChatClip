@@ -10,6 +10,8 @@ structured user confirmation in stepwise mode.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from typing import Any
 
 
@@ -76,6 +78,18 @@ for _tool in CORE_TOOL_CATALOG:
 def tool_catalog() -> list[dict[str, Any]]:
     """The executable tool surface exposed to planning and execution."""
     return [copy.deepcopy(item) for item in CORE_TOOL_CATALOG]
+
+
+# Bump when a tool schema changes; planHash binds this so approvals from a
+# different catalog generation cannot be confirmed against new semantics.
+TOOL_CATALOG_VERSION = 1
+
+
+def tool_catalog_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for item in CORE_TOOL_CATALOG:
+        digest.update(json.dumps(item, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+    return f"v{TOOL_CATALOG_VERSION}:{digest.hexdigest()[:16]}"
 
 
 def action_required_message(step: dict[str, Any]) -> str:

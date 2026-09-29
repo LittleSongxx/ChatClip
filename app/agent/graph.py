@@ -184,6 +184,10 @@ def build_agent_graph(platform: Any):
     def finish_node(state: AgentState) -> dict[str, Any]:
         plan = platform.store.get("plans", state.get("plan_id") or "")
         if plan and str(plan.get("status") or "") not in TERMINAL_PLAN_STATUSES:
+            if platform.plan_deadline_exceeded(plan):
+                plan["failureReason"] = "deadline_exceeded"
+                platform._finish_plan(plan, "failed")
+                return {"phase": "finished"}
             failed_required = any(
                 item.get("status") == "failed" and not item.get("optional")
                 for item in plan.get("steps") or []
@@ -259,6 +263,8 @@ def build_agent_graph(platform: Any):
         if str(plan.get("status") or "") == "awaiting_confirmation":
             return "approval"
         steps = plan.get("steps") or []
+        if platform.plan_deadline_exceeded(plan):
+            return "finish"
         if _step_with_status(plan, "waiting_operation") is not None:
             return "operation_gate"
         if _step_with_status(plan, "action_required") is not None:

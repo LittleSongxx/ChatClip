@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from .agent import AgentPlatform
+from .agent.status_view import project_plan
 from .agent.planner import AgentPlannerError
 from .agent_store import content_hash, parse_skill_markdown
 from .assistant_interaction import AssistantInteraction
@@ -110,7 +111,11 @@ def build_agent_router(
         runs = platform.store.list(
             "runs", predicate=lambda item: item.get("workspaceId") == workspace_id,
         )
-        return {"workspace": workspace, "plans": plans, "runs": runs}
+        return {
+            "workspace": workspace,
+            "plans": [{**plan, "statusView": project_plan(plan)} for plan in plans],
+            "runs": runs,
+        }
 
     @router.get("/health")
     def agent_health() -> dict[str, Any]:
@@ -295,7 +300,7 @@ def build_agent_router(
         plan = platform.store.get("plans", plan_id)
         if not plan:
             raise HTTPException(404, "执行计划不存在")
-        return {"plan": plan}
+        return {"plan": {**plan, "statusView": project_plan(plan)}}
 
     @router.post("/plans/{plan_id}/confirm")
     def confirm_plan(plan_id: str, request: PlanApprovalRequest) -> dict[str, Any]:
@@ -305,12 +310,13 @@ def build_agent_router(
             raise HTTPException(404, "执行计划不存在") from error
         except ValueError as error:
             raise HTTPException(409, str(error)) from error
-        return {"plan": plan}
+        return {"plan": {**plan, "statusView": project_plan(plan)}}
 
     @router.post("/plans/{plan_id}/cancel")
     def cancel_plan(plan_id: str) -> dict[str, Any]:
         try:
-            return {"plan": platform.cancel_plan(plan_id)}
+            cancelled = platform.cancel_plan(plan_id)
+            return {"plan": {**cancelled, "statusView": project_plan(cancelled)}}
         except KeyError as error:
             raise HTTPException(404, "执行计划不存在") from error
 
@@ -324,13 +330,14 @@ def build_agent_router(
             raise HTTPException(404, "执行计划不存在") from error
         except ValueError as error:
             raise HTTPException(409, str(error)) from error
-        return {"plan": plan}
+        return {"plan": {**plan, "statusView": project_plan(plan)}}
 
     @router.post("/plans/{plan_id}/actions/retry")
     def retry_plan_action(plan_id: str, request: ActionRetryRequest | None = None) -> dict[str, Any]:
         try:
             cover = request.cover.model_dump() if request and request.cover else None
-            return {"plan": platform.retry_action(plan_id, cover_revision=cover)} if cover is not None else {"plan": platform.retry_action(plan_id)}
+            retried = platform.retry_action(plan_id, cover_revision=cover) if cover is not None else platform.retry_action(plan_id)
+            return {"plan": {**retried, "statusView": project_plan(retried)}}
         except KeyError as error:
             raise HTTPException(404, "执行计划不存在") from error
         except ValueError as error:

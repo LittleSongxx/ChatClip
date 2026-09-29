@@ -595,8 +595,13 @@
   }
 
   function planQcState(plan) {
+    const projected = plan?.statusView?.qualityStatus;
+    if (projected === "passed") return { status: "passed", issues: planQcIssues(plan), firstRange: null, firstPreview: null };
     const artifact = planQcArtifact(plan);
-    if (!artifact) return { status: "not_run", issues: [], firstRange: null };
+    if (!artifact) {
+      if (projected === "needs_review") return { status: "warning", issues: planQcIssues(plan), firstRange: null, firstPreview: null };
+      return { status: "not_run", issues: [], firstRange: null };
+    }
     const issues = planQcIssues(plan);
     const firstIssue = issues.find(issue => issue.qcPreview && issue.evidence?.ranges?.some(range =>
       Number.isFinite(Number(range?.start)) && Number.isFinite(Number(range?.end))));

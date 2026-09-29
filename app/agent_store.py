@@ -56,7 +56,7 @@ def parse_skill_markdown(markdown: str) -> dict[str, Any]:
 class AgentStore:
     """Durable Agent registry, plan, run and event store."""
 
-    ENTITY_TABLES = frozenset({"workspaces", "skills", "plans", "runs"})
+    ENTITY_TABLES = frozenset({"workspaces", "skills", "plans", "runs", "operations"})
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -83,6 +83,11 @@ class AgentStore:
             # The plugin sandbox was removed with the LangGraph rewrite;
             # drop the legacy table when upgrading an existing data directory.
             connection.execute("DROP TABLE IF EXISTS plugins")
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS operations ("
+                "id TEXT PRIMARY KEY, payload TEXT NOT NULL, "
+                "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"
+            )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=15)
@@ -137,6 +142,39 @@ class AgentStore:
             cursor = connection.execute(f"DELETE FROM {table} WHERE id=?", (item_id,))
         return cursor.rowcount > 0
 
+    def save_with_events(
+        self, table: str, payload: dict[str, Any],
+        events: list[tuple[str, str, dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """Atomically persist an entity and its events in ONE transaction.
+
+        Each event is ``(workspace_id, event_type, event_payload)``. This
+        closes the crash window where an entity change lands without its
+        audit event (or vice versa) — recovery code may trust either side.
+        """
+        if table not in self.ENTITY_TABLES:
+            raise ValueError(f"不支持的数据表：{table}")
+        item = dict(payload)
+        item_id = str(item.get("id") or f"{table[:-1]}_{uuid.uuid4().hex}")
+        timestamp = now_iso()
+        item["id"] = item_id
+        item.setdefault("createdAt", timestamp)
+        item["updatedAt"] = timestamp
+        serialized = json.dumps(item, ensure_ascii=False, separators=(",", ":"))
+        with self.lock, self._connect() as connection:
+            connection.execute(
+                f"INSERT INTO {table}(id,payload,created_at,updated_at) VALUES(?,?,?,?) "
+                "ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at",
+                (item_id, serialized, item["createdAt"], timestamp),
+            )
+            for workspace_id, event_type, event_payload in events:
+                connection.execute(
+                    "INSERT INTO events(workspace_id,event_type,payload,created_at) VALUES(?,?,?,?)",
+                    (workspace_id, event_type,
+                     json.dumps(event_payload, ensure_ascii=False, separators=(",", ":")), timestamp),
+                )
+        return item
+
     def append_event(
         self, workspace_id: str, event_type: str, payload: dict[str, Any],
     ) -> dict[str, Any]:
@@ -161,6 +199,20 @@ class AgentStore:
             )
         return cursor.rowcount
 
+    def save_operation(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Journal one durable background operation (row id = operationId)."""
+        item = dict(payload)
+        operation_id = str(item.get("operationId") or f"operation_{uuid.uuid4().hex}")
+        item["operationId"] = operation_id
+        item["id"] = operation_id
+        return self.save("operations", item)
+
+    def get_operation(self, operation_id: str) -> dict[str, Any] | None:
+        return self.get("operations", operation_id)
+
+    def list_operations(self, *, predicate: Any | None = None) -> list[dict[str, Any]]:
+        return self.list("operations", predicate=predicate)
+
     def purge_workspace(self, workspace_id: str) -> int:
         """Remove a workspace with its plans, runs and events; return plan count."""
         plan_ids = [
@@ -173,10 +225,18 @@ class AgentStore:
                 "runs", predicate=lambda item: str(item.get("workspaceId") or "") == workspace_id,
             )
         ]
+        operation_ids = [
+            str(item["operationId"]) for item in self.list(
+                "operations",
+                predicate=lambda item: str(item.get("workspaceId") or "") == workspace_id,
+            )
+        ]
         with self.lock, self._connect() as connection:
             for table, ids in (("plans", plan_ids), ("runs", run_ids)):
                 for item_id in ids:
                     connection.execute(f"DELETE FROM {table} WHERE id=?", (item_id,))
+            for operation_id in operation_ids:
+                connection.execute("DELETE FROM operations WHERE id=?", (operation_id,))
             connection.execute("DELETE FROM events WHERE workspace_id=?", (workspace_id,))
             connection.execute("DELETE FROM workspaces WHERE id=?", (workspace_id,))
         return len(plan_ids)

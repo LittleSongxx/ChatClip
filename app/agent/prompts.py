@@ -10,6 +10,11 @@ import json
 from typing import Any
 
 
+# Bump when planner behaviour guidance changes materially; planHash binds
+# this so plans approved under older prompt semantics require re-approval.
+PROMPT_VERSION = 2
+
+
 def plan_system_prompt(payload: dict[str, Any]) -> str:
     managed = payload.get("profile", {}).get("managed") is not False and str(payload.get("profile", {}).get("kind") or "") != "custom"
     replan_context = (

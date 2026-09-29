@@ -128,6 +128,9 @@ jobs:
       - name: Run Python tests
         run: python -m pytest -q
 
+      - name: Agent scenario and hardening gate
+        run: npm run test:agent-scenarios
+
       - name: Run browser tests
         run: npm run test:frontend
 

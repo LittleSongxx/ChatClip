@@ -25,7 +25,9 @@ from .catalog import (
     VALID_EXECUTION_MODES,
     VALID_SIDE_EFFECTS,
     tool_catalog,
+    tool_catalog_fingerprint,
 )
+from .prompts import PROMPT_VERSION
 from .skills import (
     profile_for_skill,
     skill_chain_payload,
@@ -1171,7 +1173,10 @@ def normalize_plan(
         "workspaceId": workspace["id"], "workspaceRevision": workspace["revision"],
         "executionMode": execution_mode,
         "goal": goal, "skillId": skill["id"], "skillVersion": skill["version"],
-        "skillHash": skill["contentHash"], "skills": skill_chain_payload(selected_skills), "steps": [
+        "skillHash": skill["contentHash"], "skills": skill_chain_payload(selected_skills),
+        "toolCatalogFingerprint": tool_catalog_fingerprint(),
+        "promptVersion": PROMPT_VERSION,
+        "steps": [
             {key: value for key, value in step.items() if key not in {"status", "attempts"}}
             for step in steps
         ],

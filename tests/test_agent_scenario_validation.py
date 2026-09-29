@@ -459,3 +459,39 @@ def test_markdown_report_contains_jobs_and_issue_evidence() -> None:
     assert "`execution.timeout`" in text
     assert '"stage": "search"' in text
     assert "剪成访谈精华" in text
+
+
+def test_system_errors_never_count_as_graceful_no_match() -> None:
+    """Model/provider outages must surface as system errors, not no-match."""
+    plan = ready_plan(status="failed", error="模型服务暂时不可用：provider timeout after 30s")
+    job = ready_job()
+    issues = evaluate_terminal_state(
+        plan, job, {"id": "ws", "jobId": "job"},
+        scenario(expectedOutcome="graceful_no_match"), [],
+    )
+    codes = {issue.code for issue in issues}
+    assert "execution.system_error" in codes
+    assert "execution.no_match_not_graceful" in codes
+
+
+def test_system_errors_never_count_as_clear_limitation() -> None:
+    plan = ready_plan(status="failed", error="API Key 验证失败（401），请检查密钥")
+    job = ready_job()
+    issues = evaluate_terminal_state(
+        plan, job, {"id": "ws", "jobId": "job"},
+        scenario(expectedOutcome="preview_or_clear_limitation"), [],
+    )
+    codes = {issue.code for issue in issues}
+    assert "execution.system_error" in codes
+    assert "execution.constraint_unresolved" in codes
+
+
+def test_genuine_constraint_failure_still_passes_limitation_contract() -> None:
+    plan = ready_plan(status="failed", error="当前版本只能从本次视频中抽帧制作封面，尚不支持联网找图")
+    job = ready_job()
+    issues = evaluate_terminal_state(
+        plan, job, {"id": "ws", "jobId": "job"},
+        scenario(expectedOutcome="preview_or_clear_limitation"), [],
+    )
+    assert "execution.system_error" not in {issue.code for issue in issues}
+    assert "execution.constraint_unresolved" not in {issue.code for issue in issues}

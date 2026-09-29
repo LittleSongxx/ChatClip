@@ -16,6 +16,7 @@ from typing import Any, Callable
 
 from langchain_core.messages import AIMessageChunk, HumanMessage, SystemMessage
 
+from ..llm.client import _usage_payload
 from ..llm.factory import create_chat_model, normalize_protocol
 from .prompts import (
     PROBE_TOOL,
@@ -123,6 +124,7 @@ def _stream_tool_session(
     if thinking_open:
         record({"type": "message.thinking_end"})
     merged = _merge_chunks(chunks)
+    usage = getattr(merged, "usage_metadata", None) or _usage_payload(merged) or None
     tool_calls = list(getattr(merged, "tool_calls", None) or [])
     tool_name = tool["function"]["name"]
     record({"type": "message.toolcall", "tool": tool_calls[0]["name"] if tool_calls else ""})
@@ -151,7 +153,10 @@ def _stream_tool_session(
         record({"type": "tool.completed", "tool": call["name"], "isError": True})
         raise AgentPlannerError("Agent 工具参数格式无效")
     record({"type": "tool.completed", "tool": call["name"], "isError": False})
-    return arguments, events
+    usage_event = {"type": "message.usage", **usage} if isinstance(usage, dict) else None
+    if usage_event:
+        record(usage_event)
+    return arguments, events, (usage if isinstance(usage, dict) else {})
 
 
 def _invoke_tool_session(
@@ -205,7 +210,7 @@ def run_plan_request(
             "title": "正在构建可确认的剪辑方案",
             "detail": "正在把目标、素材范围和交付要求整理成可审核步骤。",
         })
-    arguments, events = _stream_tool_session(
+    arguments, events, usage = _stream_tool_session(
         model_config=model_config,
         tool=submit_plan_tool_schema(managed),
         system_prompt=plan_system_prompt(payload),
@@ -246,6 +251,7 @@ def run_plan_request(
             },
         },
         "events": events,
+        "usage": usage,
     }
 
 

@@ -13,9 +13,10 @@ import copy
 import json
 import logging
 import threading
+import time
 import uuid
 from concurrent.futures import Future, ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -100,7 +101,12 @@ class AgentPlatform:
     def __init__(
         self, *, data_root: Path,
         model_config_resolver: ModelConfigResolver, timeout_seconds: float = 120.0,
+        plan_deadline_seconds: float = 3600.0,
+        max_messages_per_10min: int = 30,
     ) -> None:
+        self.plan_deadline_seconds = plan_deadline_seconds
+        self.max_messages_per_10min = max(1, int(max_messages_per_10min))
+        self._message_times: dict[str, list[float]] = {}
         self.data_root = data_root / "agent"
         self.skills_root = self.data_root / "skills"
         self.skills_root.mkdir(parents=True, exist_ok=True)
@@ -182,6 +188,54 @@ class AgentPlatform:
         "lastSearchClarification", "planningProgress", "completedAt",
         "startedAt", "coverageComplete", "speechModelStatus",
     })
+
+    @staticmethod
+    def _run_trace(plan: dict[str, Any], status: str) -> dict[str, Any]:
+        """Observable run summary: duration, model, tokens, replans, error class."""
+        started = plan.get("approval") or {}
+        trace: dict[str, Any] = {
+            "modelFingerprint": str(started.get("modelFingerprint") or ""),
+            "replanCount": int(plan.get("replanCount") or 0),
+            "stepCount": len(plan.get("steps") or []),
+        }
+        try:
+            begin = datetime.fromisoformat(str(started.get("approvedAt") or ""))
+            if begin.tzinfo is None:
+                begin = begin.replace(tzinfo=timezone.utc)
+            trace["durationSeconds"] = round(
+                (datetime.now(timezone.utc) - begin).total_seconds(), 3,
+            )
+        except (TypeError, ValueError):
+            pass
+        usage = plan.get("planningUsage") if isinstance(plan.get("planningUsage"), dict) else {}
+        tokens = {
+            key: usage.get(key)
+            for key in ("input_tokens", "output_tokens", "total_tokens")
+            if isinstance(usage.get(key), int)
+        }
+        if tokens:
+            trace["tokenUsage"] = tokens
+        if status == "failed":
+            trace["errorClass"] = (
+                "deadline_exceeded" if str(plan.get("failureReason") or "") == "deadline_exceeded"
+                else "step_failure"
+            )
+        elif status == "no_result":
+            trace["errorClass"] = "no_result"
+        return trace
+
+    @staticmethod
+    def plan_deadline_exceeded(plan: dict[str, Any]) -> bool:
+        deadline = str(plan.get("deadlineAt") or "")
+        if not deadline:
+            return False
+        try:
+            moment = datetime.fromisoformat(deadline)
+        except ValueError:
+            return False
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= moment
 
     def _model_fingerprint(self) -> str:
         model = self.model_config_resolver()
@@ -506,6 +560,7 @@ class AgentPlatform:
         normalized_mode = str(execution_mode or AUTONOMOUS_REVIEW)
         if normalized_mode not in VALID_EXECUTION_MODES:
             raise ValueError("Agent 执行方式无效")
+        self._enforce_message_rate(workspace_id)
         planning_brief = editing_brief(goal, {})
         planning_surface = "editor" if (
             str(planning_brief.get("delivery") or "") == "timeline"
@@ -592,6 +647,23 @@ class AgentPlatform:
             "toolCatalog": catalog,
         }
         return workspace, skill, payload
+
+    def _enforce_message_rate(self, workspace_id: str) -> None:
+        """Bound agent message bursts per workspace (sliding 10-minute window)."""
+        now = time.monotonic()
+        window_start = now - 600.0
+        with self._execution_lock:
+            recent = [
+                stamp for stamp in self._message_times.get(workspace_id, [])
+                if stamp >= window_start
+            ]
+            if len(recent) >= self.max_messages_per_10min:
+                raise ValueError(
+                    "请求过于频繁：每个工作区 10 分钟内最多发起 "
+                    f"{self.max_messages_per_10min} 条 Agent 消息，请稍后再试"
+                )
+            recent.append(now)
+            self._message_times[workspace_id] = recent[-self.max_messages_per_10min * 2:]
 
     def release_plan_request(self, workspace_id: str, *, request_id: str = "") -> None:
         """Clear an in-flight planning reservation after stream completion/error."""
@@ -718,6 +790,9 @@ class AgentPlatform:
         plan = normalize_plan(
             compiled, workspace=workspace, skill=skill, skills=skills, goal=goal,
         )
+        usage = result.get("usage") if isinstance(result.get("usage"), dict) else {}
+        if usage:
+            plan["planningUsage"] = usage
         plan["inputContext"] = frozen
         plan["replacesPlanId"] = workspace.get("replacesPlanId")
         # Bind review approval to the actual selection and output version.
@@ -736,10 +811,17 @@ class AgentPlatform:
             replaced = self.store.get("plans", str(workspace.get("replacesPlanId") or ""))
             if workspace.get("replacesPlanId") and (not replaced or replaced.get("status") != "awaiting_confirmation"):
                 raise ValueError("原方案状态已变化，请重新查看；未替换原方案")
-            plan = self.store.save("plans", plan)
+            plan = self.store.save_with_events("plans", plan, [
+                (workspace_id, "plan.created", {"plan": plan}),
+                (workspace_id, "plan.confirmation_required", {
+                    "planId": plan["id"], "planHash": plan["planHash"],
+                }),
+            ])
             if replaced:
                 replaced.update({"status": "cancelled", "supersededBy": plan["id"], "completedAt": now_iso()})
-                self.store.save("plans", replaced)
+                self.store.save_with_events("plans", replaced, [
+                    (workspace_id, "plan.cancelled", {"planId": replaced["id"], "supersededBy": plan["id"]}),
+                ])
             messages = list(workspace.get("messages") or [])
             if not workspace.get("planningMessageId"):
                 messages.extend([
@@ -763,10 +845,6 @@ class AgentPlatform:
             workspace.pop("planningMessageId", None)
             workspace.pop("replacesPlanId", None)
             self.store.save("workspaces", workspace)
-            self.store.append_event(workspace_id, "plan.created", {"plan": plan})
-            self.store.append_event(workspace_id, "plan.confirmation_required", {
-                "planId": plan["id"], "planHash": plan["planHash"],
-            })
             self._notify_workspace_state(workspace, plan)
             return plan
 
@@ -908,8 +986,13 @@ class AgentPlatform:
                 plan_id = str((snapshot.values or {}).get("plan_id") or "")
                 plan = self.store.get("plans", plan_id) if plan_id else None
                 if plan:
+                    from .status_view import project_plan
+
                     emitted_plan = True
-                    yield {"event": "plan", "data": {"action": "plan_confirmation", "plan": plan}}
+                    yield {"event": "plan", "data": {
+                        "action": "plan_confirmation",
+                        "plan": {**plan, "statusView": project_plan(plan)},
+                    }}
                 else:
                     yield {"event": "error", "data": {"message": "规划没有生成可确认计划"}}
             except Exception as error:  # noqa: BLE001 - mirrors the old SSE fallback
@@ -922,10 +1005,13 @@ class AgentPlatform:
                     yield {"event": "error", "data": {"message": str(error)}}
                 else:
                     emitted_plan = True
+                    from .status_view import project_plan
+
                     yield {
                         "event": "plan",
                         "data": {
-                            "action": "plan_confirmation", "plan": plan,
+                            "action": "plan_confirmation",
+                            "plan": {**plan, "statusView": project_plan(plan)},
                             "warning": "在线规划服务暂不可用，已使用内置确定性规划。",
                         },
                     }
@@ -1044,6 +1130,9 @@ class AgentPlatform:
                 if self._context_fingerprint(refreshed_context) != expected_fingerprint:
                     raise ValueError("素材证据或编辑状态已变化，原计划已过期；请重新规划后确认")
             plan["threadId"] = self._plan_thread_id(plan)
+            plan["deadlineAt"] = (datetime.now(timezone.utc) + timedelta(
+                seconds=self.plan_deadline_seconds,
+            )).isoformat()
             plan["status"] = "approved"
             plan["approval"] = {
                 "approvedAt": now_iso(), "planHash": expected_hash,
@@ -1065,13 +1154,14 @@ class AgentPlatform:
             })
             plan["runId"] = run["id"]
             plan["status"] = "running"
-            plan = self.store.save("plans", plan)
+            plan = self.store.save_with_events("plans", plan, [
+                (workspace["id"], "plan.approved", {"planId": plan_id, "runId": run["id"]}),
+            ])
             workspace.update({
                 "status": "running", "activePlanId": plan_id,
                 "executionMode": str(plan.get("executionMode") or STEPWISE_REVIEW),
             })
             self.store.save("workspaces", workspace)
-            self.store.append_event(workspace["id"], "plan.approved", {"planId": plan_id, "runId": run["id"]})
         self._notify_workspace_state(workspace, plan)
         self._kick_plan(plan_id)
         return self.store.get("plans", plan_id) or plan
@@ -1092,13 +1182,20 @@ class AgentPlatform:
             for step in plan["steps"]:
                 if step["status"] in {"pending", "running", "waiting_operation", "action_required"}:
                     step["status"] = "cancelled"
-            plan = self.store.save("plans", plan)
+            plan = self.store.save_with_events("plans", plan, [
+                (plan["workspaceId"], "plan.cancelled", {"planId": plan_id}),
+            ])
             workspace = self.store.get("workspaces", str(plan["workspaceId"]))
             if workspace:
                 workspace["status"] = "cancelled"
                 workspace = self.store.save("workspaces", workspace)
-            self.store.append_event(plan["workspaceId"], "plan.cancelled", {"planId": plan_id})
         self._cancel_plan_operations(plan_id)
+        for record in self.store.list_operations(
+            predicate=lambda item: str(item.get("planId") or "") == plan_id
+            and str(item.get("status") or "") == "running",
+        ):
+            record.update({"status": "cancelled", "completedAt": now_iso()})
+            self.store.save_operation(record)
         if workspace:
             self._notify_workspace_state(workspace, plan)
         return plan
@@ -1163,10 +1260,11 @@ class AgentPlatform:
                 })
             plan["status"] = "running"
             plan["actionResolutionReceipts"] = [*(plan.get("actionResolutionReceipts") or []), receipt][-64:]
-            plan = self.store.save("plans", plan)
-            self.store.append_event(plan["workspaceId"], "action.resolved", {
-                "planId": plan_id, "stepId": step["id"], "approved": True,
-            })
+            plan = self.store.save_with_events("plans", plan, [
+                (plan["workspaceId"], "action.resolved", {
+                    "planId": plan_id, "stepId": step["id"], "approved": True,
+                }),
+            ])
             if workspace:
                 self._notify_workspace_state(workspace, plan)
         self._kick_plan(plan_id)
@@ -1556,11 +1654,12 @@ class AgentPlatform:
                 "action": "structured_review",
             }
             current["status"] = "action_required"
-            self.store.save("plans", current)
-            self.store.append_event(current["workspaceId"], "action.required", {
-                "planId": current["id"], "step": current_step,
-                "reason": "该步骤需要结构化用户确认",
-            })
+            self.store.save_with_events("plans", current, [
+                (current["workspaceId"], "action.required", {
+                    "planId": current["id"], "step": current_step,
+                    "reason": "该步骤需要结构化用户确认",
+                }),
+            ])
             workspace = self.store.get("workspaces", str(current["workspaceId"]))
             if workspace:
                 self._notify_workspace_state(workspace, current)
@@ -1578,10 +1677,11 @@ class AgentPlatform:
                 return ""
             current_step["status"] = "running"
             current_step["attempts"] = int(current_step.get("attempts") or 0) + 1
-            current = self.store.save("plans", current)
-            self.store.append_event(current["workspaceId"], "step.started", {
-                "planId": plan_id, "step": current_step,
-            })
+            current = self.store.save_with_events("plans", current, [
+                (current["workspaceId"], "step.started", {
+                    "planId": plan_id, "step": current_step,
+                }),
+            ])
             workspace = self.store.get("workspaces", str(current["workspaceId"]))
             if workspace:
                 self._notify_workspace_state(workspace, current)
@@ -1623,6 +1723,17 @@ class AgentPlatform:
                     "operationId": operation_id,
                 }
                 self.store.save("plans", refreshed)
+                self.store.save_operation({
+                    "operationId": operation_id, "planId": plan_id, "stepId": step_id,
+                    "workspaceId": str(refreshed.get("workspaceId") or ""),
+                    "jobId": str((workspace or {}).get("jobId") or ""),
+                    "worker": str(current_step.get("tool") or ""),
+                    "planRevision": int(refreshed.get("revision") or 1),
+                    "inputHash": content_hash(json.dumps(
+                        current_step.get("arguments") or {}, sort_keys=True, ensure_ascii=False,
+                    )),
+                    "status": "running",
+                })
                 self._notify_workspace_state(workspace or {}, refreshed)
             future.add_done_callback(
                 lambda completed: self._graph_driver.submit(
@@ -1656,10 +1767,12 @@ class AgentPlatform:
                 return
         if future.cancelled():
             outcome = {"apply": True, "status": "failed", "error": "后台操作已取消"}
+            journal_status = "cancelled"
         else:
             error = future.exception()
             if error is not None:
                 outcome = {"apply": True, "status": "failed", "error": str(error)}
+                journal_status = "failed"
             else:
                 # Preserve durable handoff information from dispatch and merge any
                 # artifact produced by the worker (for example a QC report).
@@ -1668,7 +1781,43 @@ class AgentPlatform:
                     "apply": True, "status": "completed",
                     "result": completed_result if isinstance(completed_result, dict) else {},
                 }
-        self._deliver_operation_outcome(plan_id, outcome)
+                journal_status = "completed"
+        late = self._settle_operation_journal(plan_id, operation_id, journal_status, outcome)
+        if not late:
+            self._deliver_operation_outcome(plan_id, outcome)
+
+    def _settle_operation_journal(
+        self, plan_id: str, operation_id: str, status: str, outcome: dict[str, Any],
+    ) -> bool:
+        """Record the durable terminal state of one background operation.
+
+        Late completions (plan already terminal, revision mismatch or the step
+        moved on) are journaled as ``late`` and never applied to the plan.
+        """
+        record = self.store.get_operation(operation_id)
+        if not record or str(record.get("status") or "") != "running":
+            return False
+        plan = self.store.get("plans", plan_id) or {}
+        result_payload = outcome.get("result") if isinstance(outcome.get("result"), dict) else {}
+        result_hash = content_hash(json.dumps(
+            result_payload, ensure_ascii=False, sort_keys=True, default=str,
+        )) if result_payload else ""
+        late = (
+            str(plan.get("status") or "") in TERMINAL_PLAN_STATUSES
+            or int(plan.get("revision") or 1) != int(record.get("planRevision") or 1)
+        )
+        record.update({
+            "status": "late" if late else status,
+            "resultHash": result_hash,
+            "error": str(outcome.get("error") or "")[:2000],
+            "completedAt": now_iso(),
+        })
+        self.store.save_operation(record)
+        if late:
+            LOGGER.warning(
+                "后台操作 %s 在计划 %s 终止后完成，结果未应用", operation_id, plan_id,
+            )
+        return late
 
     def _deliver_operation_outcome(self, plan_id: str, outcome: dict[str, Any]) -> None:
         """Resume the graph thread parked at the operation gate with an outcome."""
@@ -1712,6 +1861,12 @@ class AgentPlatform:
                 return
             attempt = int(step.get("attempts") or 0)
             operation_id = str(step.get("operationId") or "")
+        journal = self.store.get_operation(str(step.get("operationId") or ""))
+        if journal and int(journal.get("planRevision") or 1) != int((plan or {}).get("revision") or 1):
+            LOGGER.warning(
+                "后台操作 %s 的计划版本不匹配，结果未应用", journal.get("operationId"),
+            )
+            return
         prior_result = step.get("result") if isinstance(step.get("result"), dict) else {}
         completed_payload = outcome.get("result") if isinstance(outcome.get("result"), dict) else {}
         merged = {**prior_result, **completed_payload, "operationCompleted": True}
@@ -1875,10 +2030,11 @@ class AgentPlatform:
                             "blockedByReason": terminal_reason,
                             "blockedByMessage": terminal_message,
                         })
-            self.store.save("plans", plan)
-            self.store.append_event(plan["workspaceId"], f"step.{status}", {
-                "planId": plan_id, "step": step,
-            })
+            self.store.save_with_events("plans", plan, [
+                (plan["workspaceId"], f"step.{status}", {
+                    "planId": plan_id, "step": step,
+                }),
+            ])
             workspace = self.store.get("workspaces", str(plan["workspaceId"]))
             if workspace:
                 self._notify_workspace_state(workspace, plan)
@@ -2058,7 +2214,14 @@ class AgentPlatform:
             return
         plan["status"] = status
         plan["completedAt"] = now_iso()
-        self.store.save("plans", plan)
+        terminal_event = {
+            "preview_ready": "preview.ready",
+            "no_result": "plan.no_result",
+            "cancelled": "plan.cancelled",
+        }.get(status, "plan.failed")
+        self.store.save_with_events("plans", plan, [
+            (plan["workspaceId"], terminal_event, {"planId": plan["id"]}),
+        ])
         # Bound per-plan lock growth; late callbacks re-acquire through a
         # fresh lock and are rejected by the terminal status guards anyway.
         with self._execution_lock:
@@ -2068,6 +2231,7 @@ class AgentPlatform:
             run = self.store.get("runs", run_id)
             if run:
                 run.update({"status": status, "completedAt": now_iso()})
+                run.update(self._run_trace(plan, status))
                 self.store.save("runs", run)
         workspace = self.store.get("workspaces", plan["workspaceId"])
         if workspace:
@@ -2088,12 +2252,6 @@ class AgentPlatform:
             messages.append({"id": result_id, "role": "assistant", "kind": "plan_result", "planId": plan["id"], "text": result_text, "createdAt": now_iso()})
             workspace["messages"] = messages
             workspace = self.store.save("workspaces", workspace)
-        event_type = {
-            "preview_ready": "preview.ready",
-            "no_result": "plan.no_result",
-            "cancelled": "plan.cancelled",
-        }.get(status, "plan.failed")
-        self.store.append_event(plan["workspaceId"], event_type, {"planId": plan["id"]})
         if workspace:
             self._notify_workspace_state(workspace, plan)
         if status in {"failed", "no_result", "cancelled"}:
@@ -2122,6 +2280,30 @@ class AgentPlatform:
             )
         )
         return True
+
+    def recover_operation_journal(self) -> int:
+        """Settle operation records orphaned by a restart.
+
+        A record still ``running`` whose plan is terminal was cancelled or
+        finished after cancellation; a record whose plan no longer exists is
+        unknowable. Anything else waits for ``recover_completed_operations``
+        or the re-adopted Future.
+        """
+        settled = 0
+        for record in self.store.list_operations(
+            predicate=lambda item: str(item.get("status") or "") == "running",
+        ):
+            plan = self.store.get("plans", str(record.get("planId") or ""))
+            if plan is None:
+                final = "unknown"
+            elif str(plan.get("status") or "") in TERMINAL_PLAN_STATUSES:
+                final = "cancelled"
+            else:
+                continue
+            record.update({"status": final, "completedAt": now_iso()})
+            self.store.save_operation(record)
+            settled += 1
+        return settled
 
     def recover_completed_operations(self) -> int:
         """Settle Agent steps whose durable media operation finished while detached."""

@@ -20,7 +20,7 @@ from app.agent import AgentPlatform
 from app.agent import planner as planner_module
 from app.agent.planner import AgentPlannerError
 
-SECRET_KEY = "sk-audit-secret-DO-NOT-PERSIST-0123456789"
+SECRET_KEY = "FAKEKEY-audit-sentinel-DO-NOT-PERSIST-98765"
 
 SKILL = """---
 name: test-editor

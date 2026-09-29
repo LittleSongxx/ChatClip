@@ -125,6 +125,8 @@ class Settings:
     agent_base_url: str
     agent_thinking_type: str
     agent_timeout_seconds: float
+    agent_plan_deadline_seconds: float
+    agent_max_messages_per_10min: int
     anthropic_base_url: str
     anthropic_auth_token: str
     anthropic_model: str
@@ -210,6 +212,8 @@ class Settings:
             agent_base_url=(os.environ.get("AGENT_BASE_URL", "").strip() or DEFAULT_AGENT_BASE_URL).rstrip("/"),
             agent_thinking_type=os.environ.get("AGENT_THINKING_TYPE", "enabled").strip().lower(),
             agent_timeout_seconds=_positive_float("AGENT_TIMEOUT_SECONDS", 120.0),
+            agent_plan_deadline_seconds=_positive_float("CHATCLIP_AGENT_PLAN_DEADLINE_SECONDS", 3600.0),
+            agent_max_messages_per_10min=_bounded_positive_int("CHATCLIP_AGENT_MAX_MESSAGES_PER_10MIN", 30, 1000),
             anthropic_base_url=os.environ.get("ANTHROPIC_BASE_URL", "").strip().rstrip("/"),
             anthropic_auth_token=os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip(),
             anthropic_model=os.environ.get("ANTHROPIC_MODEL", "").strip(),

@@ -40,6 +40,14 @@ LIMITATION_PATTERN = re.compile(
     r"无法|不能|不支持|冲突|不足|没有|未找到|需要|限制|no match|unsupported|constraint",
     re.IGNORECASE,
 )
+# Infrastructure failures must never be accepted as an honest product
+# limitation or a graceful no-match: model/provider outage, timeout, quota.
+SYSTEM_ERROR_PATTERN = re.compile(
+    r"api key|401|403|429|timeout|超时|temporarily|暂时不可用|unavailable|"
+    r"connection|network|网络|provider|模型服务|quota|配额|rate limit|"
+    r"tool calling|未配置|not configured",
+    re.IGNORECASE,
+)
 SEVERITY_ORDER = {"error": 0, "warning": 1, "info": 2}
 
 
@@ -381,9 +389,19 @@ def evaluate_terminal_state(
             recommendation="沿失败步骤检查候选、时间线应用和审核渲染链路。",
         )
     elif expected == "graceful_no_match":
-        graceful = status == "no_result" or (
-            status == "failed" and bool(NO_MATCH_PATTERN.search(error_text))
+        system_error = bool(SYSTEM_ERROR_PATTERN.search(error_text))
+        graceful = not system_error and (
+            status == "no_result" or (
+                status == "failed" and bool(NO_MATCH_PATTERN.search(error_text))
+            )
         )
+        if system_error:
+            add_issue(
+                issues, "error", "execution.system_error", "execution",
+                "无结果状态由系统/模型故障导致，不能计为诚实的无匹配。",
+                evidence={"planStatus": status, "error": error_text},
+                recommendation="区分 no-match 与系统故障：模型不可用应报系统错误而非业务无结果。",
+            )
         if not graceful:
             add_issue(
                 issues, "error", "execution.no_match_not_graceful", "execution",
@@ -399,9 +417,19 @@ def evaluate_terminal_state(
                 recommendation="候选为空时不得应用空时间线或用无关片段补足目标时长。",
             )
     elif expected == "preview_or_clear_limitation":
-        clear_failure = status == "no_result" or (
-            status == "failed" and bool(LIMITATION_PATTERN.search(error_text))
+        system_error = bool(SYSTEM_ERROR_PATTERN.search(error_text))
+        clear_failure = not system_error and (
+            status == "no_result" or (
+                status == "failed" and bool(LIMITATION_PATTERN.search(error_text))
+            )
         )
+        if system_error:
+            add_issue(
+                issues, "error", "execution.system_error", "execution",
+                "复杂约束场景的失败来自系统/模型故障，不能计为明确限制说明。",
+                evidence={"planStatus": status, "error": error_text},
+                recommendation="先恢复模型服务再评估；系统故障不得伪装成产品限制。",
+            )
         if status != "preview_ready" and not clear_failure:
             add_issue(
                 issues, "error", "execution.constraint_unresolved", "execution",
@@ -1200,10 +1228,31 @@ def main(argv: list[str] | None = None) -> int:
         warnings = sum(value.get("severity") == "warning" for value in all_issues)
         info = sum(value.get("severity") == "info" for value in all_issues)
         passed_cases = sum(bool(item.get("passed")) for item in report["scenarios"])
+        outcome_counts: dict[str, int] = {}
+        system_error_cases = 0
+        unexpected_confirmation = 0
+        durations: list[float] = []
+        for item in report["scenarios"]:
+            outcome_counts[str(item.get("outcome") or "unknown")] = (
+                outcome_counts.get(str(item.get("outcome") or "unknown"), 0) + 1
+            )
+            issue_codes = {str(issue.get("code") or "") for issue in item.get("issues") or []}
+            system_error_cases += "execution.system_error" in issue_codes
+            unexpected_confirmation += "execution.unexpected_confirmation" in issue_codes
+            for value in item.get("transitions") or []:
+                spent = finite_number((value or {}).get("elapsedSeconds"))
+                if spent is not None:
+                    durations.append(spent)
+        durations.sort()
         report["summary"] = {
             "total": len(report["scenarios"]), "passed": passed_cases,
             "failed": len(report["scenarios"]) - passed_cases,
             "errors": errors, "warnings": warnings, "info": info,
+            "outcomes": outcome_counts,
+            "systemErrors": system_error_cases,
+            "unexpectedConfirmations": unexpected_confirmation,
+            "wallSecondsMedian": durations[len(durations) // 2] if durations else None,
+            "wallSecondsMax": durations[-1] if durations else None,
         }
         report["passed"] = errors == 0 and not (args.fail_on_warning and warnings > 0)
         output_dir.mkdir(parents=True, exist_ok=True)
